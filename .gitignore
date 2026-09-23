@@ -1,0 +1,14 @@
+# MATLAB
+*.asv
+*.autosave
+*.slxc
+*.mexw64
+*.mexa64
+*.mexmaci64
+slprj/
+*.mat
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
