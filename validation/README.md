@@ -199,8 +199,8 @@ independent calculation to 1e-16, and the default design drop is 30 kPa.
 speed scaling, and the flow it settles to against a resistance, both at the plant header
 and on a substation branch.
 
-**Reference.** Karassik et al., *Pump Handbook*, 4th ed. (2008), and the affinity laws in
-ANSI/HI 9.6.7.
+**Reference.** Karassik et al., *Pump Handbook*, 4th ed. (2008), and Gülich, *Centrifugal Pumps*,
+2nd ed. (2010), for the affinity laws.
 
 **Expected output.** The head is the rated shut-off value at zero flow and zero at the
 run-out flow. At speed $s$ the curve obeys $H(sQ, s) = s^2 H(Q, 1)$. Against a quadratic
@@ -286,7 +286,7 @@ $\mathrm{Re} = 4\times10^3$. At the Moody point the formula gives 0.02234 agains
 pipe.
 
 **Reference.** Crane Co., *Flow of Fluids Through Valves, Fittings, and Pipe*, Technical
-Paper 410 (2013), which gives a standard tee an equivalent length of 20 diameters as a run
+Paper 410 (2009), which gives a standard tee an equivalent length of 20 diameters as a run
 and 60 diameters as a branch. Idelchik, *Handbook of Hydraulic Resistance* (2007), is a
 qualitative cross-check on the ordering.
 
@@ -477,10 +477,10 @@ standalone `heatExchanger()` function exactly.
 - Todini, E. and Pilati, S. A gradient algorithm for the analysis of pipe networks. In *Computer Applications in Water Supply*, Wiley, 1988.
 - Larock, B.E., Jeppson, R.W. and Watters, G.Z. *Hydraulics of Pipeline Systems.* CRC Press, 2000.
 - IEC 60534-2-1 and ISA-75.01.01. Control valve flow coefficient. IEC 60534-2-4. Inherent flow characteristics.
-- Crane Co. *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper 410, 2013.
+- Crane Co. *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper 410, metric ed., 2009.
 - Idelchik, I.E. *Handbook of Hydraulic Resistance*, 4th ed., Begell House, 2007.
 - Karassik, I.J., Messina, J.P., Cooper, P. and Heald, C.C. (eds.) *Pump Handbook*, 4th ed., McGraw-Hill, 2008.
-- Hydraulic Institute. ANSI/HI 9.6.7. Effects of liquid viscosity on rotodynamic pump performance.
+- Gülich, J.F. *Centrifugal Pumps*, 2nd ed., Springer, 2010.
 - Volk, M. *Pump Characteristics and Applications*, 3rd ed., CRC Press, 2013.
 - Frederiksen, S. and Werner, S. *District Heating and Cooling.* Studentlitteratur, 2013.
 - Duffie, J.A. and Beckman, W.A. *Solar Engineering of Thermal Processes*, 4th ed., Wiley, 2013.

@@ -12,8 +12,8 @@ plant.supplyPump.attachController(c3);        % central pump
 plant.attachFiringController(c4);             % burner firing
 ```
 
-Three laws are supplied: `PID`, `LQR` and `Relay`. You can add your own, for example a
-model predictive controller, by subclassing `Controller`.
+Four laws are supplied: `PID`, `LQR`, `Relay` and `Callback`, which wraps a function handle. You
+can add your own, for example a model predictive controller, by subclassing `Controller`.
 
 ## The interface
 
@@ -108,6 +108,21 @@ command in between (Åström and Hägglund, Sec. 7.4).
 With `Relay(0.5)` and a setpoint of 21 degC, successive measurements of 19.0, 20.4, 21.0,
 21.6, 21.0, 20.4 and 20.0 give the commands 1, 1, 1, 0, 0, 1 and 1. Because the second reading of
 21.0 lies inside the dead band, the command stays at 0.
+
+## Callback
+
+`Callback` turns a function handle into a controller, so a custom law can be attached to a
+valve, a pump or the burner without writing a class. The handle receives the measurement,
+the setpoint, the step in seconds and the `aux` structure, and returns the command, which is
+clamped to `[uMin, uMax]`.
+
+| Function | Inputs | Output or effect |
+|---|---|---|
+| `Callback(fcn)` or `Callback(fcn, 'resetFcn',@() ..., 'uMin',.., 'uMax',..)` | `fcn(meas, ref, dt, aux)` returning `u`; optional function called before each run to clear any state the handle keeps | A controller that calls `fcn` at every step. |
+
+```matlab
+hx.valve.attachController( DHS.controllers.Callback(@(y, r, dt, aux) 0.4*(r - y)) );
+```
 
 ## Comparing laws on one building
 

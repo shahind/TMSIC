@@ -151,7 +151,7 @@ only; the return-side mirror is a plain junction.
 ### Centrifugal pump
 
 The head–flow curve is a parabola, and speed scaling follows the affinity laws
-(Karassik et al., *Pump Handbook*; ANSI/HI 9.6.7):
+(Karassik et al., *Pump Handbook*; Gülich, *Centrifugal Pumps*):
 
 $$H(\dot m, s) = s^2\,\Delta p_0 - \Delta p_0\,\frac{\dot m^2}{\dot m_\text{max}^2}.$$
 

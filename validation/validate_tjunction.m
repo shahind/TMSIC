@@ -12,7 +12,7 @@ function V = validate_tjunction(plotMode)
 %                  own friction factor barely moves with Re there).
 %
 %   TEST CASE + REFERENCE
-%     Crane Co. (2013) "Flow of Fluids Through Valves, Fittings, and Pipe",
+%     Crane Co. (2009) "Flow of Fluids Through Valves, Fittings, and Pipe",
 %     Technical Paper No. 410, Crane Co. -- Section on resistance coefficients
 %     for pipe fittings: a standard tee has an equivalent length, in pipe
 %     diameters, of 20 used as a straight run and 60 used as a branch (the

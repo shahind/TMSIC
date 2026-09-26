@@ -1,97 +1,123 @@
 # References
 
 The sources below support the equations and default parameter values used in the toolbox.
-Each entry states what the toolbox takes from it. The validation report
-([`../validation/README.md`](../validation/README.md)) lists the sources used to check each
-component.
+Each entry states what the toolbox takes from it. DOIs were checked against Crossref. Where
+a source has no DOI, the entry gives the publisher or project page, or the ISBN. The
+validation report ([`../validation/README.md`](../validation/README.md)) lists the sources
+used to check each component.
 
 ## Building RC thermal modelling
 
 - EN ISO 13790:2008. *Energy performance of buildings: calculation of energy use for space
-  heating and cooling.* Annex C gives the 5R1C hourly method, the wall R/2–C–R/2 element
-  and the mass-surface coupling.
-- EN ISO 52016-1:2017. Successor to ISO 13790, with an hourly dynamic method.
+  heating and cooling.* Annex C gives the 5R1C hourly method, the wall R/2–C–R/2 element and
+  the mass-surface coupling. <https://www.iso.org/standard/41974.html>
+- EN ISO 52016-1:2017. *Energy performance of buildings: energy needs for heating and
+  cooling, internal temperatures and sensible and latent heat loads. Part 1: Calculation
+  procedures.* Successor to ISO 13790, with an hourly dynamic method.
+  <https://www.iso.org/standard/65696.html>
 - Bacher, P. and Madsen, H. (2011). Identifying suitable models for the heat dynamics of
   buildings. *Energy and Buildings* 43(7), 1511–1522. Grey-box model order selection and
-  typical building time constants.
-- Michalak, P. (2022). A thermal network model for the dynamic simulation of the energy
-  performance of buildings with a time varying ventilation flow. *Energies* 15, 3709.
-- Reynders, G., Diriken, J. and Saelens, D. (2014). Quality of grey-box models and
-  identified parameters as function of the accuracy of input and observation signals.
-  *Energy and Buildings* 82, 263–274. Building time constants of 20 to 100 h.
-- ASHRAE Handbook: Fundamentals (2021). Chapter 18 (nonresidential cooling and heating
-  load calculations) for internal-gain densities, radiant fractions and areal heat
-  capacities. Chapters 25 to 27 for envelope heat transfer.
+  typical building time constants. DOI: [10.1016/j.enbuild.2011.02.005](https://doi.org/10.1016/j.enbuild.2011.02.005)
+- Michalak, P. (2019). A thermal network model for the dynamic simulation of the energy
+  performance of buildings with the time varying ventilation flow. *Energy and Buildings*
+  202, 109337. DOI: [10.1016/j.enbuild.2019.109337](https://doi.org/10.1016/j.enbuild.2019.109337)
+- Michalak, P. (2022). Thermal network model for an assessment of summer indoor comfort in a
+  naturally ventilated residential building. *Energies* 15(10), 3709.
+  DOI: [10.3390/en15103709](https://doi.org/10.3390/en15103709)
+- Reynders, G., Diriken, J. and Saelens, D. (2014). Quality of grey-box models and identified
+  parameters as function of the accuracy of input and observation signals. *Energy and
+  Buildings* 82, 263–274. Building time constants of 20 to 100 h.
+  DOI: [10.1016/j.enbuild.2014.07.025](https://doi.org/10.1016/j.enbuild.2014.07.025)
+- ASHRAE Handbook: Fundamentals (2021). Chapter 18 (nonresidential cooling and heating load
+  calculations) for internal-gain densities, radiant fractions and areal heat capacities.
+  Chapters 25 to 27 for envelope heat transfer. <https://www.ashrae.org/technical-resources/ashrae-handbook>
 
 ## Energy codes and schedules
 
 - ANSI/ASHRAE/IES Standard 90.1-2019. *Energy standard for buildings except low-rise
   residential buildings.* Appendix G baseline, climate zone 5 envelope values, setback
   (Section 6.4.3.4), and occupancy, lighting and receptacle schedules.
+  <https://www.ashrae.org/technical-resources/bookstore/standard-90-1>
 - National Energy Code of Canada for Buildings (NECB) 2020. Envelope values and operating
   schedules for cold Canadian climates. Kelowna is in climate zone 5.
+  <https://nrc.canada.ca/en/certifications-evaluations-standards/codes-canada/codes-canada-publications/national-energy-code-canada-buildings-2020>
 - ANSI/ASHRAE Standard 62.1. Ventilation rates for offices and classrooms.
+  <https://www.ashrae.org/technical-resources/standards-and-guidelines>
 - CIBSE Guide H (2009). *Building control systems.* Section 3, optimal start and pre-heat.
+  ISBN 978-1-906846-00-8. <https://www.cibse.org/knowledge-research/knowledge-portal/guide-h-building-control-systems-2009>
 
 ## Heat exchangers
 
-- Incropera, F.P. and DeWitt, D.P. *Fundamentals of Heat and Mass Transfer*, 6th ed.,
+- Incropera, F.P. and DeWitt, D.P. (2007). *Fundamentals of Heat and Mass Transfer*, 6th ed.,
   Wiley. Section 11.4, the effectiveness–NTU method and the counterflow relation.
+  ISBN 978-0-471-45728-2.
 - Kays, W.M. and London, A.L. (1984). *Compact Heat Exchangers*, 3rd ed., McGraw-Hill.
-- VDI Heat Atlas (2010), Springer. Plate heat exchanger correlations.
-- ESDU 86018. Design of plate heat exchangers.
+  ISBN 978-0-07-033418-2.
+- VDI Heat Atlas (2010), 2nd ed., Springer. Plate heat exchanger correlations.
+  DOI: [10.1007/978-3-540-77877-6](https://doi.org/10.1007/978-3-540-77877-6)
+- ESDU 86018. Design of plate heat exchangers. <https://www.esdu.com>
 
 ## Hydraulics
 
-- Swamee, P.K. and Jain, A.K. (1976). Explicit equations for pipe-flow problems.
-  *Journal of the Hydraulics Division, ASCE* 102(5), 657–664. The explicit friction factor.
+- Swamee, P.K. and Jain, A.K. (1976). Explicit equations for pipe-flow problems. *Journal of
+  the Hydraulics Division, ASCE* 102(5), 657–664. The explicit friction factor.
+  DOI: [10.1061/JYCEAJ.0004542](https://doi.org/10.1061/JYCEAJ.0004542)
 - Colebrook, C.F. (1939). Turbulent flow in pipes, with particular reference to the
   transition region between the smooth and rough pipe laws. *Journal of the Institution of
-  Civil Engineers* 11, 133–156.
+  Civil Engineers* 11(4), 133–156. DOI: [10.1680/ijoti.1939.13150](https://doi.org/10.1680/ijoti.1939.13150)
 - Brkić, D. (2011). Review of explicit approximations to the Colebrook relation for flow
   friction. *Journal of Petroleum Science and Engineering* 77(1), 34–48.
-- Todini, E. and Pilati, S. (1988). A gradient algorithm for the analysis of pipe networks.
-  In *Computer Applications in Water Supply*, Wiley. The global gradient algorithm behind
-  EPANET.
-- Rossman, L.A. (2000). *EPANET 2 users manual.* US Environmental Protection Agency.
-- Larock, B.E., Jeppson, R.W. and Watters, G.Z. (2000). *Hydraulics of Pipeline Systems.*
-  CRC Press.
-- IEC 60534-2-1. Control valve sizing, the flow coefficient $K_v$. IEC 60534-2-4, inherent
-  flow characteristics (linear and equal-percentage).
-- Crane Co. (2013). *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper
-  No. 410. The equivalent-length method for fitting losses. The toolbox uses the standard
-  tee values of 20 diameters (run) and 60 diameters (branch).
+  DOI: [10.1016/j.petrol.2011.02.006](https://doi.org/10.1016/j.petrol.2011.02.006)
+- Todini, E. and Pilati, S. (1988). A gradient algorithm for the analysis of pipe networks. In
+  *Computer Applications in Water Supply*, Wiley. The global gradient algorithm behind EPANET.
+  (No DOI.)
+- Rossman, L.A. (2000). *EPANET 2 users manual.* US Environmental Protection Agency,
+  EPA/600/R-00/057. <https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1007WWU.TXT>
+- Larock, B.E., Jeppson, R.W. and Watters, G.Z. (2000). *Hydraulics of Pipeline Systems.* CRC
+  Press. DOI: [10.1201/9781420050318](https://doi.org/10.1201/9781420050318)
+- IEC 60534-2-1:2011. *Industrial-process control valves. Part 2-1: Flow capacity. Sizing
+  equations for fluid flow under installed conditions.* The flow coefficient $K_v$. IEC 60534-2-4
+  covers the inherent flow characteristics (linear, equal-percentage).
+  <https://webstore.iec.ch/en/publication/2461>
+- Crane Co. (2009). *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper
+  No. 410, metric ed. ISBN 978-1-4005-2712-0. The equivalent-length method for fitting
+  losses. The toolbox uses the standard tee values of 20 diameters (run) and 60 diameters
+  (branch). <https://tp410.com/>
 - Idelchik, I.E. (2007). *Handbook of Hydraulic Resistance*, 4th ed., Begell House. Tee and
   branch loss-coefficient tables (Diagram 7-29), used as a qualitative cross-check.
+  DOI: [10.1615/978-1-56700-251-5.0](https://doi.org/10.1615/978-1-56700-251-5.0)
 
 ## Pumps
 
 - Karassik, I.J., Messina, J.P., Cooper, P. and Heald, C.C. (eds.) (2008). *Pump Handbook*,
   4th ed., McGraw-Hill. Chapter 2, centrifugal pump affinity laws. Chapter 9, rotary and
-  positive-displacement pumps.
-- Hydraulic Institute. ANSI/HI 9.6.7. Effects of liquid viscosity on rotodynamic pump
-  performance. The affinity-law reference for `CentrifugalPump` speed scaling.
-- Gülich, J.F. (2010). *Centrifugal Pumps*, 2nd ed., Springer.
+  positive-displacement pumps. ISBN 978-0-07-146044-6.
+- Gülich, J.F. (2010). *Centrifugal Pumps*, 2nd ed., Springer. Similarity (affinity) laws and
+  the quadratic head–flow curve used by `CentrifugalPump`.
+  DOI: [10.1007/978-3-642-12824-0](https://doi.org/10.1007/978-3-642-12824-0)
 - Volk, M. (2013). *Pump Characteristics and Applications*, 3rd ed., CRC Press. Chapter 9,
   the idealised positive-displacement pump curve used by `FixedDisplacementPump`.
+  DOI: [10.1201/b15559](https://doi.org/10.1201/b15559)
 
 ## District heating
 
 - Frederiksen, S. and Werner, S. (2013). *District Heating and Cooling.* Studentlitteratur.
   Temperature levels, distribution pressures and velocities, pump curves and substation
-  layouts. The 20 to 60 kPa primary-side design pressure drop of a plate exchanger, used
-  for `HeatExchanger.dpNomPrimary`.
+  layouts. The 20 to 60 kPa primary-side design pressure drop of a plate exchanger, used for
+  `HeatExchanger.dpNomPrimary`. ISBN 978-91-44-08530-2.
 - IEA DHC (International Energy Agency, District Heating and Cooling programme), Annex TS
   reports. Low-temperature design ranges and pre-insulated pipe heat loss
-  ($U' \approx 0.2$ to $0.4$ W/(m·K)).
+  ($U' \approx 0.2$ to $0.4$ W/(m·K)). <https://www.iea-dhc.org/>
 - Euroheat and Power (2008). *Guidelines for district heating substations.*
+  <https://www.euroheat.org/>
 - Logstor and Uponor pre-insulated pipe product data, for pipe conductivity and $U'$.
 
 ## Boilers and plant
 
 - ASHRAE Handbook: HVAC Systems and Equipment (2020). Chapter 32 (boilers) and Chapter 13
-  (hydronic heating and cooling).
-- AHRI Standard 1500. *Performance rating of commercial space heating boilers.*
+  (hydronic heating and cooling). <https://www.ashrae.org/technical-resources/ashrae-handbook>
+- ANSI/AHRI Standard 1500. *Performance rating of commercial space heating boilers.*
+  <https://www.ahrinet.org/search-standards/ahri-1500-i-p-performance-rating-commercial-space-heating-boilers>
 - Manufacturer part-load efficiency curves against return-water temperature (for example
   Viessmann Vitocrossal and Buderus SB series), for the condensing-boiler $\eta(T_\text{return})$.
 
@@ -99,33 +125,51 @@ component.
 
 - Duffie, J.A. and Beckman, W.A. (2013). *Solar Engineering of Thermal Processes*, 4th ed.,
   Wiley. Solar position, angle of incidence (Eq. 1.6.2) and plane-of-array transposition
-  (Eq. 2.15.1).
+  (Eq. 2.15.1). DOI: [10.1002/9781118671603](https://doi.org/10.1002/9781118671603)
 - Liu, B.Y.H. and Jordan, R.C. (1963). The long-term average performance of flat-plate
   solar-energy collectors. *Solar Energy* 7(2), 53–74. The isotropic sky model.
-- Perez, R. et al. (1990). Modeling daylight availability and irradiance components from
-  direct and global irradiance. *Solar Energy* 44(5). An anisotropic sky model, not
-  implemented.
+  DOI: [10.1016/0038-092X(63)90006-9](https://doi.org/10.1016/0038-092X(63)90006-9)
+- Perez, R., Ineichen, P., Seals, R., Michalsky, J. and Stewart, R. (1990). Modeling daylight
+  availability and irradiance components from direct and global irradiance. *Solar Energy*
+  44(5), 271–289. An anisotropic sky model, not implemented.
+  DOI: [10.1016/0038-092X(90)90055-H](https://doi.org/10.1016/0038-092X(90)90055-H)
 
 ## Ground temperature
 
 - Kusuda, T. and Achenbach, P.R. (1965). Earth temperature and thermal diffusivity at
-  selected stations in the United States. *ASHRAE Transactions* 71(1), 61–75.
+  selected stations in the United States. *ASHRAE Transactions* 71(1), 61–75. (No DOI.)
 
 ## Control
 
-- Åström, K.J. and Hägglund, T. (2006). *Advanced PID Control.* ISA. Parallel form,
-  filtered derivative, back-calculation anti-windup, relay feedback and lambda tuning.
-- Åström, K.J. and Murray, R.M. (2008). *Feedback Systems: An Introduction for Scientists
-  and Engineers.* Princeton University Press.
+- Åström, K.J. and Hägglund, T. (2006). *Advanced PID Control.* ISA. Parallel form, filtered
+  derivative, back-calculation anti-windup, relay feedback and lambda tuning.
+  ISBN 978-1-55617-942-6.
+- Åström, K.J. and Murray, R.M. (2008). *Feedback Systems: An Introduction for Scientists and
+  Engineers.* Princeton University Press. DOI: [10.1515/9781400828739](https://doi.org/10.1515/9781400828739)
 - Franklin, G.F., Powell, J.D. and Emami-Naeini, A. (2019). *Feedback Control of Dynamic
   Systems*, 8th ed., Pearson. LQR (Section 7.9), integral control (Section 9.4) and exact
-  zero-order-hold discretisation.
+  zero-order-hold discretisation. ISBN 978-0-13-468571-7.
 - Anderson, B.D.O. and Moore, J.B. (1990). *Optimal Control: Linear Quadratic Methods.*
-  Prentice-Hall.
+  Prentice-Hall; reprinted by Dover (2007), ISBN 978-0-486-45766-6.
+- Kristensen, N.R., Madsen, H. and Jørgensen, S.B. (2004). Parameter estimation in stochastic
+  grey-box models. *Automatica* 40(2), 225–237.
+  DOI: [10.1016/j.automatica.2003.10.001](https://doi.org/10.1016/j.automatica.2003.10.001)
+
+## Related tools
+
+- BRCM Toolbox: Sturzenegger, D., Gyalistras, D., Semeraro, V., Morari, M. and Smith, R.S.
+  (2014). BRCM Matlab Toolbox: model generation for model predictive building control. *Proc.
+  American Control Conference*, 1063–1069.
+  DOI: [10.1109/ACC.2014.6858967](https://doi.org/10.1109/ACC.2014.6858967)
+- EnergyPlus. U.S. Department of Energy. <https://energyplus.net>
+- Wetter, M., Zuo, W., Nouidui, T.S. and Pang, X. (2014). Modelica Buildings library.
+  *Journal of Building Performance Simulation* 7(4), 253–270.
+  DOI: [10.1080/19401493.2013.765506](https://doi.org/10.1080/19401493.2013.765506)
+- DHNx, district heating network optimisation and simulation. <https://github.com/oemof/DHNx>
 
 ## Data sources
 
-- Solcast. Modelled irradiance time series (`solar_data_2025.csv`).
+- Solcast. Modelled irradiance time series (`solar_data_2025.csv`). <https://solcast.com>
 - Environment and Climate Change Canada. Historical climate data,
   <https://climate.weather.gc.ca/>. Station 51117, Kelowna UBCO (climate ID 1123996),
   hourly observations for 2025.

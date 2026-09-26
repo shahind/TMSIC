@@ -203,6 +203,17 @@ function test_pid_positional_and_relay(tc)
     verifyEqual(tc, r.update(0,-1.0, 1), 0);
 end
 
+function test_callback_controller(tc)
+    c = DHS.controllers.Callback(@(y, r, dt, aux) 0.5*(r - y));
+    verifyEqual(tc, c.update(19, 21, 60), 1);           % 0.5*2 = 1
+    verifyEqual(tc, c.update(20.5, 21, 60), 0.25, 'AbsTol', 1e-12);
+    verifyEqual(tc, c.update(25, 21, 60), 0);            % clamped to uMin
+    v = DHS.Hydraulic.Valve('V');
+    v.attachController(c);                               % accepted like any controller
+    verifyEqual(tc, v.controller, c);
+    verifyError(tc, @() DHS.controllers.Callback(5), 'DHS:controllers:Callback:fcn');
+end
+
 % ================= multi-zone example =================
 function test_multizone_campus_runs_and_closes(tc)
     sys = DHS.examples.campus_multizone();

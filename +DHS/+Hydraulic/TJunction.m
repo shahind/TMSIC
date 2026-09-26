@@ -18,7 +18,7 @@ classdef TJunction < DHS.Hydraulic.Junction
 %     hn.addPipe(tee, building.inlet);          % second = the branch
 %
 %   LOSS MODEL  Crane Technical Paper 410, "Flow of Fluids Through Valves,
-%   Fittings, and Pipe" (Crane Co., 2013 ed.), Table on resistance coefficients
+%   Fittings, and Pipe" (Crane Co., 2009 metric ed.), Table on resistance coefficients
 %   for pipe fittings: a standard tee has an equivalent length, in pipe
 %   diameters, of 20 used as a straight run and 60 used as a branch. Combined
 %   with the same Darcy-Weisbach / Swamee-Jain friction factor DHS.Hydraulic.Pipe

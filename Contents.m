@@ -28,6 +28,7 @@
 %   DHS.controllers.PID        - discrete PID, filtered derivative, anti-windup
 %   DHS.controllers.LQR        - integral-augmented discrete LQR
 %   DHS.controllers.Relay      - on/off
+%   DHS.controllers.Callback   - a custom law given as a function handle
 %
 % Examples (examples/)
 %   RCBS_example                    - build a 7-zone building, draw its schematic
