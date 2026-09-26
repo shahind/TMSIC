@@ -4,10 +4,8 @@ classdef CentrifugalPump < DHS.Hydraulic.Pump
 %
 %       head(mdot, s) = s^2 * dp0  -  dp0 * mdot^2 / mdotMax^2        [Pa]
 %
-%   The standard first model of a centrifugal circulator (Karassik et al.,
-%   "Pump Handbook", 4th ed., McGraw-Hill, 2008; Gulich, "Centrifugal Pumps",
-%   2nd ed., Springer, 2010, Ch. 4). Speed scaling follows the pump affinity
-%   laws (similarity laws, Gulich Ch. 3): head(s*Q, s) = s^2 * head(Q, 1).
+%   The standard first model of a centrifugal circulator. Speed scaling follows
+%   the pump affinity laws: head(s*Q, s) = s^2 * head(Q, 1).
 %
 %   PROPERTIES (SI, in addition to DHS.Hydraulic.Pump)
 %     dp0       [Pa]    shut-off head (mdot = 0)

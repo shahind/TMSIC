@@ -14,9 +14,7 @@ function V = validate_rc_zone(plotMode)
 %   ANALYTICAL REFERENCE  (lumped-capacitance / Newtonian cooling)
 %       C dT/dt = (T_out - T)/R + Q
 %       T(t) = T_inf + (T0 - T_inf) exp(-t / (R C)) ,   T_inf = T_out + Q R
-%     Incropera & DeWitt, "Fundamentals of Heat and Mass Transfer", 6th ed.,
-%     Sec. 5.1-5.3 (the lumped capacitance method); EN ISO 13790:2008 Annex C.
-%     The time constant tau = R*C and the steady state T_inf = T_out + Q*R are
+%     (the lumped capacitance method). The time constant tau = R*C and the steady state T_inf = T_out + Q*R are
 %     exact for this ODE.
 %
 %   WHY THIS TEST IS GOOD

@@ -16,8 +16,6 @@ classdef LQR < DHS.controllers.Controller
 %       u  = clamp( Qh / uMaxW , 0, 1 )
 %   with conditional anti-windup on xi when u saturates.
 %
-%   Refs: Anderson & Moore (1990); Franklin, Powell & Emami-Naeini (2019) Sec.7.9, 9.
-%
 %   USAGE
 %     [sysc, io] = building.rcBuilding.simulation.getStateSpace();
 %     c = DHS.controllers.LQR(sysc, struct('io',io,'Ts',60,'uMaxW',8e5, ...

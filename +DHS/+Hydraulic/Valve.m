@@ -3,7 +3,7 @@ classdef Valve < handle
 %
 %       Q [m3/h] = Kv * sqrt(dp [bar])      ->  K = 1e5*3600^2 / (Kv^2 * rho^2)
 %       Kv(pos)  = Kvs * pos                         ('linear')
-%       Kv(pos)  = Kvs * rangeability^(pos-1)        ('eqpct', IEC 60534 default)
+%       Kv(pos)  = Kvs * rangeability^(pos-1)        ('eqpct', default)
 %
 %   Its position can be held fixed or driven by a controller:
 %       valve.attachController( DHS.controllers.PID(...) )

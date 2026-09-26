@@ -44,7 +44,7 @@ wx.albedo = 0.46   wx.Tout = 0.7   wx.Tground = 2.5   (degC)
 ## Solar gain
 
 `DHS.Solar` computes the irradiance on each facade with the isotropic sky model of Liu and
-Jordan (Duffie and Beckman, *Solar Engineering of Thermal Processes*, 4th ed.):
+Jordan [36](references.md#r36), as presented by Duffie and Beckman [35](references.md#r35):
 
 $$I = I_\text{DNI}\max(0,\cos\theta) + I_\text{DHI}\,\frac{1+\cos\beta}{2} + I_\text{GHI}\,\rho\,\frac{1-\cos\beta}{2}.$$
 

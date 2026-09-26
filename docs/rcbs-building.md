@@ -31,7 +31,7 @@ $$\dot{\mathbf x} = \mathbf A\,\mathbf x + \mathbf B\,\mathbf u,\qquad
 \mathbf u = [\,T_{\text{out}};\,Q_1;\,\dots;\,Q_N\,].$$
 
 **Elements.** A wall or roof of total resistance $R$ and lumped capacity $C$ is a
-three-resistor, two-capacitor T-network in the sense of EN ISO 13790 and EN ISO 52016-1.
+three-resistor, two-capacitor T-network in the sense of EN ISO 13790 and EN ISO 52016-1 [1](references.md#r1), [2](references.md#r2).
 Its mass sits on one internal node, joined to the zone air by $R/2$ and to the outdoor
 boundary by $R/2$. A window is a single conductance from the air node to the outdoor
 boundary and has no state. Internal mass is one node tied to the air node by a

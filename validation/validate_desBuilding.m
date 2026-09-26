@@ -19,8 +19,7 @@ function V = validate_desBuilding(plotMode)
 %         At equilibrium the first law of the zone reads
 %             Q_delivered + Q_internal = (UA_env + G_vent) * (T_zone - T_out)
 %         and the loop must hold  T_zone ~ setpoint.  (Steady-state energy
-%         balance; ASHRAE Handbook-Fundamentals Ch. 18-19; the HX itself is
-%         validated separately in validate_heat_exchanger, the network in
+%         balance; the HX itself is validated separately in validate_heat_exchanger, the network in
 %         validate_hydraulic_network.)
 %     (2) MULTI-ZONE HEAT-SPLIT CONSERVATION.  For a multi-zone DHS.Building the
 %         per-zone delivered heat  Q_del,z = Q_del_total * w_z / sum(w_z)  with

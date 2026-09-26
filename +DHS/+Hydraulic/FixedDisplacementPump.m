@@ -7,9 +7,7 @@ classdef FixedDisplacementPump < DHS.Hydraulic.Pump
 %   delivers a flow set by its speed and displacement, essentially regardless of
 %   the downstream resistance, until the required head would exceed the unit's
 %   working-pressure limit -- at that point an internal relief valve opens and
-%   caps the head, and the flow drops below the commanded value (any general
-%   pump-fundamentals reference, e.g. Karassik et al., "Pump Handbook", 4th ed.,
-%   McGraw-Hill, 2008, Ch. 9 "Rotary Pumps"):
+%   caps the head, and the flow drops below the commanded value:
 %
 %       mdot = min( frac*mdotRated , sqrt(max(0,(dpMax+dpAvailable))/Kbranch) )
 %

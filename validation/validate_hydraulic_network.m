@@ -9,12 +9,7 @@ function V = validate_hydraulic_network(plotMode)
 %   TEST CASE + REFERENCE
 %     Steady incompressible pipe-network hydraulics: continuity (sum of flows
 %     into a junction = sum out; the hydraulic analogue of Kirchhoff's current
-%     law) and the loop pressure equation  dp = K*Q^2  per branch. General
-%     method: Todini, E. & Pilati, S. (1988) "A gradient algorithm for the
-%     analysis of pipe networks", in "Computer Applications in Water Supply",
-%     Wiley (the global-gradient method behind EPANET); Larock, B.E., Jeppson,
-%     R.W. & Watters, G.Z. (2000) "Hydraulics of Pipeline Systems", CRC Press,
-%     Ch. 5-6.
+%     law) and the loop pressure equation  dp = K*Q^2  per branch.
 %
 %   Sub-cases:
 %     A  CONTINUITY: for the assembled 3-building tree, sum(branch mdot) equals

@@ -18,11 +18,7 @@ function V = validate_wall_tnetwork(plotMode)
 %
 %   REFERENCE
 %     The R/2 - C - R/2 T-network is the standard lumped model of a single
-%     homogeneous wall layer: EN ISO 13790:2008 Annex C; EN ISO 52016-1:2017;
-%     Davies, M.G. (2004) "Building Heat Transfer", Wiley, Ch. 10-12;
-%     Bacher, P. & Madsen, H. (2011) "Identifying suitable models for the heat
-%     dynamics of buildings", Energy & Buildings 43(7), 1511-1522. ode45
-%     (Dormand-Prince 4(5)) at RelTol 1e-10 is the reference integrator.
+%     homogeneous wall layer. ode45 (Dormand-Prince 4(5)) at RelTol 1e-10 is the reference integrator.
 %
 %   WHY THIS TEST IS GOOD
 %     addWall must (a) split R_total into two halves, (b) create the mid node

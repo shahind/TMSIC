@@ -22,8 +22,7 @@ $$T_b^+ = \frac{(C_w/\Delta t)\,T_b + \eta\,\dot Q_\text{gas} + \dot C_B\,T_{rh}
 
 $$T_\text{sup}^+ = \frac{(C_{w,sh}/\Delta t)\,T_\text{sup} + \dot C_B\,T_b^+}{C_{w,sh}/\Delta t + \dot C_B}.$$
 
-The efficiency of a condensing boiler rises as the return water cools (ASHRAE, *HVAC
-Systems and Equipment*, 2020, Ch. 32). `Boiler.etaOf` uses a supplied curve or the line
+The efficiency of a condensing boiler rises as the return water cools ([32](references.md#r32)). `Boiler.etaOf` uses a supplied curve or the line
 
 $$\eta(T_\text{ret}) = \mathrm{clip}\big(\eta_\text{ref} - \sigma\,(T_\text{ret} - T_{\eta,\text{ref}}),\ \eta_\text{min},\ \eta_\text{max}\big),$$
 

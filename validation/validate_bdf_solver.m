@@ -19,13 +19,9 @@ function V = validate_bdf_solver(plotMode)
 %         for a constant-coefficient RC network.
 %
 %   REFERENCE
-%     Backward (implicit) Euler is a first-order A-stable one-step method:
-%     Hairer, E., Norsett, S.P. & Wanner, G. (1993) "Solving Ordinary
-%     Differential Equations I", Springer, Sec. II.7; LeVeque, R.J. (2007)
-%     "Finite Difference Methods for Ordinary and Partial Differential
-%     Equations", SIAM, Ch. 5-6. The ZOH exact discretisation x_{k+1} =
-%     e^{A dt} x_k + A^{-1}(e^{A dt}-I) B u_k is standard (Franklin, Powell &
-%     Workman, "Digital Control of Dynamic Systems").
+%     Backward (implicit) Euler is a first-order A-stable one-step method. The
+%     ZOH exact discretisation x_{k+1} = e^{A dt} x_k + A^{-1}(e^{A dt}-I) B u_k
+%     is the standard comparison.
 %
 %   WHY THIS TEST IS GOOD
 %     The order test proves the time integrator is implemented correctly (a

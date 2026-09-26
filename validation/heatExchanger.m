@@ -23,8 +23,7 @@ function [Qdel, TretPrimary, TretSecondary] = heatExchanger(mdotPrimary, TsupPri
 %     TretPrimary   primary return-water temperature = TsupPrimary - Qdel/(mdot_p*cp) [degC]
 %     TretSecondary secondary supply-water temperature = TsecIn + Qdel/CdotSec [degC]
 %
-%   METHOD -- effectiveness-NTU, counterflow (Incropera & DeWitt, "Fundamentals
-%   of Heat and Mass Transfer", 6th ed., Sec. 11.4; also VDI Heat Atlas):
+%   METHOD -- effectiveness-NTU, counterflow :
 %     Cdot_p = mdot_p*cp ;  Cmin = min(Cdot_p, Cdot_s) ;  Cr = Cmin/Cmax
 %     NTU    = UA / Cmin
 %     eps    = (1 - exp(-NTU(1-Cr))) / (1 - Cr exp(-NTU(1-Cr)))     (Cr < 1)

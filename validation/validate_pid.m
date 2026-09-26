@@ -6,11 +6,7 @@ function V = validate_pid(plotMode)
 %
 %   TEST CASE + REFERENCE
 %     Plant:  first-order  G(s) = K/(tau s + 1)  (an RC zone: dT/dt = (-T + K u)/tau).
-%     PI controller tuned by INTERNAL MODEL CONTROL / lambda tuning
-%     (Rivera, D.E., Morari, M. & Skogestad, S. (1986) "Internal model control:
-%     PID controller design", Ind. Eng. Chem. Process Des. Dev. 25(1):252-265;
-%     Skogestad, S. (2003) "Simple analytic rules for model reduction and PID
-%     controller tuning", J. Process Control 13(4):291-309):
+%     PI controller tuned by INTERNAL MODEL CONTROL / lambda tuning:
 %         Ti = tau ,   Kp = tau / (K * lambda)
 %     With Ti = tau the controller zero cancels the plant pole, and the
 %     closed-loop transfer function is EXACTLY first order:

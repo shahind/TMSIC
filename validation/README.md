@@ -25,7 +25,7 @@ relative check:  |measured - expected| / |expected|      <= tolerance
 ```
 
 The tolerances follow the known accuracy of the method being tested. For example, the
-Swamee–Jain friction factor is an approximation with a published error of about 3 percent,
+Swamee–Jain friction factor is an approximation with a published error of about 3 percent [18](../docs/references.md#r18),
 so its tolerance is 3.5 percent. No tolerance was widened to make a check pass.
 
 **All 18 checks pass.**
@@ -71,8 +71,8 @@ Where the two agree, the coloured line covers the grey one.
 temperature response, its time constant, its steady state under a constant heat input, and
 the order of accuracy of its solver.
 
-**Reference.** The lumped-capacitance solution in Incropera and DeWitt, *Fundamentals of
-Heat and Mass Transfer* (Sections 5.1 to 5.3), and EN ISO 13790:2008, Annex C.
+**Reference.** The lumped-capacitance solution of Incropera and DeWitt [12](../docs/references.md#r12) (Sections 5.1 to 5.3)
+and EN ISO 13790:2008 [1](../docs/references.md#r1).
 
 **Expected output.** The zone temperature decays exponentially, $T(t) = T_\infty + (T_0 - T_\infty)e^{-t/RC}$.
 The time constant recovered from the simulated curve equals $RC$ to within the solver's
@@ -92,8 +92,8 @@ with a 5 s step. A time constant of 2415 s is recovered against an expected 2400
 wall.
 
 **Reference.** A numerical solution of the same equations by MATLAB's `ode45` with a
-relative tolerance of 1e-10. The element model follows EN ISO 13790, Annex C, EN ISO
-52016-1 and Bacher and Madsen (2011).
+relative tolerance of 1e-10. The element model follows EN ISO 13790 [1](../docs/references.md#r1), EN ISO
+52016-1 [2](../docs/references.md#r2) and Bacher and Madsen [3](../docs/references.md#r3).
 
 **Expected output.** Over a two-day run, the zone air temperature and the wall mid-layer
 temperature follow the `ode45` solution. The amplitude of the day–night temperature swing
@@ -112,7 +112,7 @@ the wall. Steady-periodic amplitude is 0.542245 °C against 0.542263 °C.
 floor slab.
 
 **Reference.** An `ode45` solution for the transient and the closed-form steady state of
-the same resistor network (ASHRAE *Handbook: Fundamentals*, Chapter 18).
+the same resistor network (ASHRAE *Handbook: Fundamentals* [7](../docs/references.md#r7)).
 
 **Expected output.** The simulated transient follows `ode45`. At steady state the heated
 zone is at 37.727 °C and the coupled zone at 17.273 °C, and the slab mid-point sits at the
@@ -131,7 +131,7 @@ cached sparse factorisation.
 
 **Reference.** The convergence theory of backward Euler, a plain dense solve that
 serves as reference implementation, and the exact zero-order-hold discretisation (Franklin,
-Powell and Emami-Naeini, *Feedback Control of Dynamic Systems*).
+Powell and Emami-Naeini [41](../docs/references.md#r41)).
 
 **Expected output.** Halving the step halves the error (order 1). The cached solver
 matches the dense reference to numerical precision and differs from the exact discretisation
@@ -150,8 +150,8 @@ machine precision.
 several zones: conservation of energy, and the overall heat-loss conductance.
 
 **Reference.** The first law of thermodynamics, which a constant-coefficient RC network
-satisfies exactly, and the whole-building conductance $UA = \sum 1/R$ (EN ISO 13790; ASHRAE
-*Handbook: Fundamentals*, Chapter 25).
+satisfies exactly, and the whole-building conductance $UA = \sum 1/R$ (EN ISO 13790 [1](../docs/references.md#r1); ASHRAE
+*Handbook: Fundamentals* [7](../docs/references.md#r7)).
 
 **Expected output.** The heat supplied equals the heat stored plus the heat lost to the
 outdoors, at every time. At steady state, $Q/(T_\text{zone} - T_\text{out})$ equals the sum
@@ -174,8 +174,8 @@ for a 2×2 multi-zone layout. Measured conductance is 128.333 W/K against an ana
 it transfers, and the pressure drop it and its valve add to the network branch.
 
 **Reference.** The effectiveness–NTU relation for a counterflow exchanger (Incropera and
-DeWitt, Section 11.4), the IEC 60534 valve equation, and the 20 to 60 kPa design pressure
-drop reported by Frederiksen and Werner, *District Heating and Cooling* (2013).
+DeWitt [12](../docs/references.md#r12), Section 11.4), the IEC 60534 valve equation [22](../docs/references.md#r22), and the 20 to 60 kPa design pressure
+drop reported by Frederiksen and Werner [28](../docs/references.md#r28).
 
 **Expected output.** The delivered heat equals the closed-form value at a general operating
 point and in three limits: a very large secondary flow, equal capacity rates, and a very
@@ -199,8 +199,7 @@ independent calculation to 1e-16, and the default design drop is 30 kPa.
 speed scaling, and the flow it settles to against a resistance, both at the plant header
 and on a substation branch.
 
-**Reference.** Karassik et al., *Pump Handbook*, 4th ed. (2008), and Gülich, *Centrifugal Pumps*,
-2nd ed. (2010), for the affinity laws.
+**Reference.** Karassik et al. [25](../docs/references.md#r25) and Gülich [26](../docs/references.md#r26) for the affinity laws.
 
 **Expected output.** The head is the rated shut-off value at zero flow and zero at the
 run-out flow. At speed $s$ the curve obeys $H(sQ, s) = s^2 H(Q, 1)$. Against a quadratic
@@ -221,8 +220,7 @@ intersection to 2e-16. Branch flow and head balance agree to 6e-16.
 **What it validates.** The gear, screw or piston pump. Unlike a centrifugal pump, it
 delivers a flow set by its speed almost regardless of pressure, until a relief valve opens.
 
-**Reference.** Karassik et al., Chapter 9, and Volk, *Pump Characteristics and
-Applications*, 3rd ed. (2013), Chapter 9.
+**Reference.** Karassik et al. [25](../docs/references.md#r25) (Chapter 9) and Volk [27](../docs/references.md#r27) (Chapter 9).
 
 **Expected output.** Against a low resistance the flow equals the commanded rate. Against a
 high resistance the relief valve holds the pressure at its limit and the flow falls to
@@ -243,8 +241,8 @@ moves the flow by 0.99 % of the rated value). Speed scaling and the speed floor 
 **What it validates.** The valve that regulates flow into each building: its flow-coefficient
 equation and its linear and equal-percentage travel characteristics.
 
-**Reference.** IEC 60534-2-1 and ISA-75.01.01 for the flow coefficient $K_v$, and IEC
-60534-2-4 for the inherent characteristics.
+**Reference.** IEC 60534-2-1 [22](../docs/references.md#r22) for the flow coefficient $K_v$, and IEC
+60534-2-4 (same entry) for the inherent characteristics.
 
 **Expected output.** The rated $K_v$ can be recovered from the valve's own pressure-drop
 equation. The equal-percentage characteristic follows $K_v/K_{vs} = R^{\text{pos}-1}$ and the
@@ -264,17 +262,17 @@ curved than the inherent one.
 **What it validates.** The pressure loss of a pipe, which depends on the friction factor. The
 toolbox uses the explicit Swamee–Jain formula.
 
-**Reference.** The implicit Colebrook–White equation (Colebrook, 1939), solved here by
-Newton iteration; Swamee and Jain (1976); Brkić (2011) for the accuracy of the
-approximation; and a reference point on the Moody chart.
+**Reference.** The implicit Colebrook–White equation (Colebrook [17](../docs/references.md#r17)), solved here by
+Newton iteration; Swamee and Jain [16](../docs/references.md#r16); Brkić [18](../docs/references.md#r18) for the accuracy of the
+approximation; and a tabulated reference point.
 
 **Expected output.** Over the turbulent range the explicit formula stays within its known
-3 percent of Colebrook–White. It matches the Moody chart at $\mathrm{Re} = 10^5$ and
+3 percent of Colebrook–White. It matches the tabulated value at $\mathrm{Re} = 10^5$ and
 $\varepsilon/D = 10^{-3}$. Below the transition it reduces to $f = 64/\mathrm{Re}$. The
 resistance computed by the pipe equals the Darcy–Weisbach pressure drop.
 
 **Component output.** The largest deviation from Colebrook–White is 3.1 %, near
-$\mathrm{Re} = 4\times10^3$. At the Moody point the formula gives 0.02234 against 0.0222 (0.6 %). Laminar values are exact, and resistance agrees with Darcy–Weisbach to 4e-16.
+$\mathrm{Re} = 4\times10^3$. At the tabulated point the formula gives 0.02234 against 0.0222 (0.6 %). Laminar values are exact, and resistance agrees with Darcy–Weisbach to 4e-16.
 
 ### 2.6 T-junction
 
@@ -285,12 +283,11 @@ $\mathrm{Re} = 4\times10^3$. At the Moody point the formula gives 0.02234 agains
 **What it validates.** The pressure loss of a T-fitting where a service pipe leaves the main
 pipe.
 
-**Reference.** Crane Co., *Flow of Fluids Through Valves, Fittings, and Pipe*, Technical
-Paper 410 (2009), which gives a standard tee an equivalent length of 20 diameters as a run
-and 60 diameters as a branch. Idelchik, *Handbook of Hydraulic Resistance* (2007), is a
+**Reference.** Crane Technical Paper 410 [23](../docs/references.md#r23), which gives a standard tee an equivalent length of 20 diameters as a run
+and 60 diameters as a branch. Idelchik [24](../docs/references.md#r24) is a
 qualitative cross-check on the ordering.
 
-**Expected output.** The run and branch coefficients equal the Crane expressions. At equal
+**Expected output.** The run and branch coefficients equal the equivalent-length expressions. At equal
 diameters the branch coefficient is exactly three times the run coefficient, since
 60 / 20 = 3. A pipe leaving the tee picks up the loss of the port it is wired to, and a pipe
 with no tee picks up none. In a network, a tee lowers the flow by the amount the loss
@@ -311,8 +308,7 @@ point of the network, including the interaction between buildings.
 
 **Reference.** Conservation of mass at every junction (the hydraulic counterpart of
 Kirchhoff's current law) and the pressure–flow relation of each pipe. The method follows
-Todini and Pilati (1988), the basis of EPANET, and Larock, Jeppson and Watters, *Hydraulics
-of Pipeline Systems* (2000).
+Todini and Pilati [19](../docs/references.md#r19), the basis of EPANET [20](../docs/references.md#r20), and Larock, Jeppson and Watters [21](../docs/references.md#r21).
 
 **Expected output.** The flow into each junction equals the flow out. Two identical parallel
 branches carry equal flow. A single branch settles at the intersection of the pump curve and
@@ -336,8 +332,8 @@ branch.
 
 **What it validates.** The discrete PID controller used on valves, pumps and the burner.
 
-**Reference.** The IMC (lambda) tuning rule of Åström and Hägglund, *Advanced PID Control*
-(2006), which makes the closed loop an exact first-order response.
+**Reference.** The IMC (lambda) tuning rule of Åström and Hägglund [39](../docs/references.md#r39),
+which makes the closed loop an exact first-order response.
 
 **Expected output.** Tuned for a first-order plant, the closed loop follows $1 - e^{-t/\lambda}$
 after a setpoint step. The steady-state error is zero for a setpoint step and for a constant
@@ -355,8 +351,8 @@ leaves the limit within one sample, which shows that the anti-windup works.
 **What it validates.** The integral-augmented linear–quadratic regulator: its gain, the
 stability of the closed loop, and its offset-free tracking.
 
-**Reference.** Franklin, Powell and Emami-Naeini, *Feedback Control of Dynamic Systems*, and
-Anderson and Moore, *Optimal Control: Linear Quadratic Methods*.
+**Reference.** Franklin, Powell and Emami-Naeini [41](../docs/references.md#r41), and
+Anderson and Moore [42](../docs/references.md#r42).
 
 **Expected output.** The gain equals the one an independent `dlqr` call gives for the same
 weights. With the integral weight reduced to zero, it approaches the gain of a plain LQR.
@@ -380,8 +376,8 @@ Tracking and disturbance errors are 3e-13.
 **What it validates.** The plant's water-temperature dynamics, its energy balance, its
 high-limit safety cutout and its condensing-boiler efficiency curve.
 
-**Reference.** ASHRAE *Handbook: HVAC Systems and Equipment* (2020), Chapter 32, and AHRI
-Standard 1500.
+**Reference.** ASHRAE *Handbook: HVAC Systems and Equipment* [32](../docs/references.md#r32) and AHRI
+Standard 1500 [33](../docs/references.md#r33).
 
 **Expected output.** After a step in firing, the boiler water follows a first-order response.
 At steady state, the fuel input balances the heat carried to the network plus the fixed
@@ -400,8 +396,8 @@ Steady-state balance closes to 3e-9. In every case the cutout holds, and the eff
 **What it validates.** The conversion of horizontal irradiance into the irradiance on a wall
 or window of any orientation.
 
-**Reference.** Duffie and Beckman, *Solar Engineering of Thermal Processes*, 4th ed. (2013),
-and the isotropic sky model of Liu and Jordan.
+**Reference.** Duffie and Beckman [35](../docs/references.md#r35)
+and the isotropic sky model of Liu and Jordan [36](../docs/references.md#r36).
 
 **Expected output.** Simple geometry gives exact answers in limiting cases: direct beam from
 a low southern sun scales with the sine of the zenith angle; diffuse sky irradiance on a
@@ -423,8 +419,8 @@ split equals the specified fraction.
 **What it validates.** The occupancy, setpoint and internal-gain schedule, including the
 optimal-start ramp.
 
-**Reference.** The specified rules, taken from ASHRAE Standard 90.1-2019 Appendix G, the
-National Energy Code of Canada for Buildings (2020) and CIBSE Guide H, Section 3.
+**Reference.** The specified rules, taken from ASHRAE Standard 90.1-2019 Appendix G [8](../docs/references.md#r8), the
+National Energy Code of Canada for Buildings (2020) [9](../docs/references.md#r9) and CIBSE Guide H, Section 3 [11](../docs/references.md#r11).
 
 **Expected output.** Occupied hours, the weekend override and the occupied and setback
 setpoints follow the specification exactly. The ramp before occupancy is linear with slope
@@ -447,8 +443,8 @@ occupancy.
 **What it validates.** A `DHS.Building` inside a complete district heating system (plant,
 pipes, valve and substation), run for 48 hours (about ten time constants) from a Monday start with constant weather, for a single zone and for several zones.
 
-**Reference.** The steady-state zone heat balance (ASHRAE *Handbook: Fundamentals*,
-Chapters 18 and 19): delivered heat plus internal gain equals the loss through the
+**Reference.** The steady-state zone heat balance (ASHRAE *Handbook: Fundamentals*
+[7](../docs/references.md#r7)): delivered heat plus internal gain equals the loss through the
 envelope and ventilation.
 
 **Expected output.** At equilibrium the zone temperature is at its setpoint and the delivered heat equals the steady zone heat balance, $(UA + G_	ext{vent})(T_	ext{set} - T_	ext{out}) - Q_	ext{int}$, which is 52 kW for the test building. The valve is at a partial opening, neither shut nor fully open, so it has authority to regulate. For a
@@ -462,28 +458,4 @@ standalone `heatExchanger()` function exactly.
 
 ## References
 
-- Incropera, F.P. and DeWitt, D.P. *Fundamentals of Heat and Mass Transfer*, 6th ed., Wiley, 2007.
-- EN ISO 13790:2008. *Energy performance of buildings: calculation of energy use for space heating and cooling.*
-- EN ISO 52016-1:2017. *Energy performance of buildings: energy needs for heating and cooling, internal temperatures and sensible and latent heat loads.*
-- Bacher, P. and Madsen, H. Identifying suitable models for the heat dynamics of buildings. *Energy and Buildings* 43(7), 2011.
-- ASHRAE Handbook: Fundamentals, 2021. ASHRAE Handbook: HVAC Systems and Equipment, 2020.
-- AHRI Standard 1500. *Performance rating of commercial space heating boilers.*
-- Franklin, G.F., Powell, J.D. and Emami-Naeini, A. *Feedback Control of Dynamic Systems.*
-- Anderson, B.D.O. and Moore, J.B. *Optimal Control: Linear Quadratic Methods.* Prentice-Hall, 1990.
-- Åström, K.J. and Hägglund, T. *Advanced PID Control.* ISA, 2006.
-- Colebrook, C.F. Turbulent flow in pipes. *Journal of the Institution of Civil Engineers* 11, 1939.
-- Swamee, P.K. and Jain, A.K. Explicit equations for pipe-flow problems. *Journal of the Hydraulics Division, ASCE* 102(5), 1976.
-- Brkić, D. Review of explicit approximations to the Colebrook relation for flow friction. *Journal of Petroleum Science and Engineering* 77(1), 2011.
-- Todini, E. and Pilati, S. A gradient algorithm for the analysis of pipe networks. In *Computer Applications in Water Supply*, Wiley, 1988.
-- Larock, B.E., Jeppson, R.W. and Watters, G.Z. *Hydraulics of Pipeline Systems.* CRC Press, 2000.
-- IEC 60534-2-1 and ISA-75.01.01. Control valve flow coefficient. IEC 60534-2-4. Inherent flow characteristics.
-- Crane Co. *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper 410, metric ed., 2009.
-- Idelchik, I.E. *Handbook of Hydraulic Resistance*, 4th ed., Begell House, 2007.
-- Karassik, I.J., Messina, J.P., Cooper, P. and Heald, C.C. (eds.) *Pump Handbook*, 4th ed., McGraw-Hill, 2008.
-- Gülich, J.F. *Centrifugal Pumps*, 2nd ed., Springer, 2010.
-- Volk, M. *Pump Characteristics and Applications*, 3rd ed., CRC Press, 2013.
-- Frederiksen, S. and Werner, S. *District Heating and Cooling.* Studentlitteratur, 2013.
-- Duffie, J.A. and Beckman, W.A. *Solar Engineering of Thermal Processes*, 4th ed., Wiley, 2013.
-- ANSI/ASHRAE/IES Standard 90.1-2019, Appendix G.
-- National Energy Code of Canada for Buildings (NECB), 2020.
-- CIBSE Guide H. *Building control systems*, 2009.
+The numbered sources cited above are listed, with DOIs and links, in [`docs/references.md`](../docs/references.md).

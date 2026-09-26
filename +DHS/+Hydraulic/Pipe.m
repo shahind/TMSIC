@@ -1,7 +1,7 @@
 classdef Pipe < handle
 % DHS.HYDRAULIC.PIPE  A run of buried pre-insulated pipe between two hydraulic nodes.
 %
-%   Hydraulics : Darcy-Weisbach with the Swamee-Jain (1976) explicit friction
+%   Hydraulics : Darcy-Weisbach with the Swamee-Jain explicit friction
 %                factor.  dp = K(mdot) * mdot^2 ,  K = f*L / (D * 2*rho * A^2).
 %   Heat loss  : steady  Q_loss = UperM * L * (T_water - T_ground)  [W], applied
 %                by the network as a transport temperature drop.

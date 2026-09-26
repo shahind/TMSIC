@@ -24,10 +24,7 @@ function V = validate_interzone_slab(plotMode)
 %
 %   REFERENCE
 %     The T-network for an interior partition / slab is the same lumped element
-%     as a wall layer (EN ISO 13790 Annex C; Davies (2004) "Building Heat
-%     Transfer", Ch. 12; Clarke, J.A. (2001) "Energy Simulation in Building
-%     Design", 2nd ed., Butterworth-Heinemann, Sec. 3). Multi-zone conduction
-%     coupling: ASHRAE Handbook-Fundamentals (2021) Ch. 18.
+%     as a wall layer.
 %
 %   WHY THIS TEST IS GOOD
 %     It exercises the part of RCBS that was newly extended: the mid node must be

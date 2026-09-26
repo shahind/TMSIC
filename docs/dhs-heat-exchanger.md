@@ -8,8 +8,7 @@ building's branch. You create it with `building.addHeatExchanger(name, ...)`.
 ## Model
 
 **Heat transfer.** The exchanger is a counterflow unit described by the
-effectiveness–NTU method (Incropera and DeWitt, *Fundamentals of Heat and Mass Transfer*,
-6th ed., Sec. 11.4). With $\dot C_p = \dot m_p c_p$ on the primary side, $\dot C_s =
+effectiveness–NTU method (Incropera and DeWitt [12](references.md#r12)). With $\dot C_p = \dot m_p c_p$ on the primary side, $\dot C_s =
 \dot m_{s,\text{nom}}c_p$ on the secondary side, $\dot C_{\min} = \min(\dot C_p,\dot C_s)$,
 $C_r = \dot C_{\min}/\dot C_{\max}$ and $\mathrm{NTU} = UA/\dot C_{\min}$, the effectiveness is
 
@@ -21,10 +20,9 @@ to the substation's capacity $\dot Q_\text{cap}$ and prevented from reversing:
 $$\dot Q = \mathrm{clip}\big(\varepsilon\,\dot C_{\min}(T_{p,\text{in}}-T_{s,\text{in}}),\,0,\,\dot Q_\text{cap}\big),\qquad
 T_{p,\text{out}} = T_{p,\text{in}} - \dot Q/\dot C_p .$$
 
-**Pressure loss.** The primary side loses pressure in the valve (IEC 60534, see
+**Pressure loss.** The primary side loses pressure in the valve (see
 [the hydraulics page](dhs-hydraulic.md)) and in the exchanger body. A manufacturer quotes
-the body loss as a design pressure drop at a design flow. Frederiksen and Werner (*District
-Heating and Cooling*, 2013) give 20 to 60 kPa as a typical primary-side design drop for a
+the body loss as a design pressure drop at a design flow. Frederiksen and Werner [28](references.md#r28) give 20 to 60 kPa as a typical primary-side design drop for a
 plate exchanger in a district heating substation. The toolbox takes the same two numbers,
 `dpNomPrimary` and `mdotNomPrimary`, and computes
 

@@ -17,10 +17,7 @@ function V = validate_lqr(plotMode)
 %            the same Q, R  (the integral state decouples cleanly);
 %       (1c) for the continuous double integrator  A = [0 1; 0 0], B = [0; 1]
 %            (a mass with force input) with Q = diag(q, 0), R = r, the
-%            infinite-horizon LQR gain has the CLOSED FORM (Anderson, B.D.O. &
-%            Moore, J.B. (1990) "Optimal Control: Linear Quadratic Methods",
-%            Prentice-Hall, Sec. 3; Bryson & Ho (1975) "Applied Optimal
-%            Control", Sec. 5):
+%            infinite-horizon LQR gain has the CLOSED FORM:
 %                K = [ sqrt(q/r) ,  sqrt( 2 sqrt(q/r) ) ]
 %            A continuous-cost-consistent discrete design (Qd = Q*Ts, Rd = R*Ts)
 %            at small Ts must converge to this K -- this confirms dlqr/c2d

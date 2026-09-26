@@ -6,11 +6,10 @@ classdef Solar < handle
 %   caller can inject it into the right RCBS node.
 %
 %   Transposes measured GHI / DHI / DNI onto each façade with the isotropic
-%   (Liu & Jordan) sky model, then applies window area and solar heat gain
+%   sky model, then applies window area and solar heat gain
 %   coefficient (SHGC) to get the heat entering the zone.
 %
-%   PLANE-OF-ARRAY IRRADIANCE  (Duffie & Beckman, "Solar Engineering of Thermal
-%   Processes", 4th ed., Eq. 1.6.2 and 2.15.1; Liu & Jordan 1963):
+%   PLANE-OF-ARRAY IRRADIANCE
 %
 %     cos(theta) = cos(theta_z) cos(beta) + sin(theta_z) sin(beta) cos(gamma_s - gamma)
 %     I_POA = DNI * max(0, cos(theta))                      % beam
@@ -34,7 +33,7 @@ classdef Solar < handle
 %
 %   Optional opaque sol-air gain (disabled by default) adds, per opaque face,
 %     Q_opaque = alphaOpaque * I_POA,face * (U_face / hOut) * A_face
-%   routed to the wall/roof node (ASHRAE Handbook-Fundamentals, sol-air temp).
+%   routed to the wall/roof node (sol-air temperature).
 %
 %   PROPERTIES (SI units)
 %     winArea    struct with fields N,E,S,W  -> glazed area per orientation [m^2]

@@ -6,12 +6,8 @@ function V = validate_pump(plotMode)
 %
 %   TEST CASE + REFERENCE
 %     A quadratic (parabolic) head-flow curve is the standard first model of a
-%     centrifugal pump (Karassik, I.J. et al. (2008) "Pump Handbook", 4th ed.,
-%     McGraw-Hill; Gulich, J.F. (2010) "Centrifugal Pumps", 2nd ed., Springer,
-%     Ch. 4; Sarbu, I. (2016) "Advances in Building Services Engineering",
-%     Springer). The pump AFFINITY LAWS (Gulich Ch. 3;
-%     Karassik Ch. 2) state that for a change of speed ratio s a homologous
-%     operating point (Q, H) maps to (s*Q, s^2*H):
+%     centrifugal pump. The pump AFFINITY LAWS state that for a change of speed
+%     ratio s a homologous operating point (Q, H) maps to (s*Q, s^2*H):
 %         Q2/Q1 = s ,   H2/H1 = s^2 ,   P2/P1 = s^3
 %     The quadratic model satisfies this exactly:
 %         head(s*Q, s) = s^2 dp0 - dp0 (sQ)^2/mmax^2 = s^2 (dp0 - dp0 Q^2/mmax^2)

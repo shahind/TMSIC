@@ -21,7 +21,7 @@ function V = validate_building_energy_balance(plotMode)
 %         input Q into a single-zone building, at equilibrium
 %             Q = UA_total * (T_zone - T_out) ,
 %             UA_total = 1/R_wall + 1/R_roof + 1/R_win + 1/R_inf
-%         (ISO 13790; ASHRAE Handbook-Fundamentals Ch. 25, whole-building UA).
+%         (whole-building UA).
 %         The wall/roof T-network mid nodes carry no source, so at steady state
 %         the flux through a wall equals (T_zone - T_out)/R_wall,total.
 %     (3) MULTI-ZONE CLOSURE.  The same first-law check on a 2-storey x 2-zone

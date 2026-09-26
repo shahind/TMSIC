@@ -5,15 +5,14 @@ function V = validate_valve(plotMode)
 %   COMPONENT      DHS.Hydraulic.Valve.resistance(rho, pos)  ->  K  such that  dp = K*mdot^2
 %                    K = 1e5 * 3600^2 / (Kv(pos)^2 * rho^2)
 %                    Kv(pos) = Kvs * pos                  ("linear")
-%                    Kv(pos) = Kvs * rangeability^(pos-1) ("eqpct", IEC 60534)
+%                    Kv(pos) = Kvs * rangeability^(pos-1) ("eqpct")
 %
 %   TEST CASE + REFERENCE
-%     The flow coefficient definition (IEC 60534-2-1; ISA-75.01.01; Emerson
-%     "Control Valve Handbook", 4th ed., Ch. 3):
+%     The flow coefficient definition:
 %         Q [m3/h] = Kv * sqrt(dp [bar] / SG)          (SG = 1 for water)
 %     so for a mass flow mdot [kg/s]:  Q = mdot/rho*3600 ,  dp[Pa] = 1e5*(Q/Kv)^2
 %     which is exactly  dp = K*mdot^2  with the K above.  Inherent characteristics
-%     (IEC 60534-2-4):  linear  Kv/Kvs = pos ;  equal-percentage  Kv/Kvs =
+%     linear  Kv/Kvs = pos ;  equal-percentage  Kv/Kvs =
 %     R^(pos-1)  with rangeability R (typ. 25-50).
 %
 %   Sub-cases:
@@ -24,14 +23,13 @@ function V = validate_valve(plotMode)
 %     D  installed characteristic / authority:  a valve of authority
 %        beta = dp_valve,open / (dp_valve,open + dp_fixed) in series with a fixed
 %        resistance.  As beta -> 1 the installed flow-vs-travel curve of an
-%        equal-percentage valve approaches linear (Emerson Handbook Fig. 3-x;
-%        Baumann, H.D. (2009) "Control Valve Primer", 4th ed., ISA).  Check the
+%        equal-percentage valve approaches linear .  Check the
 %        installed curve is monotone, spans [~0, full flow], and is "more linear"
 %        (smaller curvature) at beta ~ 0.7 than the inherent eqpct curve.
 %
 %   WHY THIS TEST IS GOOD
 %     A pins the sizing equation and the units (bar<->Pa, m3/h<->kg/s); B and C
-%     pin the two inherent characteristics against the IEC definitions; D checks
+%     pin the two inherent characteristics against their definitions; D checks
 %     the emergent installed behaviour that determines whether the building
 %     control loop sees usable gain.
 %

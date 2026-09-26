@@ -5,9 +5,7 @@ function V = validate_heat_exchanger(plotMode)
 %   COMPONENT      heatExchanger(mdot_p, Tsup_p, Tsec_in, UA, CdotSec, Qcap, cp)
 %                  (also DHS.HeatExchanger.transfer, same core)
 %
-%   TEST CASE + REFERENCE  (Incropera & DeWitt, "Fundamentals of Heat and Mass
-%   Transfer", 6th ed., Sec. 11.4, Table 11.3-11.4; Kays, W.M. & London, A.L.
-%   (1984) "Compact Heat Exchangers", 3rd ed., McGraw-Hill.)
+%   TEST CASE + REFERENCE  (effectiveness-NTU relations, counterflow)
 %
 %     Cdot_p = mdot_p*cp ;  Cmin = min(Cdot_p, CdotSec) ;  Cmax = max(...) ;  Cr = Cmin/Cmax
 %     NTU    = UA / Cmin
@@ -17,8 +15,8 @@ function V = validate_heat_exchanger(plotMode)
 %
 %   Sub-cases (thermal, eps-NTU):
 %     A  general point (Cr ~ 0.6, NTU ~ 1.5) -- eps implied by Q equals the formula
-%     B  Cr -> 0  (condenser / evaporator limit):  eps -> 1 - exp(-NTU)        [Eq. 11.35a]
-%     C  Cr = 1   (balanced counterflow):          eps -> NTU/(1+NTU)          [Eq. 11.29a limit]
+%     B  Cr -> 0  (condenser / evaporator limit):  eps -> 1 - exp(-NTU)
+%     C  Cr = 1   (balanced counterflow):          eps -> NTU/(1+NTU)
 %     D  NTU -> infinity:  eps -> 1,  Q -> Cmin*(Tsup_p - Tsec_in)
 %     E  first law:  heat gained by the secondary = heat lost by the primary
 %     F  capacity clamp:  Q <= Qcap
@@ -28,21 +26,20 @@ function V = validate_heat_exchanger(plotMode)
 %       K = valve.resistance(rho) + dpNomPrimary/mdotNomPrimary^2
 %   The exchanger body's own loss is quoted as a design pressure drop at a
 %   design flow, the same way a manufacturer's data sheet does, rather than one
-%   fixed flow coefficient shared by every instance (Frederiksen, S. & Werner,
-%   S. (2013) "District Heating and Cooling", Studentlitteratur -- typical
-%   plate-heat-exchanger primary-side design pressure drop in a district-heating
+%   fixed flow coefficient shared by every instance (a typical plate heat
+%   exchanger primary-side design pressure drop in a district-heating
 %   substation is 20-60 kPa at design flow).
 %
 %   Sub-cases (hydraulic):
 %     H  ADDITIVITY: primaryResistance(rho)*mdot^2 at the design flow equals the
 %        HX-body design drop dpNomPrimary plus the valve's own drop, computed
-%        independently from the IEC 60534 sizing equation (same reference as
+%        independently from the valve sizing equation (as in
 %        validate_valve.m) -- no missing or double-counted term.
 %     I  DEFAULT SIZING: with mdotNomPrimary left empty, it defaults to
 %        Qcap/(cp*20 K) (a 20 K primary design deltaT) when that exceeds the
 %        0.5 kg/s floor, and to the floor otherwise.
-%     J  LITERATURE RANGE: the class default dpNomPrimary (30 kPa) falls inside
-%        Frederiksen & Werner's cited 20-60 kPa typical range.
+%     J  TYPICAL RANGE: the class default dpNomPrimary (30 kPa) falls inside
+%        the typical 20-60 kPa range.
 %
 %   WHY THIS TEST IS GOOD
 %     eps-NTU is a textbook method with exact analytical limits; matching all of
@@ -110,7 +107,7 @@ function V = validate_heat_exchanger(plotMode)
     Ktotal = hx.primaryResistance(rho);
     dpTotal = Ktotal * mNom^2;
     Qv = mNom/rho*3600;                          % m3/h
-    dpValve = 1e5 * (Qv/Kvs)^2;                  % IEC 60534, independent calc
+    dpValve = 1e5 * (Qv/Kvs)^2;                  % independent valve sizing calc
     dpRef = hx.dpNomPrimary + dpValve;
     eH = abs(dpTotal - dpRef) / dpRef;
 
@@ -129,7 +126,7 @@ function V = validate_heat_exchanger(plotMode)
     hxSmall.valve.Kvs = 1e6;  hxSmall.valve.pos = 1;
     eI2 = abs(impliedMdotNom(hxSmall) - 0.5) / 0.5;
 
-    % ---- J: literature range check (Frederiksen & Werner, 20-60 kPa) ----
+    % ---- J: typical-range check (20-60 kPa) ----
     hxDefault = DHS.HeatExchanger('HXdef');
     okJ = hxDefault.dpNomPrimary >= 20e3 && hxDefault.dpNomPrimary <= 60e3;
 
@@ -141,10 +138,10 @@ function V = validate_heat_exchanger(plotMode)
     C(5) = mk('E  first law:  Q_primary = Q_secondary = Q',      0, eE,       1e-9, 'abs');
     C(6) = mk('F  capacity clamp  Q <= Qcap',                    1, double(okF), 0, 'abs');
     C(7) = mk('G  no reverse transfer  (Tsup <= Tsec_in => Q=0)',1, double(okG), 0, 'abs');
-    C(8) = mk('H  primary dp = dpNomPrimary + valve dp (IEC 60534)', dpRef, dpTotal, 1e-9, 'rel');
+    C(8) = mk('H  primary dp = dpNomPrimary + valve dp (valve sizing equation)', dpRef, dpTotal, 1e-9, 'rel');
     C(9) = mk('I  default mdotNomPrimary = Qcap/(cp*20K)',           mBigRef, impliedMdotNom(hxBig), 1e-6, 'rel');
     C(10)= mk('I  default mdotNomPrimary floors at 0.5 kg/s',        0.5, impliedMdotNom(hxSmall), 1e-6, 'rel');
-    C(11)= mk('J  default dpNomPrimary within 20-60 kPa (Frederiksen & Werner)', 1, double(okJ), 0, 'abs');
+    C(11)= mk('J  default dpNomPrimary within typical 20-60 kPa', 1, double(okJ), 0, 'abs');
     V.name = 'eps-NTU heat exchanger vs closed-form effectiveness, limits, and primary-side pressure loss';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eA',eA,'eB',eB,'eC',eC,'eD',eD,'eE',eE,'eH',eH,'eI1',eI1,'eI2',eI2);

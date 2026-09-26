@@ -10,14 +10,8 @@ classdef Schedule < handle
 %   their full value; otherwise the setpoint drops to Tsetback and only base
 %   (standby) internal gains remain.
 %
-%   References
-%     ASHRAE Standard 90.1-2019, Appendix G and the accompanying schedules for
-%       office / school occupancy, lighting and receptacle fractions.
-%     National Energy Code of Canada for Buildings (NECB) 2020, schedules A-G.
-%     ASHRAE Handbook-Fundamentals (2021), Ch.18 "Nonresidential Cooling and
-%       Heating Load Calculations" -- internal gain densities and radiant/
-%       convective split (~30% radiant to mass for people+equipment, higher for
-%       lighting; a single 0.3 mass fraction is used here as a simplification).
+%   A single 0.3 mass fraction (the share of internal gain that is radiant to the
+%   thermal mass) is used as a simplification.
 %
 %   PROPERTIES
 %     occStartHour, occEndHour  [h]     occupied window on an occupied day (7, 18)

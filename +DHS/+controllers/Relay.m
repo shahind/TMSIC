@@ -6,8 +6,6 @@ classdef Relay < DHS.controllers.Controller
 %     u = uMin   if e < -h        (stop)
 %     u = hold   otherwise        (inside the deadband)
 %
-%   Ref: Astrom & Hagglund (2006), "Advanced PID Control", Sec.7.4.
-%
 %   Construction:  Relay(h)  or  Relay('h',..,'dir',..,'uMin',..,'uMax',..)
 
     properties

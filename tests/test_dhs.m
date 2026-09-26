@@ -76,7 +76,7 @@ function test_port_wiring_matches_declarative(tc)
 end
 
 function test_tjunction_loss_matches_crane(tc)
-    % Crane TP-410: a standard tee has an equivalent length of 20 diameters
+    % A standard tee has an equivalent length of 20 diameters
     % used as a run, 60 as a branch.
     tee = DHS.Hydraulic.TJunction('T', 'mainDiameter',0.10, 'sideDiameter',0.05);
     rho = 978;  mu = 4.0e-4;

@@ -11,12 +11,10 @@ function V = validate_fixed_displacement_pump(plotMode)
 %     its speed and displacement, essentially independent of the downstream
 %     resistance, until the required head would exceed the unit's
 %     working-pressure limit -- at that point an internal relief valve opens
-%     and the flow drops below the commanded value (Karassik, I.J. et al.
-%     (2008) "Pump Handbook", 4th ed., McGraw-Hill, Ch. 9 "Rotary Pumps"; Volk,
-%     M. (2013) "Pump Characteristics and Applications", 3rd ed., CRC Press,
-%     Ch. 9 -- the idealised PD-pump curve is a vertical line at Q = speed x
-%     displacement, clipped horizontally at the relief-valve set pressure,
-%     unlike a centrifugal pump's smooth head-flow parabola).
+%     and the flow drops below the commanded value. The idealised PD-pump curve
+%     is a vertical line at Q = speed x displacement, clipped horizontally at
+%     the relief-valve set pressure, unlike a centrifugal pump's smooth
+%     head-flow parabola.
 %
 %   Sub-cases:
 %     A  UNSATURATED (low resistance): the pump forces its commanded rated

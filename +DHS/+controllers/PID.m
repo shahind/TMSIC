@@ -10,9 +10,6 @@ classdef PID < DHS.controllers.Controller
 %     u     = clamp(u_raw, uMin, uMax)
 %     I    += (dt/Tt)*(u - u_raw)                     (back-calculation anti-windup)
 %
-%   Refs: Astrom & Hagglund (2006) "Advanced PID Control"; Astrom & Murray
-%   (2008) "Feedback Systems".
-%
 %   CONSTRUCTION
 %     PID(Kp, Ki, Kd)                positional (Tf defaults to 20 s)
 %     PID(Kp, Ki, Kd, Tf)           positional with derivative filter

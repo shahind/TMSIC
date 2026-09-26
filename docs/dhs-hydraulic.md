@@ -124,7 +124,8 @@ North now receives exactly its commanded flow, and South, which shares the trunk
 
 ### Pipe
 
-Pressure drop follows Darcy–Weisbach with the explicit Swamee–Jain friction factor:
+Pressure drop follows Darcy–Weisbach with the explicit Swamee–Jain friction factor [16](references.md#r16), an approximation of the
+implicit Colebrook–White equation [17](references.md#r17):
 
 $$\Delta p = K\,\dot m^2,\qquad K = \frac{f\,L}{D\cdot 2\rho A^2},\qquad
 f = \frac{0.25}{\left[\log_{10}\!\left(\dfrac{\varepsilon/D}{3.7}+\dfrac{5.74}{\mathrm{Re}^{0.9}}\right)\right]^2}.$$
@@ -135,7 +136,7 @@ the network applies it as a transport temperature drop along the pipe.
 
 ### T-junction
 
-A `TJunction` adds the minor loss of a real T-fitting. Crane Technical Paper 410 gives a
+A `TJunction` adds the minor loss of a real T-fitting. Crane Technical Paper 410 [23](references.md#r23) gives a
 standard tee an equivalent length of 20 pipe diameters when the flow goes straight
 through (the run) and 60 diameters when the flow turns into the side leg (the branch). With
 the friction factor evaluated at $\mathrm{Re} = 10^7$,
@@ -151,7 +152,7 @@ only; the return-side mirror is a plain junction.
 ### Centrifugal pump
 
 The head–flow curve is a parabola, and speed scaling follows the affinity laws
-(Karassik et al., *Pump Handbook*; Gülich, *Centrifugal Pumps*):
+(Karassik et al. [25](references.md#r25); Gülich [26](references.md#r26)):
 
 $$H(\dot m, s) = s^2\,\Delta p_0 - \Delta p_0\,\frac{\dot m^2}{\dot m_\text{max}^2}.$$
 
@@ -163,8 +164,7 @@ $$\dot m = \sqrt{\frac{s^2\Delta p_0 + \Delta p_\text{avail}}{K + \Delta p_0/\do
 ### Fixed-displacement pump
 
 A gear, screw or piston pump delivers a flow set by its speed almost regardless of the
-pressure, until a relief valve opens (Karassik et al., Ch. 9; Volk, *Pump Characteristics
-and Applications*):
+pressure, until a relief valve opens (Karassik et al. [25](references.md#r25); Volk [27](references.md#r27)):
 
 $$\dot m = \min\!\left(s\,\dot m_\text{rated},\ \sqrt{\frac{\max(0,\ \Delta p_\text{max} + \Delta p_\text{avail})}{K}}\right).$$
 
@@ -174,7 +174,7 @@ sets the flow of the whole network, is not implemented.
 
 ### Control valve
 
-The valve follows the IEC 60534 flow coefficient, $Q\,[\mathrm{m^3/h}] = K_v\sqrt{\Delta p\,[\mathrm{bar}]}$,
+The valve follows the IEC 60534 flow coefficient [22](references.md#r22), $Q\,[\mathrm{m^3/h}] = K_v\sqrt{\Delta p\,[\mathrm{bar}]}$,
 which gives $\Delta p = K\,\dot m^2$ with $K = 10^5\cdot 3600^2/(K_v^2\rho^2)$. The
 coefficient depends on the travel $\text{pos}$ through the inherent characteristic, linear
 ($K_v/K_{vs} = \text{pos}$) or equal-percentage ($K_v/K_{vs} = R^{\text{pos}-1}$, with

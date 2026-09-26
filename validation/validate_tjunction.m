@@ -1,5 +1,5 @@
 function V = validate_tjunction(plotMode)
-%VALIDATE_TJUNCTION  T-fitting minor loss vs Crane TP-410 equivalent-length
+%VALIDATE_TJUNCTION  T-fitting minor loss vs the equivalent-length
 %                    method, its wiring into DHS.Hydraulic.Pipe.resistance,
 %                    and its effect on a network's operating point.
 %
@@ -8,30 +8,25 @@ function V = validate_tjunction(plotMode)
 %                    K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
 %                  where f is the same Swamee-Jain friction factor
 %                  DHS.Hydraulic.Pipe uses, evaluated at the fully-turbulent
-%                  asymptote Re = 1e7 (Crane's "fT" convention -- the fitting's
+%                  asymptote Re = 1e7 (the fully turbulent limit -- the fitting's
 %                  own friction factor barely moves with Re there).
 %
 %   TEST CASE + REFERENCE
-%     Crane Co. (2009) "Flow of Fluids Through Valves, Fittings, and Pipe",
-%     Technical Paper No. 410, Crane Co. -- Section on resistance coefficients
-%     for pipe fittings: a standard tee has an equivalent length, in pipe
+%     A standard tee has an equivalent length, in pipe
 %     diameters, of 20 used as a straight run and 60 used as a branch (the
 %     "equivalent length" or "L/D" method is the standard hand-calculation
-%     approach for fitting losses; see also Idelchik, I.E. (2007) "Handbook of
-%     Hydraulic Resistance", 4th ed., Begell House, Diagram 7-29, for an
-%     independent branch/run loss-coefficient table showing the same
-%     qualitative ordering -- branch flow always loses substantially more head
-%     than the straight run).
+%     approach for fitting losses; branch flow always loses substantially more
+%     head than the straight run).
 %
 %   Sub-cases:
-%     A  K_run formula: teeLossK('run',...) matches the hand-built Crane
+%     A  K_run formula: teeLossK('run',...) matches the hand-built
 %        expression exactly.
 %     B  K_branch formula: teeLossK('branch',...) matches the hand-built
-%        Crane expression exactly.
+%        expression exactly.
 %     C  DIMENSIONLESS RATIO (independent of rho, mu, D): for a tee where
 %        mainDiameter = sideDiameter (so f is identical for both legs and A
 %        cancels), K_branch/K_run = 60/20 = 3 exactly -- the equivalent-length
-%        ratio Crane TP-410 tabulates, decoupled from any specific fluid or
+%        ratio, decoupled from any specific fluid or
 %        pipe size.
 %     D  PIPE INTEGRATION: a pipe wired to portB picks up exactly K_run on top
 %        of its own Darcy-Weisbach term; a pipe wired to portC picks up
@@ -51,7 +46,7 @@ function V = validate_tjunction(plotMode)
 %
 %   WHY THIS TEST IS GOOD
 %     A and B pin the formula itself; C is a fluid- and size-independent sanity
-%     check straight from the Crane table (branch resistance is exactly 3x the
+%     check straight from the equivalent lengths (branch resistance is exactly 3x the
 %     run resistance at equal diameter, by construction of the 60D/20D
 %     equivalent lengths); D confirms the loss is wired into the one place the
 %     solver actually reads (Pipe.resistance) with no double-counting or
@@ -130,8 +125,8 @@ function V = validate_tjunction(plotMode)
     eF = max(abs(KdeclRun-KwireRun), abs(KdeclBranch-KwireBranch)) / KwireBranch;
 
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
-    C(1) = mk('A  K_run matches Crane equivalent-length formula',     KrunRef, Krun, 1e-12, 'rel');
-    C(2) = mk('B  K_branch matches Crane equivalent-length formula',  KbranchRef, Kbranch, 1e-12, 'rel');
+    C(1) = mk('A  K_run matches equivalent-length formula',     KrunRef, Krun, 1e-12, 'rel');
+    C(2) = mk('B  K_branch matches equivalent-length formula',  KbranchRef, Kbranch, 1e-12, 'rel');
     C(3) = mk('C  equal-D ratio  K_branch/K_run = 60/20 = 3',         3, ratio, 1e-12, 'rel');
     C(4) = mk('D  run-port pipe picks up exactly K_run',              0, eD1, 1e-9, 'abs');
     C(5) = mk('D  branch-port pipe picks up exactly K_branch',        0, eD2, 1e-9, 'abs');
@@ -139,7 +134,7 @@ function V = validate_tjunction(plotMode)
     C(7) = mk('E  network Mtot with tee vs analytic (Kt+K_branch)',   Man_tee, Mtee, 1e-3, 'rel');
     C(8) = mk('E  tee reduces flow vs the plain-junction network',    1, double(okE_direction), 0, 'abs');
     C(9) = mk('F  declarative vs port-wiring: identical tee loss',    0, eF, 1e-9, 'abs');
-    V.name = 'T-junction (Crane TP-410 equivalent-length) vs formula, pipe integration, network effect';
+    V.name = 'T-junction (equivalent-length method) vs formula, pipe integration, network effect';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('Krun',Krun,'Kbranch',Kbranch,'ratio',ratio,'Mplain',Mplain,'Mtee',Mtee,'Man_tee',Man_tee);
 

@@ -2,8 +2,7 @@ classdef HeatExchanger < handle
 % DHS.HEATEXCHANGER  Substation plate heat exchanger + its primary valve & pump.
 %
 %   Transfers heat from the district PRIMARY water to a building's SECONDARY
-%   hydronic circuit by the effectiveness-NTU method (counterflow; Incropera &
-%   DeWitt, "Fundamentals of Heat and Mass Transfer" 6e Sec.11.4). Heating-only:
+%   hydronic circuit by the effectiveness-NTU method (counterflow). Heating-only:
 %   delivered heat is clamped to [0, Qcap].
 %
 %       Cp = mdot_p*cp ;  Cmin = min(Cp, mdotSecNom*cp) ;  Cr = Cmin/Cmax
@@ -13,12 +12,11 @@ classdef HeatExchanger < handle
 %       Q   = clamp( eps*Cmin*(Tsup_primary - Tsec_in) , 0 , Qcap )
 %       Tret_primary = Tsup_primary - Q/Cp
 %
-%   PRIMARY-SIDE PRESSURE LOSS  The valve (IEC 60534) plus the exchanger body
+%   PRIMARY-SIDE PRESSURE LOSS  The valve plus the exchanger body
 %   itself. The body loss is quoted, the same way a manufacturer's data sheet
 %   does, as a design pressure drop dpNomPrimary at a design flow mdotNomPrimary
-%   (typical plate heat exchanger primary-side design drop in a district-heating
-%   substation is 20-60 kPa: Frederiksen, S. & Werner, S., "District Heating and
-%   Cooling", Studentlitteratur, 2013), giving a fixed K = dpNomPrimary/mdotNomPrimary^2
+%   (a typical plate heat exchanger primary-side design drop in a district-heating
+%   substation is 20-60 kPa), giving a fixed K = dpNomPrimary/mdotNomPrimary^2
 %   -- the same dp ~ mdot^2 turbulent-flow form as a pipe or a valve, but sized to
 %   each unit's own rating rather than one constant every instance shares.
 %

@@ -17,10 +17,9 @@ classdef TJunction < DHS.Hydraulic.Junction
 %     hn.addPipe(tee, nextTee);                 % first pipe off a tee = the run
 %     hn.addPipe(tee, building.inlet);          % second = the branch
 %
-%   LOSS MODEL  Crane Technical Paper 410, "Flow of Fluids Through Valves,
-%   Fittings, and Pipe" (Crane Co., 2009 metric ed.), Table on resistance coefficients
-%   for pipe fittings: a standard tee has an equivalent length, in pipe
-%   diameters, of 20 used as a straight run and 60 used as a branch. Combined
+%   LOSS MODEL  Equivalent-length method: a standard tee has an equivalent
+%   length, in pipe diameters, of 20 used as a straight run and 60 used as a
+%   branch. Combined
 %   with the same Darcy-Weisbach / Swamee-Jain friction factor DHS.Hydraulic.Pipe
 %   uses, evaluated at that leg's own diameter:
 %       K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
@@ -79,7 +78,7 @@ classdef TJunction < DHS.Hydraulic.Junction
         end
 
         function K = teeLossK(obj, side, rho, ~)
-            % TEELOSSK  Crane TP-410 equivalent-length minor loss for RUN or BRANCH.
+            % TEELOSSK  Equivalent-length minor loss for RUN or BRANCH.
             switch lower(string(side))
                 case "run",    D = obj.mainDiameter;  nD = 20;
                 case "branch", D = obj.sideDiameter;   nD = 60;
@@ -87,8 +86,8 @@ classdef TJunction < DHS.Hydraulic.Junction
             end
             Leq = nD * D;
             A   = pi*D^2/4;
-            % fully turbulent asymptote of the fitting's own friction factor
-            % (Crane's fT convention); the friction factor barely moves with Re there
+            % fully turbulent asymptote of the fitting's own friction factor;
+            % the friction factor barely moves with Re there
             f = DHS.Hydraulic.Pipe.swameeJain(1e7, obj.roughness/D);
             K = f * Leq / (D * 2*rho * A^2);
         end

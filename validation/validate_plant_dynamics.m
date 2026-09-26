@@ -15,15 +15,11 @@ function V = validate_plant_dynamics(plotMode)
 %
 %     which is first order with time constant  tau = Cw / (mdot_B cp)  and
 %     steady state  T_b,inf = T_ret + (eta*Q_gas - Q_base) / (mdot_B cp) .
-%     Continuous stirred-tank / lumped-capacitance dynamics: Coughanowr, D.R. &
-%     LeBlanc, S.E. (2009) "Process Systems Analysis and Control", 3rd ed.,
-%     McGraw-Hill, Ch. 5; Incropera & DeWitt Sec. 5.
+%     (continuous stirred-tank / lumped-capacitance dynamics).
 %
 %     Condensing gas-boiler efficiency rises as the return-water temperature
 %     falls below the flue-gas dew point (~55 degC for natural gas); a piecewise-
-%     linear curve clamped to [eta_min, eta_max] is the standard reduced model
-%     (ASHRAE Handbook - HVAC Systems and Equipment (2020), Ch. 32; AHRI 1500;
-%     manufacturer part-load data).
+%     linear curve clamped to [eta_min, eta_max] is the standard reduced model.
 %
 %   Sub-cases:
 %     A  step response of T_b toward the analytic exponential

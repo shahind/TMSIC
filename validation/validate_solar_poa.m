@@ -7,10 +7,7 @@ function V = validate_solar_poa(plotMode)
 %                                     + GHI*rho*(1-cos b)/2
 %                  Q_solar = sum_faces A_win * SHGC * I   (+ skylight A*SHGC*GHI)
 %
-%   TEST CASE + REFERENCE  (Duffie, J.A. & Beckman, W.A. (2013) "Solar
-%   Engineering of Thermal Processes", 4th ed., Wiley: Eq. 1.6.2 for the angle
-%   of incidence, Eq. 2.15.1 for the isotropic (Liu & Jordan 1963) sky model;
-%   ASHRAE Handbook-Fundamentals (2021) Ch. 14.)
+%   TEST CASE + REFERENCE  (angle of incidence and the isotropic sky model)
 %
 %     cos(theta) = cos(theta_z) cos(beta) + sin(theta_z) sin(beta) cos(gamma_s - gamma)
 %     For a VERTICAL wall (beta = 90):  cos(theta) = sin(theta_z) cos(gamma_s - gamma),
@@ -30,7 +27,7 @@ function V = validate_solar_poa(plotMode)
 %
 %   WHY THIS TEST IS GOOD
 %     Each of A-D pins exactly one term of the isotropic transposition against a
-%     value you can compute by hand from Duffie & Beckman; a sign error in the
+%     value you can compute by hand; a sign error in the
 %     azimuth convention, a factor-of-two in the view factors, or a wrong tilt
 %     assumption breaks at least one of them. E and G check the housekeeping.
 %
@@ -101,7 +98,7 @@ function V = validate_solar_poa(plotMode)
     C(5) = mk('E  night -> zero gain',                          1, double(okE), 0, 'abs');
     C(6) = mk('F  low southern sun:  Q_S > 5 Q_N',              1, double(okF), 0, 'abs');
     C(7) = mk('G  air/mass split = massFraction',               0, eG, 1e-12, 'abs');
-    V.name = 'Isotropic solar transposition (DHS.Solar) vs Duffie & Beckman limiting cases';
+    V.name = 'Isotropic solar transposition (DHS.Solar) vs hand-computed limiting cases';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eA',eA,'eB',eB,'eC',eC,'eD',eD,'QS',QS,'QN',QN,'eG',eG);
 

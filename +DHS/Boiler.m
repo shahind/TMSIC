@@ -5,8 +5,7 @@ classdef Boiler < handle
 %   lumped water-mass thermal dynamics live in DHS.CentralHeatPlant; a Boiler is
 %   the burner + its efficiency characteristic. Create with  chp.addBoiler(...).
 %
-%   Efficiency vs return-water temperature (condensing gas boiler; ASHRAE Systems
-%   & Equipment 2020 Ch.32):
+%   Efficiency vs return-water temperature (condensing gas boiler):
 %       eta(Tret) = etaCurve(Tret)                       if etaCurve is set
 %                 = clamp(etaRef - etaSlope*(Tret-TetaRef), etaMin, etaMax)  else
 %

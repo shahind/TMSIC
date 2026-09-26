@@ -5,28 +5,21 @@ function V = validate_pipe_friction(plotMode)
 %   COMPONENT      DHS.Hydraulic.Pipe.swameeJain(Re, eps/D)  and DHS.Hydraulic.Pipe.resistance(...)
 %
 %   TEST CASE + REFERENCE
-%     Turbulent pipe friction is governed by the Colebrook-White equation
-%     (Colebrook, C.F. (1939) J. Inst. Civ. Eng. 11:133-156):
+%     Turbulent pipe friction is governed by the Colebrook-White equation:
 %         1/sqrt(f) = -2 log10( (eps/D)/3.7 + 2.51/(Re sqrt(f)) )     [implicit]
-%     Swamee & Jain (1976) "Explicit equations for pipe-flow problems",
-%     J. Hydraulic Div. ASCE 102(HY5):657-664, give the explicit approximation
+%     The Swamee-Jain equation gives the explicit approximation
 %         f = 0.25 / [ log10( (eps/D)/3.7 + 5.74/Re^0.9 ) ]^2
-%     over  4000 <= Re <= 1e8  and  1e-6 <= eps/D <= 1e-2.  The original paper
-%     claims < 1 % deviation from Colebrook; independent reviews (Brkic, D.
-%     (2011) "Review of explicit approximations to the Colebrook relation for
-%     flow friction", J. Petroleum Sci. Eng. 77:34-48; Genic, S. et al. (2011)
-%     Int. J. Heat & Tech. 29(2)) put the maximum relative error near 2 - 3 %,
-%     located at the low-Re / near-smooth corner (Re ~ 4e3).  This test verifies
+%     over  4000 <= Re <= 1e8  and  1e-6 <= eps/D <= 1e-2.  Its maximum relative
+%     error against Colebrook-White is a few percent, located at the low-Re /
+%     near-smooth corner (Re ~ 4e3).  This test verifies
 %     the whole box is within 3.5 %, excluding points where the model's f is at
 %     its [0.008, 0.1] safety clamp, and records where the worst point is.
-%     Laminar (Re < 2300):  f = 64/Re  (Hagen-Poiseuille; White, F.M. (2011)
-%     "Fluid Mechanics", 7th ed., Sec. 6.4).
+%     Laminar (Re < 2300):  f = 64/Re  (Hagen-Poiseuille).
 %
 %   Sub-cases:
 %     A  turbulent grid: max relative deviation of swameeJain from a Newton
 %        solution of Colebrook-White over the Re x eps/D box above  ->  < 1 %
-%     B  a specific Moody-chart point:  Re = 1e5, eps/D = 1e-3  ->  f ~ 0.0222
-%        (Moody, L.F. (1944) Trans. ASME 66:671-684)
+%     B  a tabulated friction-factor point:  Re = 1e5, eps/D = 1e-3  ->  f ~ 0.0222
 %     C  laminar branch:  f(Re=1000) = 64/1000 = 0.064  exactly
 %     D  DHS.Hydraulic.Pipe.resistance() reproduces  dp = f (L/D) (rho/2) v^2  with v = mdot/(rho A)
 %
@@ -34,7 +27,7 @@ function V = validate_pipe_friction(plotMode)
 %     The distribution pressure drops all come from this one correlation.
 %     Checking it against the implicit equation it approximates (not just
 %     against itself), on the range the authors validated, and against an
-%     independent Moody value, is the strongest possible confidence short of
+%     independent tabulated value, is the strongest possible confidence short of
 %     lab data.
 %
 %   Run:  >> V = validate_pipe_friction
@@ -55,9 +48,9 @@ function V = validate_pipe_friction(plotMode)
         end
     end
 
-    % ---- B: Moody-chart point ----
+    % ---- B: tabulated point ----
     fMoody = DHS.Hydraulic.Pipe.swameeJain(1e5, 1e-3);
-    fMoodyRef = 0.0222;                 % Moody chart, Re=1e5, eps/D=1e-3
+    fMoodyRef = 0.0222;                 % tabulated value, Re=1e5, eps/D=1e-3
 
     % ---- C: laminar ----
     fLam = DHS.Hydraulic.Pipe.swameeJain(1000, 1e-3);
@@ -74,10 +67,10 @@ function V = validate_pipe_friction(plotMode)
 
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
     C(1) = mk('A  max |Swamee-Jain - Colebrook| / Colebrook',  0, maxdev, 0.035, 'abs');
-    C(2) = mk('B  Moody point  Re=1e5, eps/D=1e-3',            fMoodyRef, fMoody, 0.03, 'rel');
+    C(2) = mk('B  reference point  Re=1e5, eps/D=1e-3',            fMoodyRef, fMoody, 0.03, 'rel');
     C(3) = mk('C  laminar  f(Re=1000) = 64/Re',               0.064, fLam, 1e-12, 'rel');
     C(4) = mk('D  resistance() = f (L/D)(rho/2) v^2',          0, eD, 1e-9, 'abs');
-    V.name = 'Pipe friction: Swamee-Jain vs Colebrook-White + Moody + Darcy-Weisbach';
+    V.name = 'Pipe friction: Swamee-Jain vs Colebrook-White + reference point + Darcy-Weisbach';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('maxdev',maxdev,'worst_Re_rr_fCB',worst,'fMoody',fMoody,'fLam',fLam,'eD',eD);
 

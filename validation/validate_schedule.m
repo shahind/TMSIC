@@ -6,14 +6,8 @@ function V = validate_schedule(plotMode)
 %   TEST CASE + REFERENCE
 %     A commercial building schedule: occupied on workdays inside a daily window,
 %     setback otherwise, with an optimal-start ramp and a radiant/convective
-%     split of internal gains. Conforms to:
-%       ASHRAE Standard 90.1-2019, Appendix G (prototype schedules for occupancy,
-%         lighting and receptacle fractions);
-%       National Energy Code of Canada for Buildings (NECB) 2020, Schedules A-G;
-%       ASHRAE Handbook-Fundamentals (2021), Ch. 18 (internal-gain radiant
-%         fractions: people ~ 0.30, equipment ~ 0.2-0.3, so a single 0.3 is a
-%         standard simplification);
-%       optimal start / pre-heat: CIBSE Guide H (2009), Sec. 3.
+%     split of internal gains (a single 0.3 mass fraction is a standard
+%     simplification).
 %
 %   Sub-cases:
 %     A  occupancy window: occupied exactly on [occStart, occEnd) on workdays,

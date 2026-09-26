@@ -23,12 +23,6 @@ classdef Simulation < handle
 %   This replaces the previous implementation, which re-assembled a dense
 %   N x N matrix and called mldivide on every step.
 %
-%   Discretisation references:
-%     - EN ISO 13790:2008 / EN ISO 52016-1:2017  (simple hourly / RC method)
-%     - Bacher & Madsen (2011), "Identifying suitable models for the heat
-%       dynamics of buildings", Energy and Buildings 43(7), 1511-1522.
-%     - Michalak (2022), "Thermal Network Model of a Building...", Energies 15, 3709.
-%
 %   Backward-compatible public API (unchanged behaviour when no controller or
 %   callback is attached):
 %     run(totalSeconds)         - advance the whole horizon, fill obj.results
