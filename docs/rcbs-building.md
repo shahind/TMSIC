@@ -31,7 +31,11 @@ $$\dot{\mathbf x} = \mathbf A\,\mathbf x + \mathbf B\,\mathbf u,\qquad
 \mathbf u = [\,T_{\text{out}};\,Q_1;\,\dots;\,Q_N\,].$$
 
 **Elements.** A wall or roof of total resistance $R$ and lumped capacity $C$ is a
-three-resistor, two-capacitor T-network in the sense of EN ISO 13790 and EN ISO 52016-1 [1](references.md#r1), [2](references.md#r2).
+two-resistor, one-capacitor (2R1C) T-network. EN ISO 13790 and EN ISO 52016-1 use this same
+$R/2$-$C$-$R/2$ topology, but apply it once to the whole zone's aggregate opaque envelope and
+a single lumped thermal-mass capacitance; RCBS instead applies it once per construction
+element, so several elements each keep their own state
+[1](references.md#r1), [2](references.md#r2).
 Its mass sits on one internal node, joined to the zone air by $R/2$ and to the outdoor
 boundary by $R/2$. A window is a single conductance from the air node to the outdoor
 boundary and has no state. Internal mass is one node tied to the air node by a
@@ -144,8 +148,8 @@ decimals.
 | Function | Inputs | Output or effect |
 |---|---|---|
 | `setAir(C_air, T0)` | capacity (J/K), initial temperature (degC, optional) | Sets the air node. |
-| `addWall(R, C, T0, name)` | total resistance (K/W), mass (J/K), initial temperature (degC, `[]` for the air value), name | Adds a 3R2C wall. |
-| `addRoof(R, C, T0, name)` | as `addWall` | Adds a 3R2C roof. |
+| `addWall(R, C, T0, name)` | total resistance (K/W), mass (J/K), initial temperature (degC, `[]` for the air value), name | Adds a 2R1C wall. |
+| `addRoof(R, C, T0, name)` | as `addWall` | Adds a 2R1C roof. |
 | `addWindow(R, name)` | resistance (K/W), name | Adds an air-to-outdoor conductance with no state. |
 | `addInternalMass(R, C, T0, name)` | resistance to air (K/W), mass (J/K), initial temperature, name | Adds a mass node tied to the air node. |
 | `addNode(name, C, T0)` | name, capacity, initial temperature | Adds a bare node. Wire it with your own resistors. |

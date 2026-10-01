@@ -34,7 +34,7 @@ documentation pages and the validation report
 
 ## Energy codes and schedules
 
-- <a id="r8"></a>**[8]** ANSI/ASHRAE/IES Standard 90.1-2019. *Energy standard for buildings except low-rise
+- <a id="r8"></a>**[8]** ANSI/ASHRAE/IES Standard 90.1-2022. *Energy standard for buildings except low-rise
   residential buildings.* Appendix G baseline, climate zone 5 envelope values, setback
   (Section 6.4.3.4), and occupancy, lighting and receptacle schedules.
   <https://www.ashrae.org/technical-resources/bookstore/standard-90-1>
@@ -81,11 +81,13 @@ documentation pages and the validation report
   covers the inherent flow characteristics (linear, equal-percentage).
   <https://webstore.iec.ch/en/publication/2461>
 - <a id="r23"></a>**[23]** Crane Co. (2009). *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper
-  No. 410, metric ed. ISBN 978-1-4005-2712-0. The equivalent-length method for fitting
-  losses. The toolbox uses the standard tee values of 20 diameters (run) and 60 diameters
-  (branch). <https://tp410.com/>
+  No. 410, metric ed. ISBN 978-1-4005-2712-0. The source widely credited with the
+  equivalent-length method for fitting losses and the standard tee values of 20 diameters
+  (run) and 60 diameters (branch) the toolbox uses; a copy could not be independently
+  obtained for this project (commercial publication). <https://tp410.com/>
 - <a id="r24"></a>**[24]** Idelchik, I.E. (2007). *Handbook of Hydraulic Resistance*, 4th ed., Begell House. Tee and
-  branch loss-coefficient tables (Diagram 7-29), used as a qualitative cross-check.
+  branch loss-coefficient tables (Diagram 7-29): an alternative, flow-split-dependent
+  treatment of the same fitting, not a confirmation of [23]'s fixed-multiplier ordering.
   DOI: [10.1615/978-1-56700-251-5.0](https://doi.org/10.1615/978-1-56700-251-5.0)
 
 ## Pumps
@@ -104,11 +106,14 @@ documentation pages and the validation report
 
 - <a id="r28"></a>**[28]** Frederiksen, S. and Werner, S. (2013). *District Heating and Cooling.* Studentlitteratur.
   Temperature levels, distribution pressures and velocities, pump curves and substation
-  layouts. The 20 to 60 kPa primary-side design pressure drop of a plate exchanger, used for
-  `HeatExchanger.dpNomPrimary`. ISBN 978-91-44-08530-2.
-- <a id="r29"></a>**[29]** IEA DHC (International Energy Agency, District Heating and Cooling programme), Annex TS
-  reports. Low-temperature design ranges and pre-insulated pipe heat loss
-  ($U' \approx 0.2$ to $0.4$ W/(m·K)). <https://www.iea-dhc.org/>
+  layouts. A copy could not be independently obtained for this project; `HeatExchanger.dpNomPrimary`'s
+  design-range guidance instead cites [29](#r29). ISBN 978-91-44-08530-2.
+- <a id="r29"></a>**[29]** Skagestad, B. and Mildenstein, P. (2002). *District Heating and Cooling Connection
+  Handbook.* IEA District Heating and Cooling programme, Annex VI, NOVEM. Table 11.4
+  ("Permissible pressure losses through a heat exchanger") gives a primary-side design
+  pressure loss below 20 kPa for domestic hot water and low-pressure heating substations,
+  with a separate 50 to 60 kPa target for the whole substation's supply/return
+  differential. <https://www.iea-dhc.org/fileadmin/documents/Annex_VI/DHC_Connection_Handbook.pdf>
 - <a id="r30"></a>**[30]** Euroheat and Power (2008). *Guidelines for district heating substations.*
   <https://www.euroheat.org/>
 - <a id="r31"></a>**[31]** Logstor and Uponor pre-insulated pipe product data, for pipe conductivity and $U'$.
@@ -125,7 +130,7 @@ documentation pages and the validation report
 ## Solar geometry and irradiance
 
 - <a id="r35"></a>**[35]** Duffie, J.A. and Beckman, W.A. (2013). *Solar Engineering of Thermal Processes*, 4th ed.,
-  Wiley. Solar position, angle of incidence (Eq. 1.6.2) and plane-of-array transposition
+  Wiley. Solar position, angle of incidence (Eq. 1.6.3) and plane-of-array transposition
   (Eq. 2.15.1). DOI: [10.1002/9781118671603](https://doi.org/10.1002/9781118671603)
 - <a id="r36"></a>**[36]** Liu, B.Y.H. and Jordan, R.C. (1963). The long-term average performance of flat-plate
   solar-energy collectors. *Solar Energy* 7(2), 53–74. The isotropic sky model.

@@ -22,8 +22,11 @@ T_{p,\text{out}} = T_{p,\text{in}} - \dot Q/\dot C_p .$$
 
 **Pressure loss.** The primary side loses pressure in the valve (see
 [the hydraulics page](dhs-hydraulic.md)) and in the exchanger body. A manufacturer quotes
-the body loss as a design pressure drop at a design flow. Frederiksen and Werner [28](references.md#r28) give 20 to 60 kPa as a typical primary-side design drop for a
-plate exchanger in a district heating substation. The toolbox takes the same two numbers,
+the body loss as a design pressure drop at a design flow. Design guidance for a plate
+exchanger in a district heating substation puts the primary-side drop at a few tens of
+kPa: the IEA District Heating and Cooling programme's connection handbook gives below
+20 kPa for the exchanger itself, with a separate 50 to 60 kPa target for the whole
+substation's supply/return differential [29](references.md#r29). The toolbox takes the same two numbers,
 `dpNomPrimary` and `mdotNomPrimary`, and computes
 
 $$K_\text{hx} = \frac{\Delta p_\text{nom}}{\dot m_\text{nom}^2},\qquad

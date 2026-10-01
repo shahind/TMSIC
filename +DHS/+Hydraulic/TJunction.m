@@ -24,6 +24,11 @@ classdef TJunction < DHS.Hydraulic.Junction
 %   uses, evaluated at that leg's own diameter:
 %       K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
 %       K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
+%
+%   This equivalent-length rule uses a fixed multiplier regardless of how flow
+%   actually splits between the run and the branch; more detailed correlations
+%   exist that depend on the actual flow-split fraction, a known limitation of
+%   this simpler model, not a defect in its implementation (see docs/dhs-hydraulic.md).
 %   This K is added on top of the ordinary pipe resistance of whichever pipe
 %   leaves portB (run) or portC (branch) -- see DHS.Hydraulic.Pipe.resistance.
 %   SCOPE: applied on the supply side only (the return-side mirror pipe is a

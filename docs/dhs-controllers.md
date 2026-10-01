@@ -77,7 +77,7 @@ and after twelve at 21.00 degC, when the command has settled at 0.60 (4.8 kW bal
 `LQR` designs a full-state feedback law from a building's own linear model. The plant from
 `RCBS.Simulation.getStateSpace` is augmented with the integral of the tracking error,
 discretised at the control step $T_s$ by zero-order hold, and solved with `dlqr`
-([41](references.md#r41), [42](references.md#r42)):
+([40](references.md#r40), [41](references.md#r41), [42](references.md#r42)):
 
 $$Q_h = -K_x\,(x - r) - K_i\,x_i,\qquad u = \mathrm{clamp}\!\left(Q_h/\dot Q_\text{max},\,0,\,1\right).$$
 

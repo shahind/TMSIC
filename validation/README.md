@@ -25,8 +25,10 @@ relative check:  |measured - expected| / |expected|      <= tolerance
 ```
 
 The tolerances follow the known accuracy of the method being tested. For example, the
-Swamee–Jain friction factor is an approximation with a published error of about 3 percent [18](../docs/references.md#r18),
-so its tolerance is 3.5 percent. No tolerance was widened to make a check pass.
+Swamee–Jain friction factor is an approximation with a published error of up to 2.04 percent
+over its own validated range [18](../docs/references.md#r18); this check's own worst case (3.1 percent, at a Reynolds
+number below that validated range) sets its tolerance at 3.5 percent. No tolerance was
+widened to make a check pass.
 
 **All 18 checks pass.**
 
@@ -88,7 +90,7 @@ with a 5 s step. A time constant of 2415 s is recovered against an expected 2400
 
 ![Zone air and wall mid-layer temperature against ode45](figures/validate_wall_tnetwork.png)
 
-**What it validates.** The three-resistor, two-capacitor (3R2C) network that represents a
+**What it validates.** The two-resistor, one-capacitor (2R1C) network that represents a
 wall.
 
 **Reference.** A numerical solution of the same equations by MATLAB's `ode45` with a
@@ -174,15 +176,16 @@ for a 2×2 multi-zone layout. Measured conductance is 128.333 W/K against an ana
 it transfers, and the pressure drop it and its valve add to the network branch.
 
 **Reference.** The effectiveness–NTU relation for a counterflow exchanger (Incropera and
-DeWitt [12](../docs/references.md#r12), Section 11.4), the IEC 60534 valve equation [22](../docs/references.md#r22), and the 20 to 60 kPa design pressure
-drop reported by Frederiksen and Werner [28](../docs/references.md#r28).
+DeWitt [12](../docs/references.md#r12), Section 11.4), the IEC 60534 valve equation [22](../docs/references.md#r22), and the primary-side design
+pressure guidance (below 20 kPa for the exchanger, 50 to 60 kPa for the whole substation)
+in the IEA District Heating and Cooling connection handbook [29](../docs/references.md#r29).
 
 **Expected output.** The delivered heat equals the closed-form value at a general operating
 point and in three limits: a very large secondary flow, equal capacity rates, and a very
 large heat-transfer area. The heat given up by the primary side equals the heat received by
 the secondary side. The delivered heat never exceeds the rated capacity and never reverses.
 The primary pressure drop equals the design body loss plus the valve loss computed
-independently, and the default design drop lies inside the published range.
+independently, and the default design drop is of the same order as the published guidance.
 
 **Component output.** All heat-transfer cases agree with their closed forms to 2e-9 or
 better: 432.3 kW at the general point, 456.2 kW, 354.1 kW and 502.3 kW in the three limits.
@@ -220,7 +223,8 @@ intersection to 2e-16. Branch flow and head balance agree to 6e-16.
 **What it validates.** The gear, screw or piston pump. Unlike a centrifugal pump, it
 delivers a flow set by its speed almost regardless of pressure, until a relief valve opens.
 
-**Reference.** Karassik et al. [25](../docs/references.md#r25) (Chapter 9) and Volk [27](../docs/references.md#r27) (Chapter 9).
+**Reference.** Karassik et al. [25](../docs/references.md#r25) (Chapter 1): constant flow regardless of system pressure, and the
+relief valve required to cap pressure.
 
 **Expected output.** Against a low resistance the flow equals the commanded rate. Against a
 high resistance the relief valve holds the pressure at its limit and the flow falls to
@@ -263,16 +267,18 @@ curved than the inherent one.
 toolbox uses the explicit Swamee–Jain formula.
 
 **Reference.** The implicit Colebrook–White equation (Colebrook [17](../docs/references.md#r17)), solved here by
-Newton iteration; Swamee and Jain [16](../docs/references.md#r16); Brkić [18](../docs/references.md#r18) for the accuracy of the
-approximation; and a tabulated reference point.
+Newton iteration; Swamee and Jain [16](../docs/references.md#r16), whose own paper claims errors within 1 percent over
+5e3 ≤ Re ≤ 1e8 and 1e-6 ≤ ε/D ≤ 1e-2; Brkić [18](../docs/references.md#r18), whose independent review reports up to 2.04 percent
+for this formula; and a tabulated reference point.
 
-**Expected output.** Over the turbulent range the explicit formula stays within its known
-3 percent of Colebrook–White. It matches the tabulated value at $\mathrm{Re} = 10^5$ and
+**Expected output.** Over its own validated Reynolds-number range the explicit formula stays
+within about 2 percent of Colebrook–White. It matches the tabulated value at $\mathrm{Re} = 10^5$ and
 $\varepsilon/D = 10^{-3}$. Below the transition it reduces to $f = 64/\mathrm{Re}$. The
 resistance computed by the pipe equals the Darcy–Weisbach pressure drop.
 
 **Component output.** The largest deviation from Colebrook–White is 3.1 %, near
-$\mathrm{Re} = 4\times10^3$. At the tabulated point the formula gives 0.02234 against 0.0222 (0.6 %). Laminar values are exact, and resistance agrees with Darcy–Weisbach to 4e-16.
+$\mathrm{Re} = 4\times10^3$ -- below Swamee-Jain's own stated validity floor of $\mathrm{Re}=5\times10^3$, where a larger deviation than its own claimed
+accuracy is expected. At the tabulated point the formula gives 0.02234 against 0.0222 (0.6 %). Laminar values are exact, and resistance agrees with Darcy–Weisbach to 4e-16.
 
 ### 2.6 T-junction
 
@@ -283,9 +289,14 @@ $\mathrm{Re} = 4\times10^3$. At the tabulated point the formula gives 0.02234 ag
 **What it validates.** The pressure loss of a T-fitting where a service pipe leaves the main
 pipe.
 
-**Reference.** Crane Technical Paper 410 [23](../docs/references.md#r23), which gives a standard tee an equivalent length of 20 diameters as a run
-and 60 diameters as a branch. Idelchik [24](../docs/references.md#r24) is a
-qualitative cross-check on the ordering.
+**Reference.** The equivalent-length method for a standard tee (20 diameters as a run, 60
+diameters as a branch, independent of how flow actually splits between them), widely
+attributed to Crane Technical Paper 410, which this toolbox could not independently obtain
+a copy of [23](../docs/references.md#r23). Idelchik [24](../docs/references.md#r24) gives an alternative, flow-split-dependent correlation for the same
+fitting; at some splits its own ordering of run vs. branch loss differs from the fixed 3:1
+branch:run ratio used here, which this check does not test (it checks the toolbox's
+implementation against the equivalent-length formula only, which is well defined on its
+own).
 
 **Expected output.** The run and branch coefficients equal the equivalent-length expressions. At equal
 diameters the branch coefficient is exactly three times the run coefficient, since
@@ -419,7 +430,7 @@ split equals the specified fraction.
 **What it validates.** The occupancy, setpoint and internal-gain schedule, including the
 optimal-start ramp.
 
-**Reference.** The specified rules, taken from ASHRAE Standard 90.1-2019 Appendix G [8](../docs/references.md#r8), the
+**Reference.** The specified rules, taken from ASHRAE Standard 90.1-2022 Appendix G [8](../docs/references.md#r8), the
 National Energy Code of Canada for Buildings (2020) [9](../docs/references.md#r9) and CIBSE Guide H, Section 3 [11](../docs/references.md#r11).
 
 **Expected output.** Occupied hours, the weekend override and the occupied and setback

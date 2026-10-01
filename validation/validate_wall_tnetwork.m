@@ -1,5 +1,5 @@
 function V = validate_wall_tnetwork(plotMode)
-%VALIDATE_WALL_TNETWORK  3R2C single-layer wall (RCBS.Zone.addWall) vs a
+%VALIDATE_WALL_TNETWORK  2R1C single-layer wall (RCBS.Zone.addWall) vs a
 %                        high-accuracy ODE reference.
 %
 %   COMPONENT      RCBS.Zone.addWall(R_total, C_wall, T0, name) -- inserts the
@@ -72,7 +72,7 @@ function V = validate_wall_tnetwork(plotMode)
     C(1) = mk('max|T_air - ode45|  over 2 days  [degC]',   0, eAir,  0.03, 'abs');
     C(2) = mk('max|T_wall_mid - ode45|          [degC]',   0, eWall, 0.03, 'abs');
     C(3) = mk('steady-periodic air amplitude  [degC]',     ampO, ampR, 0.02, 'rel');
-    V.name = '3R2C wall T-network (addWall) vs ode45 reference';
+    V.name = '2R1C wall T-network (addWall) vs ode45 reference';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eAir',eAir,'eWall',eWall,'ampRCBS',ampR,'ampODE',ampO);
 
