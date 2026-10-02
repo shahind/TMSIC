@@ -192,6 +192,11 @@ better: 432.3 kW at the general point, 456.2 kW, 354.1 kW and 502.3 kW in the th
 Energy is conserved to 3e-16. Primary pressure drop is 54.1 kPa, equal to the
 independent calculation to 1e-16, and the default design drop is 30 kPa.
 
+**Cross-check.** MathWorks' Simscape Heat Exchanger (TL-TL) and Plate Heat Exchanger
+(TL-TL) blocks [56](../docs/references.md#r56), [57](../docs/references.md#r57) use the
+same effectiveness-NTU relation, and the same fixed $K=\Delta p_\text{nom}/\dot m_\text{nom}^2$
+pressure-loss form as their own "Pressure loss coefficient" option.
+
 ### 2.2 Centrifugal pump
 
 `validate_pump`
@@ -213,6 +218,10 @@ flow equals the pressure the branch needs.
 **Component output.** The shut-off head (300 kPa) and the run-out flow (14 kg/s) are exact.
 Affinity scaling holds to 2e-16, and the operating point (8.909 kg/s) matches the analytic
 intersection to 2e-16. Branch flow and head balance agree to 6e-16.
+
+**Cross-check.** This quadratic curve is the special case of MathWorks' Simscape
+Centrifugal Pump (TL) general affinity-law model [54](../docs/references.md#r54) for a
+quadratic reference head curve.
 
 ### 2.3 Fixed-displacement pump
 
@@ -236,6 +245,10 @@ speed while the pump is unsaturated and is bounded below by the speed floor.
 is 0.866 kg/s and the head is pinned at 300 kPa, matching the closed form to 1e-16. Flow is continuous across the transition at $K^* = 12{,}000$ (changing $K$ by 4 % across it
 moves the flow by 0.99 % of the rated value). Speed scaling and the speed floor are exact.
 
+**Cross-check.** MathWorks' Simscape Fixed-Displacement Pump (TL) block
+[55](../docs/references.md#r55) models the same pump type with shaft torque/speed,
+volumetric leakage and friction torque; this is a simpler model of the same physics.
+
 ### 2.4 Control valve
 
 `validate_valve`
@@ -256,6 +269,10 @@ resistance has a monotonic characteristic that is closer to linear than the inhe
 **Component output.** The recovered $K_v$ is 25.0, equal to the rated value to 3e-16. At half
 travel the equal-percentage ratio is 0.141421, the exact value for $R = 50$. Agreement on the linear curve is 2e-16. With an authority of 0.59 the installed curve is monotonic and less
 curved than the inherent one.
+
+**Cross-check.** MathWorks' Simscape Gate Valve (TL) block [58](../docs/references.md#r58)
+models a different valve archetype (a discharge coefficient and gate opening area) than
+the $K_v$ flow-coefficient model checked here, so no direct equation match is expected.
 
 ### 2.5 Pipe friction
 
@@ -292,44 +309,35 @@ equation for the turbulent friction factor; Haaland and Swamee-Jain agree to wit
 ![Tee loss coefficients and the flow through a network with a tee](figures/validate_tjunction.png)
 
 **What it validates.** The pressure loss of a T-fitting where a service pipe leaves the main
-pipe, including that its friction factor is deliberately independent of the leg's actual
-flow.
+pipe, in both its `frictionModel` modes.
 
 **Reference.** The equivalent-length method for a standard tee (20 diameters as a run, 60
-diameters as a branch, independent of how flow actually splits between them). A tee this
-simple does not need to resolve how the loss changes with the flow split or the branch
-angle, which matters for sizing one fitting precisely more than for a co-simulated network
-solved for mass flow and pressure level. This is also MATLAB/Simscape's own default
-T-Junction (TL) model [51](../docs/references.md#r51): its "Crane correlation" option is
-exactly $K_\text{main}=20f_{T,\text{main}}$, $K_\text{side}=60f_{T,\text{side}}$, citing
-Crane Technical Paper 410's 1981 edition [52](../docs/references.md#r52) -- a different,
-precisely identified edition from the one this toolbox holds a copy of
-[23](../docs/references.md#r23), which replaced this method with a correlation in the
-branch-to-combined flow ratio and the branch angle. Idelchik [24](../docs/references.md#r24)
-and Rennels and Hudson [53](../docs/references.md#r53) -- the basis of Simscape's own
-alternative "Rennels correlation" model -- both give an independent, similarly
-flow-ratio-dependent treatment; at some splits their ordering of run vs. branch loss
-differs from the fixed 3:1 branch:run ratio used here, which this check does not test (it
-checks the toolbox's implementation against the equivalent-length formula only, which is
-well defined on its own).
+diameters as a branch, independent of how flow actually splits between them). This is also
+MATLAB/Simscape's own default T-Junction (TL) model [51](../docs/references.md#r51): its
+"Crane correlation" option is exactly $K_\text{main}=20f_{T,\text{main}}$,
+$K_\text{side}=60f_{T,\text{side}}$, citing Crane Technical Paper 410's 1981 edition
+[52](../docs/references.md#r52). A newer edition [23](../docs/references.md#r23), Idelchik
+[24](../docs/references.md#r24) and Rennels and Hudson [53](../docs/references.md#r53)
+instead give a correlation in the flow-split ratio and the branch angle, which this check
+does not test.
 
 **Expected output.** The run and branch coefficients equal the equivalent-length
-expressions, with the friction factor evaluated at the fully turbulent asymptote for that
-leg's diameter (matching Simscape's own tabulated $f_T$), not at the leg's actual flow: the
-20 and 60 multipliers are themselves empirical constants calibrated to fully turbulent
-flow. At equal diameters the branch coefficient is exactly three times the run coefficient,
-since 60 / 20 = 3. A pipe leaving the tee picks up the loss of the port it is wired to, and
-a pipe with no tee picks up none. The loss a pipe picks up is identical whether that pipe
-carries a representative turbulent flow or a deliberately tiny, laminar-range flow. In a
-network, a tee lowers the flow by the amount the loss predicts, and the declarative and
-port-wiring styles give the same loss.
+expressions. In the default `'fixed'` mode, the friction factor is evaluated at the fully
+turbulent asymptote for that leg's diameter (matching Simscape's own tabulated $f_T$),
+independent of the leg's actual flow. In `'actual'` mode, it instead matches a hand-built
+expression evaluated at the leg's own Reynolds number, and differs from the `'fixed'`
+value at low flow. At equal diameters the branch coefficient is exactly three times the run
+coefficient, since 60 / 20 = 3. A pipe leaving the tee picks up the loss of the port it is
+wired to, and a pipe with no tee picks up none. In a network, a tee lowers the flow by the
+amount the loss predicts, and the declarative and port-wiring styles give the same loss.
 
 **Component output.** For a 0.10 m main and a 0.05 m side leg, $K_\text{run}$ is 2.731 and
 $K_\text{branch}$ is 153.53 Pa/(kg/s)², both equal to the formula. At equal diameters the
-ratio is 3 to 1e-16, and the loss a pipe picks up is identical to 1e-12 at a representative
-flow and at a deliberately tiny flow. In a one-branch network, the total flow is 8.614 kg/s
-through a plain junction and 8.423 kg/s through the tee. That second value matches the
-analytic prediction to 5e-12.
+ratio is 3 to 1e-16, and the fixed-mode loss a pipe picks up is identical to 1e-12 at a
+representative flow and at a deliberately tiny flow. The actual-mode coefficient matches
+its Reynolds-dependent formula to 1e-9 and differs measurably from the fixed-mode value at
+low flow. In a one-branch network, the total flow is 8.614 kg/s through a plain junction
+and 8.423 kg/s through the tee. That second value matches the analytic prediction to 5e-12.
 
 ### 2.7 Pipe network
 

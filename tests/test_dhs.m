@@ -117,6 +117,25 @@ function test_tjunction_loss_equivalent_length(tc)
     verifyGreaterThan(tc, K, Kbranch);   % pipe's own Darcy term plus the tee's
 end
 
+function test_tjunction_friction_model_actual(tc)
+    % frictionModel='actual' evaluates the fitting's own friction factor at
+    % the leg's actual Reynolds number instead of the fixed, fully turbulent
+    % asymptote 'fixed' uses by default.
+    rho = 978;  mu = 4.0e-4;  mdot = 0.02;   % small flow -> laminar-range Re
+    teeFixed = DHS.Hydraulic.TJunction('Tf', 'mainDiameter',0.10, 'sideDiameter',0.05);
+    teeAct   = DHS.Hydraulic.TJunction('Ta', 'mainDiameter',0.10, 'sideDiameter',0.05, 'frictionModel','actual');
+
+    Kfixed = teeFixed.teeLossK('run', rho, mu, mdot);
+    Kact   = teeAct.teeLossK('run', rho, mu, mdot);
+    verifyNotEqual(tc, Kact, Kfixed);   % must actually differ at this low flow
+
+    A  = pi*teeAct.mainDiameter^2/4;
+    Re = rho * (mdot/(rho*A)) * teeAct.mainDiameter / mu;
+    fRef = DHS.Hydraulic.Pipe.swameeJain(Re, teeAct.roughness/teeAct.mainDiameter);
+    KactRef = fRef * (20*teeAct.mainDiameter) / (teeAct.mainDiameter * 2*rho*A^2);
+    verifyEqual(tc, Kact, KactRef, 'RelTol', 1e-12);
+end
+
 function test_fixed_displacement_pump_branch(tc)
     pd = DHS.Hydraulic.FixedDisplacementPump('PD', 'mdotRated',5, 'dpMax',3e5);
     Kbr = 4000;  dpAvail = 0;

@@ -134,52 +134,33 @@ The factor is clamped to the range 0.008 to 0.1, and $f = 64/\mathrm{Re}$ below
 $\mathrm{Re} = 2300$. Heat loss is steady, $\dot Q = U'\,L\,(T_\text{water} - T_\text{ground})$, and
 the network applies it as a transport temperature drop along the pipe.
 
-Cross-checked against MathWorks' Simscape Pipe (TL) block [50](references.md#r50): its
-pressure-loss form is the same $K\dot m^2$ Darcy-Weisbach term (per half-segment, since
-Simscape discretises each pipe around an internal node, where this toolbox uses one lumped
-term for the whole length) and the same $f=64/\mathrm{Re}$ laminar law, but its turbulent
-friction factor is the Haaland equation rather than Swamee-Jain -- the two agree to within
-about 2% [18](references.md#r18). Two differences are deliberate scope limits rather than
-oversights: pipes here are assumed level (Simscape's block has an elevation-gain input that
-this toolbox does not model, so a pipe's hydrostatic $\rho g\,\Delta z$ term is always zero),
-and neither fluid inertia nor the multi-segment wave dynamics Simscape optionally resolves
-are needed for a network solved quasi-statically once per co-simulation step.
+This matches MathWorks' Simscape Pipe (TL) block [50](references.md#r50): the same
+$K\dot m^2$ Darcy-Weisbach term and the same $f=64/\mathrm{Re}$ laminar law (Simscape uses
+the Haaland equation rather than Swamee-Jain in the turbulent range; the two agree to within
+about 2% [18](references.md#r18)). Pipes here are assumed level (no $\rho g\,\Delta z$ term)
+and the network is solved quasi-statically, without fluid inertia or wave dynamics.
 
 ### T-junction
 
 A `TJunction` adds the minor loss of a real T-fitting, using the equivalent-length method
 for a standard tee: an equivalent length of 20 pipe diameters when the flow goes straight
 through (the run) and 60 diameters when the flow turns into the side leg (the branch),
-independent of how the flow actually splits between them. A tee this simple does not need
-to resolve how the loss changes with the flow split or the branch angle: that level of
-detail matters for sizing one fitting precisely, less for a co-simulated network solved
-for mass flow and pressure level, and it would also make the tee's own resistance depend
-on the flow the solver is iterating for.
-
-This is also MATLAB/Simscape's own default T-Junction (TL) model [51](references.md#r51):
-its "Crane correlation" loss-coefficient option is $K_\text{main}=20f_{T,\text{main}}$,
-$K_\text{side}=60f_{T,\text{side}}$ -- exactly this formula -- citing Crane Technical Paper
-410's 1981 edition [52](references.md#r52), a different (and precisely identified) edition
-from the one this toolbox holds a copy of [23](references.md#r23), which replaced this
-method with a correlation in the branch-to-combined flow ratio and the branch angle.
-Idelchik [24](references.md#r24) and Rennels and Hudson [53](references.md#r53) -- the
-basis of Simscape's own alternative "Rennels correlation" model -- both give an
-independent, similarly flow-ratio-dependent treatment: at a 50/50 split with equal
-diameters, Idelchik's own worked example gives a *larger* loss on the run than on the
-branch, the opposite of the fixed 3:1 branch:run ratio used here (see
-`validation/README.md` for the comparison). The toolbox keeps the simpler, closed-form
-estimate deliberately, at the cost of not capturing that dependence.
+independent of how the flow actually splits between them:
 
 $$K_\text{run} = f(D_\text{main})\,\frac{20\,D_\text{main}}{D_\text{main}\,2\rho A_\text{main}^2},\qquad
 K_\text{branch} = f(D_\text{side})\,\frac{60\,D_\text{side}}{D_\text{side}\,2\rho A_\text{side}^2}.$$
 
-The friction factor $f$ is evaluated at the fully turbulent asymptote for that leg's own
-diameter, not at the leg's instantaneous flow -- matching Simscape's own $f_T$, a tabulated
-value per nominal pipe size, not a function of Reynolds number. This is deliberate: the 20
-and 60 multipliers are themselves empirical constants calibrated to fully turbulent flow,
-so evaluating $f$ at the actual (possibly low) flow would be inconsistent with how those
-multipliers were derived, unlike the ordinary pipe friction factor the tee's loss sits on
-top of, which does track the actual flow.
+This matches MATLAB/Simscape's own default T-Junction (TL) model [51](references.md#r51),
+which cites Crane Technical Paper 410's 1981 edition [52](references.md#r52). A newer
+edition [23](references.md#r23), Idelchik [24](references.md#r24) and Rennels and
+Hudson [53](references.md#r53) instead give a correlation in the flow-split ratio and the
+branch angle; see `validation/README.md` for the comparison.
+
+By default (`frictionModel = 'fixed'`) $f$ is evaluated at the fully turbulent asymptote
+for that leg's own diameter, matching Simscape's own $f_T$, a tabulated per-size constant.
+Setting `frictionModel = 'actual'` instead evaluates $f$ at the leg's own instantaneous
+flow, the same laminar/turbulent rule `Pipe.resistance` uses, for users who want more
+accuracy than the fixed-$f_T$ convention gives.
 
 The coefficient is added to the Darcy–Weisbach term of the pipe that leaves the tee by
 `portB` (run) or `portC` (branch). For a 0.10 m main and a 0.05 m side leg the two
@@ -198,6 +179,9 @@ already available at its tee, the flow is
 
 $$\dot m = \sqrt{\frac{s^2\Delta p_0 + \Delta p_\text{avail}}{K + \Delta p_0/\dot m_\text{max}^2}}.$$
 
+This is the special case of MATLAB/Simscape's Centrifugal Pump (TL) general affinity-law
+model [54](references.md#r54) for a quadratic reference head curve.
+
 ### Fixed-displacement pump
 
 A gear, screw or piston pump delivers a flow set by its speed almost regardless of the
@@ -209,6 +193,10 @@ As the central plant pump, this type reports its relief-valve pressure $\Delta p
 as the header head whenever it runs. A full positive-displacement solve, in which the pump
 sets the flow of the whole network, is not implemented.
 
+MATLAB/Simscape's Fixed-Displacement Pump (TL) [55](references.md#r55) models the same
+pump type in more detail, with shaft torque/speed, volumetric leakage and friction torque;
+this is a simpler commanded-flow-with-relief-valve model of the same physics.
+
 ### Control valve
 
 The valve follows the IEC 60534 flow coefficient [22](references.md#r22), $Q\,[\mathrm{m^3/h}] = K_v\sqrt{\Delta p\,[\mathrm{bar}]}$,
@@ -216,6 +204,10 @@ which gives $\Delta p = K\,\dot m^2$ with $K = 10^5\cdot 3600^2/(K_v^2\rho^2)$. 
 coefficient depends on the travel $\text{pos}$ through the inherent characteristic, linear
 ($K_v/K_{vs} = \text{pos}$) or equal-percentage ($K_v/K_{vs} = R^{\text{pos}-1}$, with
 rangeability $R$, usually 25 to 50). Travel is floored at 0.02 to avoid a division by zero.
+
+MATLAB/Simscape's Gate Valve (TL) block [58](references.md#r58) models a different valve
+archetype -- a discharge coefficient and gate opening area -- rather than the $K_v$
+flow-coefficient model used here.
 
 ## Function reference
 
@@ -238,7 +230,8 @@ rangeability $R$, usually 25 to 50). Travel is floored at 0.02 to avoid a divisi
 | `TJunction(name, 'mainDiameter',Dm, 'sideDiameter',Ds)` | name; diameters (m) | A tee. `portA` is the tee itself (the inbound node). |
 | `connectToPipe('portB', pipe)` | port name, pipe | Wires the run. `connectToPipe(pipe)` alone means `portB`. |
 | `connectToPipe('portC', pipe)` | port name, pipe | Wires the side branch. |
-| `teeLossK(side, rho, mu)` | `'run'` or `'branch'`, density, viscosity | The coefficient $K_\text{run}$ or $K_\text{branch}$ in Pa/(kg/s)². |
+| `teeLossK(side, rho, mu, mdot)` | `'run'` or `'branch'`, density, viscosity, flow (kg/s, only used when `frictionModel='actual'`) | The coefficient $K_\text{run}$ or $K_\text{branch}$ in Pa/(kg/s)². |
+| `.frictionModel` | `'fixed'` (default) or `'actual'` | Whether $f$ is evaluated at the fully turbulent asymptote or at the leg's own flow. |
 | `.p`, `.mdotThrough` | none | Live gauge pressure (Pa) and through flow (kg/s). |
 
 ### `DHS.Hydraulic.CentrifugalPump` and `FixedDisplacementPump`

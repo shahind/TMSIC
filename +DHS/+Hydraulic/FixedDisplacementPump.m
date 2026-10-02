@@ -11,6 +11,10 @@ classdef FixedDisplacementPump < DHS.Hydraulic.Pump
 %
 %       mdot = min( frac*mdotRated , sqrt(max(0,(dpMax+dpAvailable))/Kbranch) )
 %
+%   A simpler model of the same pump type than MATLAB/Simscape's Fixed-Displacement
+%   Pump (TL) block, which also models shaft torque/speed, volumetric leakage and
+%   friction torque (docs/dhs-hydraulic.md).
+%
 %   SCOPE  This flow-vs-resistance physics is fully modelled at the branch level
 %   (solveBranch, used for a building's substation pump). At the *central*
 %   plant-pump position, DHS.HydraulicNetwork only asks a pump for the head it

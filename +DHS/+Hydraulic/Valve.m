@@ -5,6 +5,9 @@ classdef Valve < handle
 %       Kv(pos)  = Kvs * pos                         ('linear')
 %       Kv(pos)  = Kvs * rangeability^(pos-1)        ('eqpct', default)
 %
+%   MATLAB/Simscape's Gate Valve (TL) block models a different valve archetype
+%   (discharge coefficient, gate opening area) -- see docs/dhs-hydraulic.md.
+%
 %   Its position can be held fixed or driven by a controller:
 %       valve.attachController( DHS.controllers.PID(...) )
 %

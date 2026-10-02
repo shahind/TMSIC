@@ -20,6 +20,11 @@ to the substation's capacity $\dot Q_\text{cap}$ and prevented from reversing:
 $$\dot Q = \mathrm{clip}\big(\varepsilon\,\dot C_{\min}(T_{p,\text{in}}-T_{s,\text{in}}),\,0,\,\dot Q_\text{cap}\big),\qquad
 T_{p,\text{out}} = T_{p,\text{in}} - \dot Q/\dot C_p .$$
 
+MATLAB/Simscape's Heat Exchanger (TL-TL) and Plate Heat Exchanger (TL-TL) blocks
+[56](references.md#r56), [57](references.md#r57) use the same effectiveness-NTU
+relation; the plate version adds chevron-angle-dependent friction and Nusselt
+correlations and plate thermal mass, not replicated here.
+
 **Pressure loss.** The primary side loses pressure in the valve (see
 [the hydraulics page](dhs-hydraulic.md)) and in the exchanger body. A manufacturer quotes
 the body loss as a design pressure drop at a design flow. Design guidance for a plate
@@ -35,7 +40,9 @@ K_\text{primary} = K_\text{valve}(\text{pos}) + K_\text{hx}.$$
 The loss is proportional to the square of the flow, as for a pipe or a valve, and each
 unit has its own rating. If `mdotNomPrimary` is empty it defaults to
 $\max(\dot Q_\text{cap}/(c_p\cdot 20\,\text{K}),\ 0.5)$ kg/s, which assumes a 20 K design
-temperature drop.
+temperature drop. This is the same fixed $K=\Delta p_\text{nom}/\dot m_\text{nom}^2$ form as
+the "Pressure loss coefficient" option of MATLAB/Simscape's Heat Exchanger (TL-TL) block
+[56](references.md#r56).
 
 ## Example
 

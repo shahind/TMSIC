@@ -12,13 +12,17 @@ classdef HeatExchanger < handle
 %       Q   = clamp( eps*Cmin*(Tsup_primary - Tsec_in) , 0 , Qcap )
 %       Tret_primary = Tsup_primary - Q/Cp
 %
+%   Same effectiveness-NTU relation as MATLAB/Simscape's Heat Exchanger (TL-TL)
+%   and Plate Heat Exchanger (TL-TL) blocks (docs/dhs-heat-exchanger.md).
+%
 %   PRIMARY-SIDE PRESSURE LOSS  The valve plus the exchanger body
 %   itself. The body loss is quoted, the same way a manufacturer's data sheet
 %   does, as a design pressure drop dpNomPrimary at a design flow mdotNomPrimary
 %   (a typical plate heat exchanger primary-side design drop in a district-heating
 %   substation is of order a few tens of kPa), giving a fixed K = dpNomPrimary/mdotNomPrimary^2
 %   -- the same dp ~ mdot^2 turbulent-flow form as a pipe or a valve, but sized to
-%   each unit's own rating rather than one constant every instance shares.
+%   each unit's own rating rather than one constant every instance shares (matching
+%   Simscape's own "Pressure loss coefficient" option for this component).
 %
 %   Owns a pump and a valve on the primary side (obj.pump, obj.valve; a
 %   DHS.Hydraulic.CentrifugalPump by default). Attach controllers to either:

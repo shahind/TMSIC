@@ -3,15 +3,15 @@ function V = validate_tjunction(plotMode)
 %                    method, its wiring into DHS.Hydraulic.Pipe.resistance,
 %                    and its effect on a network's operating point.
 %
-%   COMPONENT      DHS.Hydraulic.TJunction.teeLossK(side, rho, mu)
+%   COMPONENT      DHS.Hydraulic.TJunction.teeLossK(side, rho, mu, mdot)
 %                    K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
 %                    K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
 %                  where f is the same Swamee-Jain friction factor
-%                  DHS.Hydraulic.Pipe uses, evaluated at the fully turbulent
-%                  asymptote for that leg's own diameter (matching
-%                  MATLAB/Simscape's own default T-Junction (TL) model,
-%                  K_main=20*fT_main, K_side=60*fT_side), not at the leg's
-%                  instantaneous flow.
+%                  DHS.Hydraulic.Pipe uses. frictionModel='fixed' (default)
+%                  evaluates f at the fully turbulent asymptote for that leg's
+%                  own diameter, matching MATLAB/Simscape's own default
+%                  T-Junction (TL) model (K_main=20*fT_main, K_side=60*fT_side);
+%                  frictionModel='actual' evaluates f at the leg's own mdot.
 %
 %   TEST CASE + REFERENCE
 %     A standard tee has an equivalent length, in pipe
@@ -45,13 +45,13 @@ function V = validate_tjunction(plotMode)
 %        (hn.addJunction(name,'type','tee',...)) and the port-wiring style
 %        (tee.connectToPipe('portB'/'portC', pipe)) produce numerically
 %        identical tee losses for the same geometry.
-%     G  DELIBERATELY FLOW-INDEPENDENT: K_run and K_branch do not change
-%        between a representative turbulent flow and a deliberately very low
-%        (laminar-range) flow -- the equivalent-length multipliers 20 and 60
-%        are themselves empirical constants calibrated to fully turbulent
-%        flow, so this fitting's own friction factor is pinned at that
-%        asymptote by design, unlike the ordinary pipe friction factor it sits
-%        on top of.
+%     G  FIXED MODE IS FLOW-INDEPENDENT: with the default frictionModel='fixed',
+%        K_run and K_branch do not change between a representative turbulent
+%        flow and a deliberately very low (laminar-range) flow.
+%     H  ACTUAL MODE TRACKS REYNOLDS NUMBER: with frictionModel='actual',
+%        teeLossK matches a hand-built expression using the same swameeJain
+%        friction factor evaluated at the leg's own Reynolds number, and
+%        differs from the 'fixed' value at low flow.
 %
 %   WHY THIS TEST IS GOOD
 %     A and B pin the formula itself; C is a fluid- and size-independent sanity
@@ -61,14 +61,13 @@ function V = validate_tjunction(plotMode)
 %     solver actually reads (Pipe.resistance) with no double-counting or
 %     missing term; E closes the loop end-to-end, showing the tee measurably
 %     changes a real network's operating point by the predicted amount; F
-%     confirms neither assembly API silently uses different physics; G guards
-%     against a future edit silently making the fitting's friction factor
-%     track the flow, which would disagree with how the 20/60 multipliers
-%     were derived in the first place.
+%     confirms neither assembly API silently uses different physics; G and H
+%     together confirm both friction-model options behave as documented.
 %
 %   EXPECTED OUTPUT: A, B, C exact to 1e-12; D exact to 1e-9 (relative); E
 %     matches the analytic prediction to 1e-3 (relative, limited by the lagged
-%     friction-factor fixed point); F exact to 1e-9; G exact to 1e-12.
+%     friction-factor fixed point); F exact to 1e-9; G exact to 1e-12; H exact
+%     to 1e-9.
 %
 %   Run:  >> V = validate_tjunction
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
@@ -97,10 +96,10 @@ function V = validate_tjunction(plotMode)
     ratio = teeEq.teeLossK('branch', rho, mu) / teeEq.teeLossK('run', rho, mu);
     eC = abs(ratio - 3) / 3;
 
-    % ---- G: deliberately flow-independent -- a pipe carrying this tee's run
+    % ---- G: fixed mode is flow-independent -- a pipe carrying this tee's run
     % loss picks up exactly the same extra resistance whether it is wired for
     % a representative turbulent flow or a deliberately tiny, laminar-range
-    % flow, since teeLossK does not take a flow argument at all. ----
+    % flow. ----
     mdotLow = 1e-4;
     gPipe = DHS.Hydraulic.Pipe('gProbe', 'D',tee.mainDiameter, 'L',10, 'teeSide','run');
     gPipe.nodeA = tee;
@@ -108,6 +107,19 @@ function V = validate_tjunction(plotMode)
     KrunAtHiFlow = gPipe.resistance(mdotTest, rho, mu) - gBase.resistance(mdotTest, rho, mu);
     KrunAtLoFlow = gPipe.resistance(mdotLow,  rho, mu) - gBase.resistance(mdotLow,  rho, mu);
     eG = abs(KrunAtHiFlow - KrunAtLoFlow) / Krun;
+
+    % ---- H: actual mode tracks the leg's own Reynolds number ----
+    teeAct = DHS.Hydraulic.TJunction('Tact', 'mainDiameter',0.10, 'sideDiameter',0.05, 'frictionModel','actual');
+    mdotH = 0.8;
+    Arun = pi*teeAct.mainDiameter^2/4;
+    ReRun = rho * (mdotH/(rho*Arun)) * teeAct.mainDiameter / mu;
+    fRunAct = DHS.Hydraulic.Pipe.swameeJain(ReRun, teeAct.roughness/teeAct.mainDiameter);
+    KrunActRef = fRunAct * (20*teeAct.mainDiameter) / (teeAct.mainDiameter * 2*rho*Arun^2);
+    KrunAct = teeAct.teeLossK('run', rho, mu, mdotH);
+    eH1 = abs(KrunAct - KrunActRef) / KrunActRef;
+    KrunActLow = teeAct.teeLossK('run', rho, mu, 1e-4);
+    KrunFixed  = tee.teeLossK('run', rho, mu, 1e-4);
+    eH2 = double(abs(KrunActLow - KrunFixed) / KrunFixed > 1e-3);   % must actually differ at low flow
 
     % ---- D: pipe integration, both ports, and a no-op control ----
     pRun = DHS.Hydraulic.Pipe('run',  'D',tee.mainDiameter, 'L',10);
@@ -158,6 +170,8 @@ function V = validate_tjunction(plotMode)
     C(8) = mk('E  tee reduces flow vs the plain-junction network',    1, double(okE_direction), 0, 'abs');
     C(9) = mk('F  declarative vs port-wiring: identical tee loss',    0, eF, 1e-9, 'abs');
     C(10) = mk('G  K_run unchanged at a turbulent vs a laminar-range flow', 0, eG, 1e-12, 'abs');
+    C(11) = mk('H  actual-mode K_run matches Re-dependent formula',        KrunActRef, KrunAct, 1e-9, 'rel');
+    C(12) = mk('H  actual-mode differs from fixed-mode at low flow',       1, eH2, 0, 'abs');
     V.name = 'T-junction (equivalent-length method) vs formula, pipe integration, network effect';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('Krun',Krun,'Kbranch',Kbranch,'ratio',ratio,'Mplain',Mplain,'Mtee',Mtee,'Man_tee',Man_tee);

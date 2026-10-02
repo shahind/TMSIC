@@ -216,3 +216,28 @@ documentation pages and the validation report
 - <a id="r53"></a>**[53]** Rennels, D.C. and Hudson, H.M. (2012). *Pipe Flow: A Practical and
   Comprehensive Guide.* Wiley, Hoboken, NJ. ISBN 978-0-470-90102-1.
   DOI: [10.1002/9781118275276](https://doi.org/10.1002/9781118275276)
+- <a id="r54"></a>**[54]** MathWorks. *Centrifugal Pump (TL): Centrifugal pump in a thermal liquid
+  network.* Simscape Fluids documentation. General affinity-law model
+  $\Delta p = \rho g\,\Delta H_\text{ref}(q_\text{ref})(\omega/\omega_\text{ref})^2(D/D_\text{ref})^2$;
+  reduces to `CentrifugalPump`'s quadratic curve when the reference head curve
+  $\Delta H_\text{ref}(q)$ is itself quadratic. <https://www.mathworks.com/help/hydro/ref/centrifugalpumptl.html>
+- <a id="r55"></a>**[55]** MathWorks. *Fixed-Displacement Pump (TL): Mechanical-hydraulic power
+  conversion device.* Simscape Fluids documentation. Models shaft torque/speed with
+  volumetric leakage and Coulomb/viscous friction; `FixedDisplacementPump` uses the
+  simpler commanded-flow-with-relief-valve model described in
+  [docs/dhs-hydraulic.md](../docs/dhs-hydraulic.md) instead.
+  <https://www.mathworks.com/help/hydro/ref/fixeddisplacementpumptl.html>
+- <a id="r56"></a>**[56]** MathWorks. *Heat Exchanger (TL-TL): Heat exchanger for systems with two
+  thermal liquid flows.* Simscape Fluids documentation. Effectiveness-NTU counterflow
+  relation, matching [12](#r12); "Pressure loss coefficient" option gives the same
+  fixed $K=\Delta p_\text{nom}/\dot m_\text{nom}^2$ form `HeatExchanger.primaryResistance`
+  uses. <https://www.mathworks.com/help/hydro/ref/heatexchangertltl.html>
+- <a id="r57"></a>**[57]** MathWorks. *Plate Heat Exchanger (TL-TL): Plate geometry heat exchanger
+  between two thermal liquid networks.* Simscape Fluids documentation. Same
+  effectiveness-NTU relation as [56](#r56), with chevron-angle-dependent friction and
+  Nusselt correlations and plate thermal mass this toolbox does not replicate.
+  <https://www.mathworks.com/help/hydro/ref/plateheatexchangertltl.html>
+- <a id="r58"></a>**[58]** MathWorks. *Gate Valve (TL): Gate valve in a thermal liquid system.*
+  Simscape Fluids documentation. A discharge-coefficient/gate-opening-area model, a
+  different valve archetype from the $K_v$ flow-coefficient model of [22](#r22) that
+  `Valve` uses. <https://www.mathworks.com/help/hydro/ref/gatevalvetl.html>
