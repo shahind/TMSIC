@@ -290,10 +290,13 @@ accuracy is expected. At the tabulated point the formula gives 0.02234 against 0
 pipe.
 
 **Reference.** The equivalent-length method for a standard tee (20 diameters as a run, 60
-diameters as a branch, independent of how flow actually splits between them), widely
-attributed to Crane Technical Paper 410, which this toolbox could not independently obtain
-a copy of [23](../docs/references.md#r23). Idelchik [24](../docs/references.md#r24) gives an alternative, flow-split-dependent correlation for the same
-fitting; at some splits its own ordering of run vs. branch loss differs from the fixed 3:1
+diameters as a branch, independent of how flow actually splits between them). This is the
+method Crane Technical Paper 410 used in editions before the one now in
+`paper/references/crane2013` [23](../docs/references.md#r23); that edition explains that it has since been
+replaced by a correlation in the branch-to-combined flow ratio and the branch angle,
+because the resistance depends on the actual flow split, not on fitting size alone.
+Idelchik [24](../docs/references.md#r24) shows the same kind of flow-split dependence with an independent
+correlation; at some splits its own ordering of run vs. branch loss differs from the fixed 3:1
 branch:run ratio used here, which this check does not test (it checks the toolbox's
 implementation against the equivalent-length formula only, which is well defined on its
 own).

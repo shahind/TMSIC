@@ -138,12 +138,18 @@ the network applies it as a transport temperature drop along the pipe.
 
 A `TJunction` adds the minor loss of a real T-fitting, using the equivalent-length method
 for a standard tee: an equivalent length of 20 pipe diameters when the flow goes straight
-through (the run) and 60 diameters when the flow turns into the side leg (the branch). This
-convention is widely attributed to Crane Technical Paper 410, which this toolbox could not
-independently obtain a copy of; Idelchik [24](references.md#r24) gives an alternative, more detailed treatment of
-tee and wye losses that depends on the actual flow split rather than using a fixed
-multiplier (see `validation/README.md` for the comparison). With
-the friction factor evaluated at $\mathrm{Re} = 10^7$,
+through (the run) and 60 diameters when the flow turns into the side leg (the branch),
+independent of how the flow actually splits between them. This is the method Crane
+Technical Paper 410 used in editions before the one now in `paper/references/crane2013`
+[23](references.md#r23); that edition explains that it has since been replaced by a
+correlation in the branch-to-combined flow ratio and the branch angle, because the
+resistance depends on the actual flow split, not on fitting size alone. Idelchik
+[24](references.md#r24) shows the same kind of flow-split dependence with an independent
+correlation: at a 50/50 split with equal diameters, its own worked example gives a
+*larger* loss on the run than on the branch, the opposite of the fixed 3:1 branch:run
+ratio used here (see `validation/README.md` for the comparison). The toolbox keeps the
+older, size-only convention because it is closed-form and needs no flow split as an
+input to the network solve. With the friction factor evaluated at $\mathrm{Re} = 10^7$,
 
 $$K_\text{run} = f(D_\text{main})\,\frac{20\,D_\text{main}}{D_\text{main}\,2\rho A_\text{main}^2},\qquad
 K_\text{branch} = f(D_\text{side})\,\frac{60\,D_\text{side}}{D_\text{side}\,2\rho A_\text{side}^2}.$$

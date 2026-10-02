@@ -81,10 +81,20 @@ documentation pages and the validation report
   covers the inherent flow characteristics (linear, equal-percentage).
   <https://webstore.iec.ch/en/publication/2461>
 - <a id="r23"></a>**[23]** Crane Co. (2009). *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper
-  No. 410, metric ed. ISBN 978-1-4005-2712-0. The source widely credited with the
-  equivalent-length method for fitting losses and the standard tee values of 20 diameters
-  (run) and 60 diameters (branch) the toolbox uses; a copy could not be independently
-  obtained for this project (commercial publication). <https://tp410.com/>
+  No. 410, metric ed. ISBN 978-1-4005-2712-0 (`paper/references/crane2013`). This edition
+  gives the general equivalent-length (L/D) and K-factor methods for valves and fittings
+  (Section 2, pages A-27 to A-30), but for tees and wyes specifically it uses a
+  correlation in the branch-to-combined flow ratio, the area ratio and the branch angle
+  (Eqs. 2-34 to 2-38), stating explicitly that this replaces an earlier, size-only
+  convention: "the method used in previous versions of this paper treated K_branch and
+  K_run as dependent only on the fitting size... further research has shown that the
+  resistance coefficients depend on the cross sectional area ratios of the legs, the
+  angle between the legs, the ratio of the flow rates, and whether the flows are
+  converging or diverging." The toolbox's 20-diameter (run) / 60-diameter (branch)
+  tee convention is that earlier, size-only method, not this edition's own treatment of
+  tees; it is reproduced here from secondary engineering references (e.g. SimuPipe's
+  K-factor table, <https://simupipe.com/resources/k-factor-table>) since the specific
+  numbers are not printed in this edition. <https://tp410.com/>
 - <a id="r24"></a>**[24]** Idelchik, I.E. (2007). *Handbook of Hydraulic Resistance*, 4th ed., Begell House. Tee and
   branch loss-coefficient tables (Diagram 7-29): an alternative, flow-split-dependent
   treatment of the same fitting, not a confirmation of [23]'s fixed-multiplier ordering.
