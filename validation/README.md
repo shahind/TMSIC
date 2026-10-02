@@ -280,6 +280,11 @@ resistance computed by the pipe equals the Darcy–Weisbach pressure drop.
 $\mathrm{Re} = 4\times10^3$ -- below Swamee-Jain's own stated validity floor of $\mathrm{Re}=5\times10^3$, where a larger deviation than its own claimed
 accuracy is expected. At the tabulated point the formula gives 0.02234 against 0.0222 (0.6 %). Laminar values are exact, and resistance agrees with Darcy–Weisbach to 4e-16.
 
+**Cross-check.** MathWorks' Simscape Pipe (TL) block [50](../docs/references.md#r50) uses the
+same Darcy-Weisbach form and the same $f=64/\mathrm{Re}$ laminar law, but the Haaland
+equation for the turbulent friction factor; Haaland and Swamee-Jain agree to within about
+2 % over $10^4\le\mathrm{Re}\le10^7$ and $10^{-5}\le\varepsilon/D\le10^{-3}$.
+
 ### 2.6 T-junction
 
 `validate_tjunction`
@@ -287,37 +292,44 @@ accuracy is expected. At the tabulated point the formula gives 0.02234 against 0
 ![Tee loss coefficients and the flow through a network with a tee](figures/validate_tjunction.png)
 
 **What it validates.** The pressure loss of a T-fitting where a service pipe leaves the main
-pipe, including that its friction factor tracks the leg's own actual flow rather than
-assuming the flow is always turbulent.
+pipe, including that its friction factor is deliberately independent of the leg's actual
+flow.
 
 **Reference.** The equivalent-length method for a standard tee (20 diameters as a run, 60
 diameters as a branch, independent of how flow actually splits between them). A tee this
 simple does not need to resolve how the loss changes with the flow split or the branch
 angle, which matters for sizing one fitting precisely more than for a co-simulated network
-solved for mass flow and pressure level. The fixed 20D/60D multiplier is the classical
-equivalent-length estimate for a standard tee, the convention Crane Technical Paper 410
-used before the edition now in `paper/references/crane2013` [23](../docs/references.md#r23) replaced it with a
-correlation in the branch-to-combined flow ratio and the branch angle. Idelchik
-[24](../docs/references.md#r24) shows the same kind of flow-split dependence with an independent
-correlation; at some splits its own ordering of run vs. branch loss differs from the fixed 3:1
-branch:run ratio used here, which this check does not test (it checks the toolbox's
-implementation against the equivalent-length formula only, which is well defined on its
-own).
+solved for mass flow and pressure level. This is also MATLAB/Simscape's own default
+T-Junction (TL) model [51](../docs/references.md#r51): its "Crane correlation" option is
+exactly $K_\text{main}=20f_{T,\text{main}}$, $K_\text{side}=60f_{T,\text{side}}$, citing
+Crane Technical Paper 410's 1981 edition [52](../docs/references.md#r52) -- a different,
+precisely identified edition from the one this toolbox holds a copy of
+[23](../docs/references.md#r23), which replaced this method with a correlation in the
+branch-to-combined flow ratio and the branch angle. Idelchik [24](../docs/references.md#r24)
+and Rennels and Hudson [53](../docs/references.md#r53) -- the basis of Simscape's own
+alternative "Rennels correlation" model -- both give an independent, similarly
+flow-ratio-dependent treatment; at some splits their ordering of run vs. branch loss
+differs from the fixed 3:1 branch:run ratio used here, which this check does not test (it
+checks the toolbox's implementation against the equivalent-length formula only, which is
+well defined on its own).
 
-**Expected output.** The run and branch coefficients equal the equivalent-length expressions
-at the leg's own actual flow. At equal diameters the branch coefficient is exactly three
-times the run coefficient, since 60 / 20 = 3, regardless of the flow used to evaluate the
-(shared) friction factor. A pipe leaving the tee picks up the loss of the port it is wired
-to, and a pipe with no tee picks up none. At a flow low enough to be laminar, the tee's
-friction factor equals the laminar value $64/Re$, exactly as `Pipe.resistance` would give for
-an ordinary pipe at that Reynolds number. In a network, a tee lowers the flow by the amount
-the loss predicts, and the declarative and port-wiring styles give the same loss.
+**Expected output.** The run and branch coefficients equal the equivalent-length
+expressions, with the friction factor evaluated at the fully turbulent asymptote for that
+leg's diameter (matching Simscape's own tabulated $f_T$), not at the leg's actual flow: the
+20 and 60 multipliers are themselves empirical constants calibrated to fully turbulent
+flow. At equal diameters the branch coefficient is exactly three times the run coefficient,
+since 60 / 20 = 3. A pipe leaving the tee picks up the loss of the port it is wired to, and
+a pipe with no tee picks up none. The loss a pipe picks up is identical whether that pipe
+carries a representative turbulent flow or a deliberately tiny, laminar-range flow. In a
+network, a tee lowers the flow by the amount the loss predicts, and the declarative and
+port-wiring styles give the same loss.
 
-**Component output.** For a 0.10 m main and a 0.05 m side leg at a representative 2 kg/s,
-$K_\text{run}$ is 3.582 and $K_\text{branch}$ is 171.69 Pa/(kg/s)², both equal to the formula.
-At equal diameters the ratio is 3 to 1e-16, and at the laminar probe flow the friction factor
-matches $64/Re$ to 1e-12. In a one-branch network, the total flow is 8.614 kg/s through a
-plain junction and 8.416 kg/s through the tee. That second value matches the analytic prediction to 7e-12.
+**Component output.** For a 0.10 m main and a 0.05 m side leg, $K_\text{run}$ is 2.731 and
+$K_\text{branch}$ is 153.53 Pa/(kg/s)², both equal to the formula. At equal diameters the
+ratio is 3 to 1e-16, and the loss a pipe picks up is identical to 1e-12 at a representative
+flow and at a deliberately tiny flow. In a one-branch network, the total flow is 8.614 kg/s
+through a plain junction and 8.423 kg/s through the tee. That second value matches the
+analytic prediction to 5e-12.
 
 ### 2.7 Pipe network
 

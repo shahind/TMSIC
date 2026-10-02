@@ -134,6 +134,17 @@ The factor is clamped to the range 0.008 to 0.1, and $f = 64/\mathrm{Re}$ below
 $\mathrm{Re} = 2300$. Heat loss is steady, $\dot Q = U'\,L\,(T_\text{water} - T_\text{ground})$, and
 the network applies it as a transport temperature drop along the pipe.
 
+Cross-checked against MathWorks' Simscape Pipe (TL) block [50](references.md#r50): its
+pressure-loss form is the same $K\dot m^2$ Darcy-Weisbach term (per half-segment, since
+Simscape discretises each pipe around an internal node, where this toolbox uses one lumped
+term for the whole length) and the same $f=64/\mathrm{Re}$ laminar law, but its turbulent
+friction factor is the Haaland equation rather than Swamee-Jain -- the two agree to within
+about 2% [18](references.md#r18). Two differences are deliberate scope limits rather than
+oversights: pipes here are assumed level (Simscape's block has an elevation-gain input that
+this toolbox does not model, so a pipe's hydrostatic $\rho g\,\Delta z$ term is always zero),
+and neither fluid inertia nor the multi-segment wave dynamics Simscape optionally resolves
+are needed for a network solved quasi-statically once per co-simulation step.
+
 ### T-junction
 
 A `TJunction` adds the minor loss of a real T-fitting, using the equivalent-length method
@@ -143,22 +154,32 @@ independent of how the flow actually splits between them. A tee this simple does
 to resolve how the loss changes with the flow split or the branch angle: that level of
 detail matters for sizing one fitting precisely, less for a co-simulated network solved
 for mass flow and pressure level, and it would also make the tee's own resistance depend
-on the flow the solver is iterating for. The fixed 20D/60D multiplier is the classical
-equivalent-length estimate for a standard tee, the convention Crane Technical Paper 410
-used before the edition now in `paper/references/crane2013` [23](references.md#r23)
-replaced it with a correlation in the branch-to-combined flow ratio and the branch angle.
-Idelchik [24](references.md#r24) shows the same kind of flow-split dependence with an
-independent correlation: at a 50/50 split with equal diameters, its own worked example
-gives a *larger* loss on the run than on the branch, the opposite of the fixed 3:1
-branch:run ratio used here (see `validation/README.md` for the comparison). The toolbox
-keeps the simpler, closed-form estimate deliberately, at the cost of not capturing that
-dependence. The friction factor is the leg's own Darcy-Weisbach friction factor at its
-own actual flow (`TJunction.teeLossK` takes `mdot`) -- the same Swamee-Jain/laminar rule
-`Pipe.resistance` uses, so a tee leg carrying a near-stagnant flow is not silently treated
-as turbulent,
+on the flow the solver is iterating for.
+
+This is also MATLAB/Simscape's own default T-Junction (TL) model [51](references.md#r51):
+its "Crane correlation" loss-coefficient option is $K_\text{main}=20f_{T,\text{main}}$,
+$K_\text{side}=60f_{T,\text{side}}$ -- exactly this formula -- citing Crane Technical Paper
+410's 1981 edition [52](references.md#r52), a different (and precisely identified) edition
+from the one this toolbox holds a copy of [23](references.md#r23), which replaced this
+method with a correlation in the branch-to-combined flow ratio and the branch angle.
+Idelchik [24](references.md#r24) and Rennels and Hudson [53](references.md#r53) -- the
+basis of Simscape's own alternative "Rennels correlation" model -- both give an
+independent, similarly flow-ratio-dependent treatment: at a 50/50 split with equal
+diameters, Idelchik's own worked example gives a *larger* loss on the run than on the
+branch, the opposite of the fixed 3:1 branch:run ratio used here (see
+`validation/README.md` for the comparison). The toolbox keeps the simpler, closed-form
+estimate deliberately, at the cost of not capturing that dependence.
 
 $$K_\text{run} = f(D_\text{main})\,\frac{20\,D_\text{main}}{D_\text{main}\,2\rho A_\text{main}^2},\qquad
 K_\text{branch} = f(D_\text{side})\,\frac{60\,D_\text{side}}{D_\text{side}\,2\rho A_\text{side}^2}.$$
+
+The friction factor $f$ is evaluated at the fully turbulent asymptote for that leg's own
+diameter, not at the leg's instantaneous flow -- matching Simscape's own $f_T$, a tabulated
+value per nominal pipe size, not a function of Reynolds number. This is deliberate: the 20
+and 60 multipliers are themselves empirical constants calibrated to fully turbulent flow,
+so evaluating $f$ at the actual (possibly low) flow would be inconsistent with how those
+multipliers were derived, unlike the ordinary pipe friction factor the tee's loss sits on
+top of, which does track the actual flow.
 
 The coefficient is added to the Darcy–Weisbach term of the pipe that leaves the tee by
 `portB` (run) or `portC` (branch). For a 0.10 m main and a 0.05 m side leg the two

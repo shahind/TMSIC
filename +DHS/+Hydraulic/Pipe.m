@@ -108,7 +108,7 @@ classdef Pipe < handle
             obj.f = DHS.Hydraulic.Pipe.swameeJain(Re, obj.eps/obj.D);
             K  = obj.f * obj.L / (obj.D * 2*rho * A^2);
             if ~isempty(obj.teeSide) && isa(obj.nodeA, 'DHS.Hydraulic.TJunction')
-                K = K + obj.nodeA.teeLossK(obj.teeSide, rho, mu, mdot);
+                K = K + obj.nodeA.teeLossK(obj.teeSide, rho, mu);
             end
         end
     end

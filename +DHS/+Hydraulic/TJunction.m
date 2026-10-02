@@ -23,10 +23,13 @@ classdef TJunction < DHS.Hydraulic.Junction
 %   legs -- a deliberate simplification: resolving the flow-split and
 %   branch-angle dependence a detailed treatment would need is not necessary
 %   at the level of fidelity this library targets (see docs/dhs-hydraulic.md).
-%   The same Darcy-Weisbach / Swamee-Jain friction factor DHS.Hydraulic.Pipe
-%   uses is evaluated at the leg's own actual flow, so it follows the same
-%   laminar/turbulent rule as the pipe itself rather than assuming the flow is
-%   always turbulent:
+%   This is also MATLAB/Simscape's own default T-Junction (TL) model
+%   (K_main = 20*fT_main, K_side = 60*fT_side), where fT is evaluated at the
+%   fully turbulent asymptote for that leg's own diameter, NOT at the leg's
+%   instantaneous flow: fitting-loss multipliers like 20 and 60 are themselves
+%   empirical constants calibrated to fully turbulent flow, so this fitting's
+%   own friction factor is deliberately flow-independent, unlike the ordinary
+%   pipe friction factor it leaves on top of:
 %       K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
 %       K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
 %   This K is added on top of the ordinary pipe resistance of whichever pipe
@@ -82,12 +85,12 @@ classdef TJunction < DHS.Hydraulic.Junction
             p = pipe;
         end
 
-        function K = teeLossK(obj, side, rho, mu, mdot)
-            % TEELOSSK  Equivalent-length minor loss for RUN or BRANCH, at the
-            %   actual flow through that leg (mdot), so the fitting's friction
-            %   factor follows the same laminar/turbulent rule as
-            %   DHS.Hydraulic.Pipe.resistance instead of assuming the flow is
-            %   always turbulent.
+        function K = teeLossK(obj, side, rho, ~)
+            % TEELOSSK  Equivalent-length minor loss for RUN or BRANCH,
+            %   evaluated at the fully turbulent asymptote for that leg's own
+            %   diameter (Crane's fT / Simscape's Crane-correlation
+            %   convention), not at its instantaneous flow -- see LOSS MODEL
+            %   above.
             switch lower(string(side))
                 case "run",    D = obj.mainDiameter;  nD = 20;
                 case "branch", D = obj.sideDiameter;   nD = 60;
@@ -95,9 +98,7 @@ classdef TJunction < DHS.Hydraulic.Junction
             end
             Leq = nD * D;
             A   = pi*D^2/4;
-            v   = abs(mdot) / (rho * A);
-            Re  = rho * max(v, 1e-6) * D / mu;
-            f   = DHS.Hydraulic.Pipe.swameeJain(Re, obj.roughness/D);
+            f   = DHS.Hydraulic.Pipe.swameeJain(1e7, obj.roughness/D);
             K = f * Leq / (D * 2*rho * A^2);
         end
 

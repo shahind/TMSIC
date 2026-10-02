@@ -69,6 +69,11 @@ documentation pages and the validation report
 - <a id="r18"></a>**[18]** Brkić, D. (2011). Review of explicit approximations to the Colebrook relation for flow
   friction. *Journal of Petroleum Science and Engineering* 77(1), 34–48.
   DOI: [10.1016/j.petrol.2011.02.006](https://doi.org/10.1016/j.petrol.2011.02.006)
+  Cross-checked: MathWorks' Simscape Pipe (TL) block [50](#r50) uses the same
+  Darcy-Weisbach pressure-loss form (and the same $f=64/Re$ laminar law), but the
+  Haaland equation rather than Swamee-Jain for the turbulent friction factor; the two
+  explicit fits agree to within about 2% over $10^4\le Re\le10^7$ and
+  $10^{-5}\le\varepsilon/D\le10^{-3}$.
 - <a id="r19"></a>**[19]** Todini, E. and Pilati, S. (1988). A gradient algorithm for the analysis of pipe networks. In
   *Computer Applications in Water Supply*, Wiley. The global gradient algorithm behind EPANET.
   (No DOI.)
@@ -91,13 +96,16 @@ documentation pages and the validation report
   resistance coefficients depend on the cross sectional area ratios of the legs, the
   angle between the legs, the ratio of the flow rates, and whether the flows are
   converging or diverging." The toolbox's 20-diameter (run) / 60-diameter (branch)
-  tee convention is that earlier, size-only method, not this edition's own treatment of
-  tees; it is reproduced here from secondary engineering references (e.g. SimuPipe's
-  K-factor table, <https://simupipe.com/resources/k-factor-table>) since the specific
-  numbers are not printed in this edition. <https://tp410.com/>
+  tee convention is that earlier, size-only method -- precisely, the 1981 edition
+  [52](#r52), which is also the edition MathWorks cites for Simscape's own default
+  T-Junction (TL) model [51](#r51), $K_\text{main}=20f_T$, $K_\text{side}=60f_T$ --
+  not this edition's own treatment of tees. <https://tp410.com/>
 - <a id="r24"></a>**[24]** Idelchik, I.E. (2007). *Handbook of Hydraulic Resistance*, 4th ed., Begell House. Tee and
   branch loss-coefficient tables (Diagram 7-29): an alternative, flow-split-dependent
   treatment of the same fitting, not a confirmation of [23]'s fixed-multiplier ordering.
+  Rennels and Hudson [53](#r53) -- the basis of Simscape's own alternative "Rennels
+  correlation" T-Junction model [51](#r51) -- give an independent, similarly
+  flow-ratio-dependent treatment.
   DOI: [10.1615/978-1-56700-251-5.0](https://doi.org/10.1615/978-1-56700-251-5.0)
 
 ## Pumps
@@ -189,3 +197,22 @@ documentation pages and the validation report
 - <a id="r49"></a>**[49]** Environment and Climate Change Canada. Historical climate data,
   <https://climate.weather.gc.ca/>. Station 51117, Kelowna UBCO (climate ID 1123996),
   hourly observations for 2025.
+
+## Cross-validation against Simscape
+
+- <a id="r50"></a>**[50]** MathWorks. *Pipe (TL): Pipe that transports fluid in thermal liquid networks.*
+  Simscape Fluids documentation. <https://www.mathworks.com/help/hydro/ref/pipetl.html>
+- <a id="r51"></a>**[51]** MathWorks. *T-Junction (TL): Three-way junction in a thermal liquid system.*
+  Simscape Fluids documentation. The block's default "Crane correlation" loss-coefficient
+  model is $K_\text{main}=20f_T$, $K_\text{side}=60f_T$, citing [52](#r52); its own
+  friction factor $f_T$ is a tabulated, size-only "fully turbulent" value, not a function
+  of the instantaneous flow. The alternative "Rennels correlation" model is the
+  flow-ratio- and diameter-ratio-dependent treatment of [53](#r53).
+  <https://www.mathworks.com/help/hydro/ref/tjunctiontl.html>
+- <a id="r52"></a>**[52]** Crane Co. *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical
+  Paper No. 410. Crane Co., 1981. The edition MathWorks cites for the T-Junction (TL)
+  block's default loss-coefficient model; not the same edition as
+  [23](#r23), which replaced this method with a flow-ratio-dependent one.
+- <a id="r53"></a>**[53]** Rennels, D.C. and Hudson, H.M. (2012). *Pipe Flow: A Practical and
+  Comprehensive Guide.* Wiley, Hoboken, NJ. ISBN 978-0-470-90102-1.
+  DOI: [10.1002/9781118275276](https://doi.org/10.1002/9781118275276)
