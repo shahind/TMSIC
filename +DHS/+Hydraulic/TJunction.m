@@ -19,16 +19,16 @@ classdef TJunction < DHS.Hydraulic.Junction
 %
 %   LOSS MODEL  Equivalent-length method: a standard tee has an equivalent
 %   length, in pipe diameters, of 20 used as a straight run and 60 used as a
-%   branch. Combined
-%   with the same Darcy-Weisbach / Swamee-Jain friction factor DHS.Hydraulic.Pipe
-%   uses, evaluated at that leg's own diameter:
+%   branch, independent of how flow actually splits between the two downstream
+%   legs -- a deliberate simplification: resolving the flow-split and
+%   branch-angle dependence a detailed treatment would need is not necessary
+%   at the level of fidelity this library targets (see docs/dhs-hydraulic.md).
+%   The same Darcy-Weisbach / Swamee-Jain friction factor DHS.Hydraulic.Pipe
+%   uses is evaluated at the leg's own actual flow, so it follows the same
+%   laminar/turbulent rule as the pipe itself rather than assuming the flow is
+%   always turbulent:
 %       K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
 %       K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
-%
-%   This equivalent-length rule uses a fixed multiplier regardless of how flow
-%   actually splits between the run and the branch; more detailed correlations
-%   exist that depend on the actual flow-split fraction, a known limitation of
-%   this simpler model, not a defect in its implementation (see docs/dhs-hydraulic.md).
 %   This K is added on top of the ordinary pipe resistance of whichever pipe
 %   leaves portB (run) or portC (branch) -- see DHS.Hydraulic.Pipe.resistance.
 %   SCOPE: applied on the supply side only (the return-side mirror pipe is a
@@ -82,8 +82,12 @@ classdef TJunction < DHS.Hydraulic.Junction
             p = pipe;
         end
 
-        function K = teeLossK(obj, side, rho, ~)
-            % TEELOSSK  Equivalent-length minor loss for RUN or BRANCH.
+        function K = teeLossK(obj, side, rho, mu, mdot)
+            % TEELOSSK  Equivalent-length minor loss for RUN or BRANCH, at the
+            %   actual flow through that leg (mdot), so the fitting's friction
+            %   factor follows the same laminar/turbulent rule as
+            %   DHS.Hydraulic.Pipe.resistance instead of assuming the flow is
+            %   always turbulent.
             switch lower(string(side))
                 case "run",    D = obj.mainDiameter;  nD = 20;
                 case "branch", D = obj.sideDiameter;   nD = 60;
@@ -91,9 +95,9 @@ classdef TJunction < DHS.Hydraulic.Junction
             end
             Leq = nD * D;
             A   = pi*D^2/4;
-            % fully turbulent asymptote of the fitting's own friction factor;
-            % the friction factor barely moves with Re there
-            f = DHS.Hydraulic.Pipe.swameeJain(1e7, obj.roughness/D);
+            v   = abs(mdot) / (rho * A);
+            Re  = rho * max(v, 1e-6) * D / mu;
+            f   = DHS.Hydraulic.Pipe.swameeJain(Re, obj.roughness/D);
             K = f * Leq / (D * 2*rho * A^2);
         end
 

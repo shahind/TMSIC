@@ -3,13 +3,13 @@ function V = validate_tjunction(plotMode)
 %                    method, its wiring into DHS.Hydraulic.Pipe.resistance,
 %                    and its effect on a network's operating point.
 %
-%   COMPONENT      DHS.Hydraulic.TJunction.teeLossK(side, rho, mu)
+%   COMPONENT      DHS.Hydraulic.TJunction.teeLossK(side, rho, mu, mdot)
 %                    K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
 %                    K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
-%                  where f is the same Swamee-Jain friction factor
-%                  DHS.Hydraulic.Pipe uses, evaluated at the fully-turbulent
-%                  asymptote Re = 1e7 (the fully turbulent limit -- the fitting's
-%                  own friction factor barely moves with Re there).
+%                  where f is the same Swamee-Jain/laminar friction factor
+%                  DHS.Hydraulic.Pipe uses, evaluated at that leg's own actual
+%                  Reynolds number (from mdot) -- the same laminar/turbulent
+%                  rule the pipe itself follows, not a fixed turbulent guess.
 %
 %   TEST CASE + REFERENCE
 %     A standard tee has an equivalent length, in pipe
@@ -43,6 +43,11 @@ function V = validate_tjunction(plotMode)
 %        (hn.addJunction(name,'type','tee',...)) and the port-wiring style
 %        (tee.connectToPipe('portB'/'portC', pipe)) produce numerically
 %        identical tee losses for the same geometry.
+%     G  LAMINAR CONSISTENCY: at a flow low enough that the branch leg's own
+%        Reynolds number is below 2300, teeLossK's friction factor equals the
+%        laminar value 64/Re, exactly tracking DHS.Hydraulic.Pipe's own
+%        laminar/turbulent rule rather than assuming the flow is always
+%        turbulent.
 %
 %   WHY THIS TEST IS GOOD
 %     A and B pin the formula itself; C is a fluid- and size-independent sanity
@@ -52,41 +57,58 @@ function V = validate_tjunction(plotMode)
 %     solver actually reads (Pipe.resistance) with no double-counting or
 %     missing term; E closes the loop end-to-end, showing the tee measurably
 %     changes a real network's operating point by the predicted amount; F
-%     confirms neither assembly API silently uses different physics.
+%     confirms neither assembly API silently uses different physics; G confirms
+%     the fitting's friction factor cannot silently drift out of step with the
+%     pipe's own friction factor at low flow.
 %
 %   EXPECTED OUTPUT: A, B, C exact to 1e-12; D exact to 1e-9 (relative); E
 %     matches the analytic prediction to 1e-3 (relative, limited by the lagged
-%     friction-factor fixed point); F exact to 1e-9.
+%     friction-factor fixed point); F exact to 1e-9; G exact to 1e-12.
 %
 %   Run:  >> V = validate_tjunction
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));
 
-    rho = 978;  mu = 4.0e-4;
+    rho = 978;  mu = 4.0e-4;  mdotTest = 2.0;
 
-    % ---- A, B: formula match ----
+    % ---- A, B: formula match, at the tee's own actual flow ----
     tee = DHS.Hydraulic.TJunction('T', 'mainDiameter',0.10, 'sideDiameter',0.05);
-    Krun    = tee.teeLossK('run',    rho, mu);
-    Kbranch = tee.teeLossK('branch', rho, mu);
+    Krun    = tee.teeLossK('run',    rho, mu, mdotTest);
+    Kbranch = tee.teeLossK('branch', rho, mu, mdotTest);
 
-    fRun = DHS.Hydraulic.Pipe.swameeJain(1e7, tee.roughness/tee.mainDiameter);
     ARun = pi*tee.mainDiameter^2/4;
+    ReRun = rho * (mdotTest/(rho*ARun)) * tee.mainDiameter / mu;
+    fRun = DHS.Hydraulic.Pipe.swameeJain(ReRun, tee.roughness/tee.mainDiameter);
     KrunRef = fRun * (20*tee.mainDiameter) / (tee.mainDiameter * 2*rho*ARun^2);
 
-    fBr = DHS.Hydraulic.Pipe.swameeJain(1e7, tee.roughness/tee.sideDiameter);
     ABr = pi*tee.sideDiameter^2/4;
+    ReBr = rho * (mdotTest/(rho*ABr)) * tee.sideDiameter / mu;
+    fBr = DHS.Hydraulic.Pipe.swameeJain(ReBr, tee.roughness/tee.sideDiameter);
     KbranchRef = fBr * (60*tee.sideDiameter) / (tee.sideDiameter * 2*rho*ABr^2);
 
     eA = abs(Krun - KrunRef) / KrunRef;
     eB = abs(Kbranch - KbranchRef) / KbranchRef;
 
-    % ---- C: dimensionless 3x ratio at equal diameter ----
+    % ---- C: dimensionless 3x ratio at equal diameter (same D, same mdot on
+    % both legs => same Re => f cancels in the ratio regardless of flow) ----
     teeEq = DHS.Hydraulic.TJunction('Teq', 'mainDiameter',0.08, 'sideDiameter',0.08);
-    ratio = teeEq.teeLossK('branch', rho, mu) / teeEq.teeLossK('run', rho, mu);
+    ratio = teeEq.teeLossK('branch', rho, mu, mdotTest) / teeEq.teeLossK('run', rho, mu, mdotTest);
     eC = abs(ratio - 3) / 3;
 
+    % ---- G: laminar consistency at a deliberately low flow. mdotLow is chosen
+    % so the branch leg's Re lands comfortably inside (2300, 640) -- laminar,
+    % but above the Re=640 point where 64/Re first hits swameeJain's own
+    % [0.008,0.1] floor/ceiling clamp, so this probes the laminar law itself,
+    % not that clamp. ----
+    mdotLow = 0.015;
+    KbranchLow = tee.teeLossK('branch', rho, mu, mdotLow);
+    ReBrLow = rho * (mdotLow/(rho*ABr)) * tee.sideDiameter / mu;
+    fBrLow = DHS.Hydraulic.Pipe.swameeJain(ReBrLow, tee.roughness/tee.sideDiameter);
+    KbranchLowRef = fBrLow * (60*tee.sideDiameter) / (tee.sideDiameter * 2*rho*ABr^2);
+    eG = abs(KbranchLow - KbranchLowRef) / KbranchLowRef;
+    okG_laminar = ReBrLow < 2300 && abs(fBrLow - 64/ReBrLow) < 1e-12;
+
     % ---- D: pipe integration, both ports, and a no-op control ----
-    mdotTest = 2.0;
     pRun = DHS.Hydraulic.Pipe('run',  'D',tee.mainDiameter, 'L',10);
     tee.connectToPipe('portB', pRun);
     KrunTotal = pRun.resistance(mdotTest, rho, mu);
@@ -117,11 +139,11 @@ function V = validate_tjunction(plotMode)
     % ---- F: declarative vs port-wiring produce the same tee loss ----
     hn = DHS.HydraulicNetwork();
     tDecl = hn.addJunction('Td', 'type','tee', 'mainDiameter',0.10, 'sideDiameter',0.05);
-    KdeclRun    = tDecl.teeLossK('run',    rho, mu);
-    KdeclBranch = tDecl.teeLossK('branch', rho, mu);
+    KdeclRun    = tDecl.teeLossK('run',    rho, mu, mdotTest);
+    KdeclBranch = tDecl.teeLossK('branch', rho, mu, mdotTest);
     tWire = DHS.Hydraulic.TJunction('Tw', 'mainDiameter',0.10, 'sideDiameter',0.05);
-    KwireRun    = tWire.teeLossK('run',    rho, mu);
-    KwireBranch = tWire.teeLossK('branch', rho, mu);
+    KwireRun    = tWire.teeLossK('run',    rho, mu, mdotTest);
+    KwireBranch = tWire.teeLossK('branch', rho, mu, mdotTest);
     eF = max(abs(KdeclRun-KwireRun), abs(KdeclBranch-KwireBranch)) / KwireBranch;
 
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
@@ -134,6 +156,8 @@ function V = validate_tjunction(plotMode)
     C(7) = mk('E  network Mtot with tee vs analytic (Kt+K_branch)',   Man_tee, Mtee, 1e-3, 'rel');
     C(8) = mk('E  tee reduces flow vs the plain-junction network',    1, double(okE_direction), 0, 'abs');
     C(9) = mk('F  declarative vs port-wiring: identical tee loss',    0, eF, 1e-9, 'abs');
+    C(10) = mk('G  friction factor matches laminar 64/Re at low flow', 0, eG, 1e-12, 'abs');
+    C(11) = mk('G  the low-flow probe is actually laminar (Re<2300)',  1, double(okG_laminar), 0, 'abs');
     V.name = 'T-junction (equivalent-length method) vs formula, pipe integration, network effect';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('Krun',Krun,'Kbranch',Kbranch,'ratio',ratio,'Mplain',Mplain,'Mtee',Mtee,'Man_tee',Man_tee);
@@ -144,10 +168,11 @@ function V = validate_tjunction(plotMode)
     KrunEx = zeros(size(Dg));     KbranchEx = zeros(size(Dg));
     for i = 1:numel(Dg)
         teeSweep.mainDiameter = Dg(i);  teeSweep.sideDiameter = Dg(i);
-        KrunSweep(i)    = teeSweep.teeLossK('run',    rho, mu);
-        KbranchSweep(i) = teeSweep.teeLossK('branch', rho, mu);
-        fD = DHS.Hydraulic.Pipe.swameeJain(1e7, teeSweep.roughness/Dg(i));
+        KrunSweep(i)    = teeSweep.teeLossK('run',    rho, mu, mdotTest);
+        KbranchSweep(i) = teeSweep.teeLossK('branch', rho, mu, mdotTest);
         Ai = pi*Dg(i)^2/4;
+        Rei = rho * (mdotTest/(rho*Ai)) * Dg(i) / mu;
+        fD = DHS.Hydraulic.Pipe.swameeJain(Rei, teeSweep.roughness/Dg(i));
         KrunEx(i)    = fD * 20 / (2*rho*Ai^2);
         KbranchEx(i) = fD * 60 / (2*rho*Ai^2);
     end

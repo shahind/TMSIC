@@ -139,17 +139,23 @@ the network applies it as a transport temperature drop along the pipe.
 A `TJunction` adds the minor loss of a real T-fitting, using the equivalent-length method
 for a standard tee: an equivalent length of 20 pipe diameters when the flow goes straight
 through (the run) and 60 diameters when the flow turns into the side leg (the branch),
-independent of how the flow actually splits between them. This is the method Crane
-Technical Paper 410 used in editions before the one now in `paper/references/crane2013`
-[23](references.md#r23); that edition explains that it has since been replaced by a
-correlation in the branch-to-combined flow ratio and the branch angle, because the
-resistance depends on the actual flow split, not on fitting size alone. Idelchik
-[24](references.md#r24) shows the same kind of flow-split dependence with an independent
-correlation: at a 50/50 split with equal diameters, its own worked example gives a
-*larger* loss on the run than on the branch, the opposite of the fixed 3:1 branch:run
-ratio used here (see `validation/README.md` for the comparison). The toolbox keeps the
-older, size-only convention because it is closed-form and needs no flow split as an
-input to the network solve. With the friction factor evaluated at $\mathrm{Re} = 10^7$,
+independent of how the flow actually splits between them. A tee this simple does not need
+to resolve how the loss changes with the flow split or the branch angle: that level of
+detail matters for sizing one fitting precisely, less for a co-simulated network solved
+for mass flow and pressure level, and it would also make the tee's own resistance depend
+on the flow the solver is iterating for. The fixed 20D/60D multiplier is the classical
+equivalent-length estimate for a standard tee, the convention Crane Technical Paper 410
+used before the edition now in `paper/references/crane2013` [23](references.md#r23)
+replaced it with a correlation in the branch-to-combined flow ratio and the branch angle.
+Idelchik [24](references.md#r24) shows the same kind of flow-split dependence with an
+independent correlation: at a 50/50 split with equal diameters, its own worked example
+gives a *larger* loss on the run than on the branch, the opposite of the fixed 3:1
+branch:run ratio used here (see `validation/README.md` for the comparison). The toolbox
+keeps the simpler, closed-form estimate deliberately, at the cost of not capturing that
+dependence. The friction factor is the leg's own Darcy-Weisbach friction factor at its
+own actual flow (`TJunction.teeLossK` takes `mdot`) -- the same Swamee-Jain/laminar rule
+`Pipe.resistance` uses, so a tee leg carrying a near-stagnant flow is not silently treated
+as turbulent,
 
 $$K_\text{run} = f(D_\text{main})\,\frac{20\,D_\text{main}}{D_\text{main}\,2\rho A_\text{main}^2},\qquad
 K_\text{branch} = f(D_\text{side})\,\frac{60\,D_\text{side}}{D_\text{side}\,2\rho A_\text{side}^2}.$$

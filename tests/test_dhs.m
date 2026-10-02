@@ -75,25 +75,40 @@ function test_port_wiring_matches_declarative(tc)
     verifyEqual(tc, sP.dpPump, sD.dpPump, 'RelTol', 1e-12);
 end
 
-function test_tjunction_loss_matches_crane(tc)
+function test_tjunction_loss_equivalent_length(tc)
     % A standard tee has an equivalent length of 20 diameters
-    % used as a run, 60 as a branch.
+    % used as a run, 60 as a branch, evaluated at the leg's own actual flow.
     tee = DHS.Hydraulic.TJunction('T', 'mainDiameter',0.10, 'sideDiameter',0.05);
-    rho = 978;  mu = 4.0e-4;
-    Krun    = tee.teeLossK('run',    rho, mu);
-    Kbranch = tee.teeLossK('branch', rho, mu);
+    rho = 978;  mu = 4.0e-4;  mdotTest = 2.0;
+    Krun    = tee.teeLossK('run',    rho, mu, mdotTest);
+    Kbranch = tee.teeLossK('branch', rho, mu, mdotTest);
 
-    fRun = DHS.Hydraulic.Pipe.swameeJain(1e7, tee.roughness/tee.mainDiameter);
     ARun = pi*tee.mainDiameter^2/4;
+    ReRun = rho * (mdotTest/(rho*ARun)) * tee.mainDiameter / mu;
+    fRun = DHS.Hydraulic.Pipe.swameeJain(ReRun, tee.roughness/tee.mainDiameter);
     KrunRef = fRun * (20*tee.mainDiameter) / (tee.mainDiameter * 2*rho*ARun^2);
 
-    fBr = DHS.Hydraulic.Pipe.swameeJain(1e7, tee.roughness/tee.sideDiameter);
     ABr = pi*tee.sideDiameter^2/4;
+    ReBr = rho * (mdotTest/(rho*ABr)) * tee.sideDiameter / mu;
+    fBr = DHS.Hydraulic.Pipe.swameeJain(ReBr, tee.roughness/tee.sideDiameter);
     KbranchRef = fBr * (60*tee.sideDiameter) / (tee.sideDiameter * 2*rho*ABr^2);
 
     verifyEqual(tc, Krun,    KrunRef,    'RelTol', 1e-12);
     verifyEqual(tc, Kbranch, KbranchRef, 'RelTol', 1e-12);
     verifyGreaterThan(tc, Kbranch, Krun);   % branch (60D) always loses more than run (20D)
+
+    % at a low (laminar) flow, the tee's friction factor must track the pipe's
+    % own laminar law f=64/Re, not stay pinned at the turbulent value. mdotLow
+    % is chosen so Re lands in (640, 2300): laminar, but above the Re=640
+    % point where 64/Re first hits swameeJain's own [0.008,0.1] clamp.
+    mdotLow = 0.015;
+    KbranchLow = tee.teeLossK('branch', rho, mu, mdotLow);
+    ReBrLow = rho * (mdotLow/(rho*ABr)) * tee.sideDiameter / mu;
+    verifyLessThan(tc, ReBrLow, 2300);   % confirm this probe is actually laminar
+    fBrLow = DHS.Hydraulic.Pipe.swameeJain(ReBrLow, tee.roughness/tee.sideDiameter);
+    verifyEqual(tc, fBrLow, 64/ReBrLow, 'RelTol', 1e-12);
+    KbranchLowRef = fBrLow * (60*tee.sideDiameter) / (tee.sideDiameter * 2*rho*ABr^2);
+    verifyEqual(tc, KbranchLow, KbranchLowRef, 'RelTol', 1e-12);
 
     % a pipe leaving the tee's branch port picks the loss up automatically
     pipe = DHS.Hydraulic.Pipe('side');

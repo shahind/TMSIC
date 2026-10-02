@@ -287,29 +287,37 @@ accuracy is expected. At the tabulated point the formula gives 0.02234 against 0
 ![Tee loss coefficients and the flow through a network with a tee](figures/validate_tjunction.png)
 
 **What it validates.** The pressure loss of a T-fitting where a service pipe leaves the main
-pipe.
+pipe, including that its friction factor tracks the leg's own actual flow rather than
+assuming the flow is always turbulent.
 
 **Reference.** The equivalent-length method for a standard tee (20 diameters as a run, 60
-diameters as a branch, independent of how flow actually splits between them). This is the
-method Crane Technical Paper 410 used in editions before the one now in
-`paper/references/crane2013` [23](../docs/references.md#r23); that edition explains that it has since been
-replaced by a correlation in the branch-to-combined flow ratio and the branch angle,
-because the resistance depends on the actual flow split, not on fitting size alone.
-Idelchik [24](../docs/references.md#r24) shows the same kind of flow-split dependence with an independent
+diameters as a branch, independent of how flow actually splits between them). A tee this
+simple does not need to resolve how the loss changes with the flow split or the branch
+angle, which matters for sizing one fitting precisely more than for a co-simulated network
+solved for mass flow and pressure level. The fixed 20D/60D multiplier is the classical
+equivalent-length estimate for a standard tee, the convention Crane Technical Paper 410
+used before the edition now in `paper/references/crane2013` [23](../docs/references.md#r23) replaced it with a
+correlation in the branch-to-combined flow ratio and the branch angle. Idelchik
+[24](../docs/references.md#r24) shows the same kind of flow-split dependence with an independent
 correlation; at some splits its own ordering of run vs. branch loss differs from the fixed 3:1
 branch:run ratio used here, which this check does not test (it checks the toolbox's
 implementation against the equivalent-length formula only, which is well defined on its
 own).
 
-**Expected output.** The run and branch coefficients equal the equivalent-length expressions. At equal
-diameters the branch coefficient is exactly three times the run coefficient, since
-60 / 20 = 3. A pipe leaving the tee picks up the loss of the port it is wired to, and a pipe
-with no tee picks up none. In a network, a tee lowers the flow by the amount the loss
-predicts, and the declarative and port-wiring styles give the same loss.
+**Expected output.** The run and branch coefficients equal the equivalent-length expressions
+at the leg's own actual flow. At equal diameters the branch coefficient is exactly three
+times the run coefficient, since 60 / 20 = 3, regardless of the flow used to evaluate the
+(shared) friction factor. A pipe leaving the tee picks up the loss of the port it is wired
+to, and a pipe with no tee picks up none. At a flow low enough to be laminar, the tee's
+friction factor equals the laminar value $64/Re$, exactly as `Pipe.resistance` would give for
+an ordinary pipe at that Reynolds number. In a network, a tee lowers the flow by the amount
+the loss predicts, and the declarative and port-wiring styles give the same loss.
 
-**Component output.** For a 0.10 m main and a 0.05 m side leg, $K_\text{run}$ is 2.731 and
-$K_\text{branch}$ is 153.53 Pa/(kg/s)², both equal to the formula. At equal diameters the ratio is 3 to 1e-16. In a one-branch network, the total flow is 8.614 kg/s through a
-plain junction and 8.423 kg/s through the tee. That second value matches the analytic prediction to 5e-12.
+**Component output.** For a 0.10 m main and a 0.05 m side leg at a representative 2 kg/s,
+$K_\text{run}$ is 3.582 and $K_\text{branch}$ is 171.69 Pa/(kg/s)², both equal to the formula.
+At equal diameters the ratio is 3 to 1e-16, and at the laminar probe flow the friction factor
+matches $64/Re$ to 1e-12. In a one-branch network, the total flow is 8.614 kg/s through a
+plain junction and 8.416 kg/s through the tee. That second value matches the analytic prediction to 7e-12.
 
 ### 2.7 Pipe network
 
