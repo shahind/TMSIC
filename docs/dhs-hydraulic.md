@@ -147,19 +147,29 @@ for a standard tee: an equivalent length of 20 pipe diameters when the flow goes
 through (the run) and 60 diameters when the flow turns into the side leg (the branch),
 independent of how the flow actually splits between them:
 
-$$K_\text{run} = f(D_\text{main})\,\frac{20\,D_\text{main}}{D_\text{main}\,2\rho A_\text{main}^2},\qquad
-K_\text{branch} = f(D_\text{side})\,\frac{60\,D_\text{side}}{D_\text{side}\,2\rho A_\text{side}^2}.$$
+$$K_\text{run} = f(\mathrm{Re}_\text{main})\,\frac{20\,D_\text{main}}{D_\text{main}\,2\rho A_\text{main}^2},\qquad
+K_\text{branch} = f(\mathrm{Re}_\text{side})\,\frac{60\,D_\text{side}}{D_\text{side}\,2\rho A_\text{side}^2},$$
 
-This matches MATLAB/Simscape's own default T-Junction (TL) model [51](references.md#r51),
-which cites Crane Technical Paper 410's 1981 edition [52](references.md#r52). A newer
-edition [23](references.md#r23), Idelchik [24](references.md#r24) and Rennels and
-Hudson [53](references.md#r53) instead give a correlation in the flow-split ratio and the
-branch angle; see `validation/README.md` for the comparison.
+where $f$ is the same Swamee–Jain/laminar friction factor used for pipes (the formula
+above the T-junction section). This matches MATLAB/Simscape's own default T-Junction (TL)
+model [51](references.md#r51), which cites Crane Technical Paper 410's 1981 edition
+[52](references.md#r52). A newer edition [23](references.md#r23), Idelchik
+[24](references.md#r24) and Rennels and Hudson [53](references.md#r53) instead give a
+correlation in the flow-split ratio and the branch angle; see `validation/README.md` for
+the comparison.
 
-By default (`frictionModel = 'fixed'`) $f$ is evaluated at the fully turbulent asymptote
-for that leg's own diameter, matching Simscape's own $f_T$, a tabulated per-size constant.
-Setting `frictionModel = 'actual'` instead evaluates $f$ at the leg's own instantaneous
-flow, the same laminar/turbulent rule `Pipe.resistance` uses, for users who want more
+The Reynolds number each leg's $f$ is evaluated at depends on `frictionModel`:
+
+$$\mathrm{Re}_\text{leg} =
+\begin{cases}
+10^7, & \texttt{frictionModel = 'fixed'} \text{ (default)},\\[6pt]
+\dfrac{\rho\,v_\text{leg}\,D_\text{leg}}{\mu},\quad v_\text{leg}=\dfrac{\dot m_\text{leg}}{\rho A_\text{leg}}, & \texttt{frictionModel = 'actual'}.
+\end{cases}$$
+
+`'fixed'` pins $f$ at the fully turbulent asymptote for that leg's own diameter, matching
+Simscape's own $f_T$, a tabulated per-size constant, independent of flow. `'actual'`
+instead evaluates $f$ at the leg's own instantaneous flow $\dot m_\text{leg}$, the same
+Reynolds number and laminar/turbulent rule `Pipe.resistance` uses, for users who want more
 accuracy than the fixed-$f_T$ convention gives.
 
 The coefficient is added to the Darcy–Weisbach term of the pipe that leaves the tee by
