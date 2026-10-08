@@ -35,7 +35,7 @@ project_root = fileparts(example_dir);
 addpath(example_dir, project_root);
 weather_csv  = fullfile(project_root, 'solar_data_2025.csv');
 
-model_topology      = 'R5C4';   % R1C1 | R2C2 | R4C4 | R4C5 | R5C4  (append '-MAD' to add a measured air-side heat channel)
+model_topology      = 'R5C4';   % R1C1 | R2C2 | R4C4 | R4C5 | R5C4 
 parameter_scaling   = 'perparam';   % 'perparam' (log for R/C, linear for temperatures) | 'linear' | 'log' | 'off'
 time_discretisation = 'exact';      % 'exact' (matrix-exponential, always stable) | 'euler'
 error_metric        = 'MSE';        % SSE | MSE | MAE | RL1 | RL2 | NORM1 | NORM2 | SLOPE | ASYMM | NRMSE
@@ -102,8 +102,7 @@ function model = define_model(topology, scaling, discretisation, input_channels)
 %   data channels map onto its nodes.
 
     topology_name  = upper(string(topology));
-    uses_mad       = endsWith(topology_name, "-MAD");   % extra measured air-side heat input
-    base_topology  = erase(topology_name, "-MAD");
+    base_topology  = topology_name;
 
     % parameter_names / initial_guess / bounds are given in physical units:
     %   resistances in K/W, capacitances in J/K, temperatures in degC.
@@ -179,9 +178,6 @@ function model = define_model(topology, scaling, discretisation, input_channels)
             model.input_map{end+1} = struct('column', 'Q_solar_window_trans', 'node', 'air');
         otherwise
             error('system_identification:unknownInput', 'Unknown input_channels "%s".', input_channels);
-    end
-    if uses_mad
-        model.input_map{end+1} = struct('column', 'MAD_cum', 'node', 'air');
     end
 
     % Search in a scaled space: a log map for R and C (they span many decades),
@@ -558,8 +554,7 @@ function [training_data, validation_data, true_parameters] = make_synthetic_data
         'Q_solar_wall',         0.012 * irradiance(mask), ...
         'Q_solar_roof',         0.010 * irradiance(mask), ...
         'Q_solar_window_abs',   0.006 * irradiance(mask), ...
-        'Q_solar_window_trans', 0.017 * irradiance(mask), ...
-        'MAD_cum', zeros(nnz(mask), 1));
+        'Q_solar_window_trans', 0.017 * irradiance(mask));
     training_data   = make_record(is_training);
     validation_data = make_record(~is_training);
 end
