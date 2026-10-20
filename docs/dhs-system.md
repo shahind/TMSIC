@@ -99,7 +99,7 @@ temperature consistent with the network return.
 | `setWeather(csv)` | path to CSV | Loads or replaces the weather source. |
 | `compile()` | none | Freezes the topology. `run` calls it when needed. |
 | `run(duration)` | a `duration`, for example `days(14)` | The result structure described above. |
-| `visualize()` | none | Draws the plant, the mains, every T-junction and every building with its pump type, valve, exchanger and controllers. |
+| `visualize()` | none | Draws the closed loop: the plant with its central pump, the supply and return pipes (name, length, diameter), every junction on both sides, and every building as a rectangle with its zone count and its service pipes. |
 | `snapshot()` | none | The live state, for use inside `stepCallback`. |
 | `.stepCallback` | `@(sys,k,t) ...` | Called after every step. Use it to log extra signals or to steer the run. |
 | `.pumpFrac` | 0 to 1 | Speed of the central pump. |
