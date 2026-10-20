@@ -88,6 +88,10 @@ function sys = campus(varargin)
         outlet = tee{bi};
     end
 
+    % end of the trunk: a bypass (pipe + fixed valve) from the last supply tee to its return,
+    % so supply water the buildings do not draw still circulates and joins the return
+    hn.addBypass(tee{bi}, 'L',10, 'D',0.05, 'Kvs',1.5);
+
     Tinit = 20;
     for i = 1:size(B,1)
         name = B{i,1}; Af = B{i,2}; ns = B{i,3}; h = B{i,4}; WWR = B{i,5};

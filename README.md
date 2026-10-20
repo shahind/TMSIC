@@ -81,8 +81,8 @@ All examples are in `examples/` and run without extra data. Start with `dhs_camp
 
 <img src="docs/images/dhs_campus_buildings.png" alt="Zone temperatures, delivered heat and valve positions of the five campus buildings over 14 days" width="720">
 
-In the campus run the plant supply temperature stays between 65.8 and 74.9 °C around a 70 °C
-setpoint, the boiler efficiency ranges from 0.884 to 0.925, and the energy balance closes to
+In the campus run the plant supply temperature stays between 65.9 and 74.9 °C around a 70 °C
+setpoint, the boiler efficiency ranges from 0.884 to 0.920, and the energy balance closes to
 0.00 % over the two weeks.
 
 ## Getting started

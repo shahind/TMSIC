@@ -38,6 +38,15 @@ function V = validate_hydraulic_network(plotMode)
 %     G  RETURN WALK: the temperature arriving at the plant equals a hand calculation
 %        with enthalpy mixing (m cp T) at each junction and heat loss in every return
 %        pipe, and the enthalpy flowing in minus out equals the heat lost.
+%     H  END-OF-LINE BYPASS: with a building and a bypass in parallel at the last
+%        junction, the total flow equals the closed form for a pump curve against
+%        K_trunk + K_eq,  K_eq = 1/(1/sqrt(K_building) + 1/sqrt(K_bypass))^2.
+%     I  The bypass-to-building flow ratio equals sqrt(K_building / K_bypass).
+%     J  VALVE POSITION: closing the building valve cuts the building flow and sends
+%        more through the bypass (total = building + bypass flow).
+%     K  The bypass water leaves the supply tree, loses heat in its pipe and joins the
+%        return by enthalpy mixing; temperatures equal a hand calculation and the plant
+%        heat equals the delivered heat plus the pipe losses.
 %
 %   WHY THIS TEST IS GOOD
 %     A is the conservation law the solver must never violate; B checks the
@@ -162,7 +171,55 @@ function V = validate_hydraulic_network(plotMode)
     eG1 = abs(Tret - TretAn);
     eG2 = abs(sum(m.*cp.*Thx0) - Q(1)*cp*Tret - qlR)/qlR;      % energy: enthalpy in - out = heat lost
 
+    % ================= H, I, J, K: end-of-line bypass =================
+    sys4 = DHS.System('startDate', datetime(2025,1,1));
+    c4 = sys4.addCentralHeatPlant('C');  c4.addBoiler('B','QMax',1e6);
+    c4.addPump('P','dp0',dp0,'mdotMax',Mmax);
+    h4 = sys4.addHydraulicNetwork();  h4.pReturnRef = 1.5e5;
+    t4 = h4.addJunction('TB');  h4.addPipe(c4.supplyPort, t4, 'L',Lm,'D',Dm);
+    h4.addBypass('L',20, 'D',0.05, 'Kvs',1.5);
+    b4 = sys4.addBuilding('S');  b4.useRCModel(trivialRC());
+    hx4 = b4.addHeatExchanger('HX','UA',1e5,'Qcap',5e5,'dpNomPrimary',1e-6);
+    hx4.valve.Kvs = 25;  hx4.pump.dp0 = 0;  hx4.pump.mdotMax = 1e6;  hx4.pump.minSpeed = 0;
+    b4.connLength = 20;  b4.connD = 0.05;  b4.Kminor = 0;
+    b4.attachSolar(DHS.Solar()); b4.attachSchedule(DHS.Schedule());
+    h4.connectBuilding(t4, b4);
+    sys4.compile();  hx4.pump.speed = 0;
+    hx4.valve.pos = 1;  for it = 1:10, s4 = h4.solve(1); end
+    rho = h4.rho;  mu = h4.mu;
+    Kb4  = b4.connPipeSup.resistance(s4.mdot,rho,mu) + b4.connPipeRet.resistance(s4.mdot,rho,mu) + hx4.primaryResistance(rho);
+    Kbp  = h4.bypassPipe.resistance(s4.mdotBypass,rho,mu) + h4.bypassValve.resistance(rho);
+    Kmn  = h4.pipes{1}.resistance(s4.Mtot,rho,mu) + h4.retPipes{1}.resistance(s4.Mtot,rho,mu);
+    Keq  = 1 / (1/sqrt(Kb4) + 1/sqrt(Kbp))^2;                    % two branches in parallel at one junction
+    Man4 = Mmax / sqrt(1 + Mmax^2*(Kmn + Keq)/dp0);
+    eH = abs(s4.Mtot - Man4)/Man4;
+    eI = abs(s4.mdotBypass/s4.mdot - sqrt(Kb4/Kbp))/sqrt(Kb4/Kbp);
+    % J  valve position: closing the building valve cuts its flow and sends more through the bypass
+    sFull = s4;
+    hx4.valve.pos = 0.15;  for it = 1:10, sClosed = h4.solve(1); end
+    okJ = sClosed.mdot < 0.5*sFull.mdot && sClosed.mdotBypass > sFull.mdotBypass ...
+        && abs(sClosed.Mtot - sum(sClosed.mdot) - sClosed.mdotBypass) < 1e-12 && sClosed.Mtot < sFull.Mtot;
+    hx4.valve.pos = 1;  for it = 1:10, s4 = h4.solve(1); end
+    % K  temperatures with the bypass: supply walk, bypass stream joins the return at the end junction
+    mb = s4.mdot;  mbp = s4.mdotBypass;  M4 = mb + mbp;
+    ULt = h4.pipes{1}.UperM*h4.pipes{1}.L;  ULb = h4.bypassPipe.UperM*h4.bypassPipe.L;
+    ULc = b4.connPipeSup.UperM*b4.connPipeSup.L;
+    T1  = Tg + (Tp - Tg)*decay(ULt, M4);
+    ThxB = Tg + (T1 - Tg)*decay(ULc, mb);   Tbp = Tg + (T1 - Tg)*decay(ULb, mbp);
+    [ThxN, qlS4] = h4.supplyTemperatures(Tp, Tg, mb, cp);
+    Thx0 = 45;  TrB = Tg + (Thx0 - Tg)*decay(ULc, mb);
+    Tmx = (mb*TrB + mbp*Tbp)/M4;
+    TretB = Tg + (Tmx - Tg)*decay(ULt, M4);
+    [TretN, qlR4] = h4.returnTemperatures(Thx0, Tg, mb, cp);
+    eK1 = max(abs(ThxN - ThxB), abs(TretN - TretB));
+    eK2 = abs(M4*cp*(Tp - TretN) - mb*cp*(ThxN - Thx0) - qlS4 - qlR4)/(M4*cp*(Tp - TretN));   % plant heat = delivered + losses
+
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
+    C(10) = mk('H  with bypass: Mtot vs pump + parallel-branch analytic',  0, eH, 5e-3, 'abs');
+    C(11) = mk('I  bypass / building flow = sqrt(K_building/K_bypass)',   0, eI, 1e-3, 'abs');
+    C(12) = mk('J  closing the building valve sends the flow to the bypass', 1, double(okJ), 0, 'abs');
+    C(13) = mk('K  bypass temperatures vs hand calculation  [K]',          0, eK1, 1e-9, 'abs');
+    C(14) = mk('K  plant heat = delivered + pipe losses (rel)',            0, eK2, 1e-9, 'abs');
     C(6) = mk('E  one pipe: outlet temperature and heat loss vs analytic', 0, eE, 1e-9, 'abs');
     C(7) = mk('F  supply walk: each pipe loses heat once, own flow',       0, eF, 1e-9, 'abs');
     C(8) = mk('G  return walk: enthalpy mixing vs hand calculation  [K]',  0, eG1, 1e-9, 'abs');
@@ -172,7 +229,7 @@ function V = validate_hydraulic_network(plotMode)
     C(3) = mk('B  identical parallel branches -> equal flow',      0, eSym, 1e-6, 'abs');
     C(4) = mk('C  single-branch Mtot vs pump+system analytic',     Man, s3.Mtot, 5e-3, 'rel');
     C(5) = mk('D  open one valve -> every other branch loses flow',1, double(okD), 0, 'abs');
-    V.name = 'Hydraulic network: continuity, symmetry, operating point, coupling, pipe temperatures';
+    V.name = 'Hydraulic network: continuity, symmetry, operating point, coupling, pipe temperatures, bypass';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eCont',eCont,'segErr',segErr,'eSym',eSym,'Mtot',s3.Mtot,'Man',Man,'eC',eC);
 

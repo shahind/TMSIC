@@ -291,8 +291,9 @@ For $K_{vs} = 18$ and $R = 50$ the coefficient is 4,182 Pa/(kg/s)² fully open, 
 | `addJunction(name, 'type',t, 'mainDiameter',Dm, 'sideDiameter',Ds)` | name; `'plain'` (default) or `'tee'`; diameters (m) | A supply junction. |
 | `addPipe(nodeA, nodeB, 'L',L, 'D',D, ...)` | two nodes (junctions or `chp.supplyPort`); pipe properties | Registers a supply pipe and its return mirror. Returns the pipe. |
 | `connectBuilding(junction, building)` | a supply junction, a `DHS.Building` | Hangs the building from the junction. |
+| `addBypass(junction, 'L',L, 'D',D, 'Kvs',Kvs)` | optional junction (default: the last one); pipe length (m), diameter (m), fixed-valve $K_{vs}$ | Joins the end of the supply tree to its return side through a pipe and a fixed valve. `hasBypass()` tells whether one exists. |
 | `compile()` | none | Freezes the topology into index arrays. `solve` calls it when needed. |
-| `solve(pumpFrac)` | central pump speed, 0 to 1 (default 1) | A structure with `Mtot` (kg/s), `dpPump` and `pSupHeader` (Pa), and per building `mdot`, `vel`, `pSupBranch`, `pRetBranch`. |
+| `solve(pumpFrac)` | central pump speed, 0 to 1 (default 1) | A structure with `Mtot` (kg/s, buildings plus bypass), `mdotBypass` (kg/s), `dpPump` and `pSupHeader` (Pa), and per building `mdot`, `vel`, `pSupBranch`, `pRetBranch`. |
 | `supplyTemperatures(Tplant, Tground, m, cp)` | plant supply temperature, ground temperature (degC), building flows `m` (kg/s), specific heat | `[TsupHx, Qloss]`: water temperature at each building's heat-exchanger inlet (degC) and the total supply-side heat loss (W). Walks the supply tree pipe by pipe. |
 | `returnTemperatures(Thx, Tground, m, cp)` | heat-exchanger outlet temperatures (degC), ground temperature, flows, specific heat | `[Tret, Qloss]`: temperature arriving at the plant (degC) and the total return-side heat loss (W), with enthalpy mixing at each junction. |
 | `.rho`, `.mu`, `.pReturnRef` | scalars | Density (978 kg/m³), viscosity (4.0e-4 Pa·s) and the return-side reference gauge pressure (1.5e5 Pa). |
@@ -303,3 +304,20 @@ flows below it, subtracts $K\,\dot m^2$ along every pipe, closes each building b
 through its own pump's `solveBranch`, and repeats with damping until the total flow
 converges. `DHS.System` then calls `supplyTemperatures` and `returnTemperatures` with those flows each step. Its accuracy is checked against closed-form solutions in
 [`../validation/README.md`](../validation/README.md).
+
+**What sets a branch flow.** A branch's flow is not fixed by its diameter. It follows from the
+pressure balance at its junction: the differential pressure left there by the central pump and
+the trunk friction must equal the branch's total resistance
+$K = K_\text{service pipes} + K_\text{valve}(\text{pos}) + K_\text{exchanger} + K_\text{minor}$
+(plus the T-junction's own branch loss) minus whatever head the building's pump adds. The
+diameters enter only through the pipe and fitting resistances. The valve position changes
+$K_\text{valve}$ directly, so closing a valve cuts that branch's flow and raises the pressure
+left for the others.
+
+**End-of-line bypass.** With the buildings' valves partly closed, not all of the supply water is
+drawn. `hn.addBypass(...)` adds a pipe and a fixed valve from the last supply junction, through
+its run port, to the return side. The bypass is one more branch without a pump, whose flow is
+$\dot m_\text{bp} = \sqrt{\Delta p/K_\text{bp}}$ with $\Delta p$ the supply-minus-return pressure at
+that junction and $K_\text{bp}$ the pipe plus valve resistance. It is counted in every trunk pipe's
+flow upstream of it and in the plant's total flow, loses heat in its own pipe, and its water
+joins the return at that junction, mixing by enthalpy flow with the building returns.

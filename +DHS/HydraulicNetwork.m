@@ -76,8 +76,14 @@ classdef HydraulicNetwork < handle
         idxPlantS (1,1) double = 0
         pipeA double = []             % 1 x nPipes  supply node index of nodeA (toward plant)
         pipeB double = []             % 1 x nPipes  supply node index of nodeB (toward leaves)
-        branchNode double = []        % 1 x nB      supply node index feeding each building
-        downB   cell = {}             % 1 x nPipes  building indices in each pipe's subtree
+        branchNode double = []        % 1 x nB(+1)  supply node index feeding each building (+ the bypass)
+        downB   cell = {}             % 1 x nPipes  branch indices (buildings, then the bypass) in each pipe's subtree
+        bypassNode (1,1) double = 0   % supply node index of the bypass junction (0 = no bypass)
+    end
+    properties (SetAccess = private)
+        bypassPipe     = []           % DHS.Hydraulic.Pipe joining the end junction to its return mirror
+        bypassValve    = []           % DHS.Hydraulic.Valve in series with it (sets the minimum flow)
+        bypassJunction = []           % supply junction the bypass leaves (default: the last one)
     end
     properties
         plantSupply DHS.Hydraulic.Junction
@@ -164,6 +170,32 @@ classdef HydraulicNetwork < handle
             obj.compiled = false;
         end
 
+        function addBypass(obj, varargin)
+            % ADDBYPASS  An end-of-line bypass from the last supply junction to its return.
+            %   hn.addBypass('L',20, 'D',0.05, 'Kvs',1.5)
+            %   hn.addBypass(junction, 'L',20, 'D',0.05, 'Kvs',1.5)
+            %   A pipe plus a fixed valve joins the end of the supply tree straight to the
+            %   return side. Water the buildings do not draw (their valves are partly closed)
+            %   passes through it and joins the return; its flow follows from the
+            %   differential pressure at that junction, sqrt(dp/K) with K the pipe's
+            %   resistance plus the valve's. 'Kvs' [m3/h/sqrt(bar)] sets the minimum flow.
+            %   Without a junction argument it is the last junction in the tree.
+            if ~isempty(varargin) && isa(varargin{1}, 'DHS.Hydraulic.Junction')
+                obj.bypassJunction = varargin{1};  varargin(1) = [];
+            end
+            p = inputParser;
+            p.addParameter('L', 20);  p.addParameter('D', 0.05);  p.addParameter('Kvs', 1.5);
+            p.addParameter('UperM', 0.30);
+            p.parse(varargin{:});  r = p.Results;
+            obj.bypassPipe  = DHS.Hydraulic.Pipe('bypass', 'L',r.L, 'D',r.D, 'UperM',r.UperM);
+            obj.bypassValve = DHS.Hydraulic.Valve('bypass.valve', 'Kvs',r.Kvs, 'char','linear', 'pos',1);
+            obj.compiled = false;
+        end
+
+        function tf = hasBypass(obj)
+            tf = ~isempty(obj.bypassPipe);
+        end
+
         % ---- compile / solve ------------------------------------------------
         function compile(obj)
             % COMPILE  Freeze the tree into integer-indexed arrays so solve()
@@ -204,6 +236,19 @@ classdef HydraulicNetwork < handle
                 obj.branchNode(b) = ni;
                 fedAt{ni} = [fedAt{ni}, b];
             end
+            obj.bypassNode = 0;
+            if obj.hasBypass()
+                if isempty(obj.bypassJunction)
+                    jb = obj.pipes{order(end)}.nodeB;           % last junction in the tree
+                else
+                    jb = obj.bypassJunction;
+                end
+                obj.bypassNode = nodeIdx(jb.name);
+                obj.branchNode(nB+1) = obj.bypassNode;           % the bypass is branch nB+1
+                fedAt{obj.bypassNode} = [fedAt{obj.bypassNode}, nB+1];
+                obj.bypassPipe.nodeA = jb;  obj.bypassPipe.nodeB = jb.mirror;
+                if isa(jb, 'DHS.Hydraulic.TJunction'), obj.bypassPipe.teeSide = 'run'; end
+            end
 
             % subtree building sets, post-order (leaf pipes are last in `order`)
             obj.downB = cell(1, nP);
@@ -216,7 +261,7 @@ classdef HydraulicNetwork < handle
                     down = [down, obj.downB{ci}]; %#ok<AGROW>
                 end
                 obj.downB{k} = unique(down);
-                ps.downBuildings = obj.downB{k};
+                ps.downBuildings = obj.downB{k}(obj.downB{k} <= nB);   % buildings only
             end
             obj.compiled = true;
         end
@@ -244,16 +289,34 @@ classdef HydraulicNetwork < handle
             end
             bn = obj.branchNode;
 
+            % end-of-line bypass: one more branch (index nB+1) with no pump, whose flow
+            % follows from the differential pressure at its junction, m = sqrt(dp/K)
+            hasBp = obj.hasBypass();  Kbp = 0;
+            if hasBp
+                Kbp = obj.bypassPipe.resistance(max(obj.bypassPipe.mdot, 0.2), r, mu_) ...
+                    + obj.bypassValve.resistance(r);
+                m(nB+1) = max(obj.bypassPipe.mdot, 0.1);
+            end
+            nT = numel(m);
+
             for it = 1:obj.maxIter %#ok<NASGU>
                 [pS, pR] = obj.pressureWalk(m, pumpFrac);
                 dpAvail = pS(bn) - pR(bn);
-                mNew = zeros(1,nB);
+                mNew = zeros(1,nT);
                 for b = 1:nB, mNew(b) = pumps{b}.solveBranch(Kbr(b), dpAvail(b), pumps{b}.speed); end
+                if hasBp, mNew(nT) = sqrt(max(0, dpAvail(nT)) / Kbp); end
                 if max(abs(mNew - m)) < 1e-9, m = mNew; break; end
                 m = 0.5*m + 0.5*mNew;
             end
 
             Mtot = sum(m);
+            mBp = 0;
+            if hasBp
+                mBp = m(nT);
+                obj.bypassPipe.mdot = mBp;  obj.bypassPipe.dp = obj.bypassPipe.resistance(mBp, r, mu_)*mBp^2;
+                obj.bypassPipe.vel  = mBp/(r*pi*obj.bypassPipe.D^2/4);
+                obj.bypassValve.dp  = obj.bypassValve.resistance(r)*mBp^2;
+            end
             [pS, pR] = obj.pressureWalk(m, pumpFrac);
             dpC = obj.plantPump.curveHead(Mtot, pumpFrac);
 
@@ -278,7 +341,8 @@ classdef HydraulicNetwork < handle
             end
 
             s = struct('Mtot',Mtot, 'dpPump',dpC, 'pSupHeader',obj.pReturnRef + dpC, ...
-                       'mdot',m, 'vel',vel, 'pSupBranch',pSupBranch, 'pRetBranch',pRetBranch);
+                       'mdot',m(1:nB), 'mdotBypass',mBp, 'vel',vel, ...
+                       'pSupBranch',pSupBranch, 'pRetBranch',pRetBranch);
         end
 
         function [TsupHx, Qloss] = supplyTemperatures(obj, Tplant, Tground, m, cp)
@@ -293,6 +357,7 @@ classdef HydraulicNetwork < handle
             %   are stored (pipe.Tin/Tout, junction.T).
             if ~obj.compiled, obj.compile(); end
             Tn = zeros(1, obj.nS);  Tn(obj.idxPlantS) = Tplant;  Qloss = 0;
+            m = obj.withBypassFlow(m);                      % append the bypass flow (if any)
             for kk = 1:numel(obj.pipeOrder)
                 k = obj.pipeOrder(kk);
                 Q = sum(m(obj.downB{k}));
@@ -303,6 +368,10 @@ classdef HydraulicNetwork < handle
             for b = 1:nB
                 [TsupHx(b), ql] = obj.buildings{b}.connPipeSup.outletTemperature( ...
                     Tn(obj.branchNode(b)), Tground, m(b), cp);
+                Qloss = Qloss + ql;
+            end
+            if obj.hasBypass()                             % supply water that no building takes
+                [~, ql] = obj.bypassPipe.outletTemperature(Tn(obj.bypassNode), Tground, m(nB+1), cp);
                 Qloss = Qloss + ql;
             end
             obj.plantSupply.T = Tplant;
@@ -318,12 +387,17 @@ classdef HydraulicNetwork < handle
             %   temperature arriving at the plant and the total return-side heat loss [W].
             if ~obj.compiled, obj.compile(); end
             nB = numel(obj.buildings);  Qloss = 0;
+            m = obj.withBypassFlow(m);
             sumM = zeros(1, obj.nS);  sumMT = zeros(1, obj.nS);
             for b = 1:nB
                 [To, ql] = obj.buildings{b}.connPipeRet.outletTemperature(Thx(b), Tground, m(b), cp);
                 Qloss = Qloss + ql;
                 n = obj.branchNode(b);
                 sumM(n) = sumM(n) + m(b);  sumMT(n) = sumMT(n) + m(b)*To;
+            end
+            if obj.hasBypass()      % bypass water enters the return at the end junction, at the temperature it left the bypass
+                n = obj.bypassNode;
+                sumM(n) = sumM(n) + m(nB+1);  sumMT(n) = sumMT(n) + m(nB+1)*obj.bypassPipe.Tout;
             end
             Tn = repmat(Tground, 1, obj.nS);
             for kk = numel(obj.pipeOrder):-1:1          % leaves first
@@ -345,6 +419,13 @@ classdef HydraulicNetwork < handle
     end
 
     methods (Access = private)
+        function m = withBypassFlow(obj, m)
+            % M (1 x nB building flows) -> [M, bypass flow] when the network has a bypass
+            if obj.hasBypass() && numel(m) == numel(obj.buildings)
+                m = [m, obj.bypassPipe.mdot];
+            end
+        end
+
         function registerJunctionIfNew(obj, node)
             % REGISTERJUNCTIONIFNEW  A junction or T-junction built directly
             %   (DHS.Hydraulic.Junction(...) / TJunction(...), the port-wiring

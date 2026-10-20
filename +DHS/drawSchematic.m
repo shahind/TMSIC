@@ -3,7 +3,7 @@ function drawSchematic(sys)
 %
 %   Called by DHS.System.visualize(). Draws the closed district loop:
 %
-%     * the central heat plant (boilers, central pump, supply setpoint);
+%     * the central heat plant (boilers and the central pump);
 %     * the SUPPLY pipes (red) from the plant out to every junction, and the matching
 %       RETURN pipes (blue) from every junction back into the plant, each labelled with
 %       its name, length and diameter;
@@ -14,7 +14,8 @@ function drawSchematic(sys)
 %       junction above to the return junction below.
 %
 %   The loop is closed through the buildings: the last supply junction feeds the last
-%   building, whose return meets the first return junction. Arrows give the flow
+%   building, whose return meets the first return junction; an end-of-line bypass, when
+%   the network has one, joins the last supply junction to the return. Arrows give the flow
 %   direction. For a building's RC-network detail call  building.rcBuilding.visualize().
 
     net = sys.network;  plant = sys.plant;
@@ -48,17 +49,11 @@ function drawSchematic(sys)
         text(ax, x0, yP+1.0-(bi-1)*1.7, boilerLabel(plant, bi), 'HorizontalAlignment','center', ...
             'FontSize',9,'Interpreter','none');
     end
-    text(ax, x0, yP-ph/2+1.5, sprintf('supply setpoint\n%.0f\\circC', plant.TsupSet), ...
-        'HorizontalAlignment','center','FontSize',9);
+    text(ax, x0, yP-ph/2+1.6, sprintf('pump %s\n%s', plant.supplyPump.name, pumpTypeTag(plant.supplyPump)), ...
+        'HorizontalAlignment','center','FontSize',9,'Interpreter','none');
 
-    % central pump on the supply stub leaving the plant
-    xPump = xPlantR + 1.5;
+    % supply stub leaving the plant
     plot(ax, [xPlantR, xFirst], [ySup ySup], '-', 'Color',cSup, 'LineWidth',lwMain);
-    th = linspace(0, 2*pi, 40);
-    fill(ax, xPump+0.75*cos(th), ySup+0.75*sin(th), [1 1 1], 'EdgeColor','k', 'LineWidth',1.5);
-    plot(ax, xPump+0.75*[cos(pi/3) 1 cos(-pi/3)], ySup+0.75*[sin(pi/3) 0 sin(-pi/3)], 'k-', 'LineWidth',1.5);
-    text(ax, xPump, ySup-1.1, sprintf('%s\n%s', plant.supplyPump.name, pumpTypeTag(plant.supplyPump)), ...
-        'HorizontalAlignment','center','VerticalAlignment','top','FontSize',8,'Interpreter','none');
 
     % --- supply and return pipes -------------------------------------------------------
     plot(ax, [xPlantR, xFirst], [yRet yRet], '-', 'Color',cRet, 'LineWidth',lwMain);
@@ -98,6 +93,29 @@ function drawSchematic(sys)
         end
     end
 
+    % --- end-of-line bypass: last supply junction -> first return junction -------------------------
+    xRight = xEnd + 7.5;
+    if net.hasBypass()
+        jb = net.bypassJunction;  if isempty(jb), jb = net.pipes{net.pipeOrder(end)}.nodeB; end
+        xj = jx(jb.name);  xB = xj + 7.5;  yM = (ySup + yRet)/2;
+        plot(ax, [xj xB], [ySup ySup], '-', 'Color',cSup, 'LineWidth',lwMain);
+        plot(ax, [xB xB], [ySup yM], '-', 'Color',cSup, 'LineWidth',lwMain);
+        plot(ax, [xB xB], [yM yRet], '-', 'Color',cRet, 'LineWidth',lwMain);
+        plot(ax, [xB xj], [yRet yRet], '-', 'Color',cRet, 'LineWidth',lwMain);
+        s = 0.55;                                              % bypass valve (bow-tie across the pipe)
+        fill(ax, xB+[-s s -s s], yM+[s s -s -s], [1 1 1], 'EdgeColor','k', 'LineWidth',1.5);
+        arrow(ax, xj + 0.55*(xB-xj), ySup, +1, cSup);
+        arrow(ax, xB, (ySup + yM)/2 + 0.8, 0, cSup);
+        arrow(ax, xB, (yM + yRet)/2 - 0.8, 0, cRet);
+        arrow(ax, xj + 0.45*(xB-xj), yRet, -1, cRet);
+        text(ax, xB+0.8, yM+1.0, 'bypass', 'FontWeight','bold','FontSize',9,'HorizontalAlignment','left');
+        text(ax, xB+0.8, yM-0.1, sprintf('L = %g m,  D = %.0f mm', net.bypassPipe.L, 1000*net.bypassPipe.D), ...
+            'FontSize',8,'HorizontalAlignment','left','VerticalAlignment','top');
+        text(ax, xB+0.8, yM-1.2, sprintf('valve Kvs = %g', net.bypassValve.Kvs), ...
+            'FontSize',8,'HorizontalAlignment','left','VerticalAlignment','top','Color',cGrey);
+        xRight = xB + 7;
+    end
+
     % --- buildings: simple rectangles joined to the supply and return junctions ------------------
     bw = 5.4;  bh = 3.2;  yB = (ySup + yRet)/2;
     for b = 1:nB
@@ -130,7 +148,7 @@ function drawSchematic(sys)
     arrow(ax, xL+4*st+1, yL, +1, [0.4 0.4 0.4]);
     text(ax, xL+4*st+1.7, yL, 'flow direction', 'FontSize',9, 'VerticalAlignment','middle');
 
-    xLo = x0 - pw/2 - 1.5;  xHi = max(xEnd + 7.5, xL + 4*st + 8);  yLo = yL - 1.5;  yHi = ySup + 5.2;
+    xLo = x0 - pw/2 - 1.5;  xHi = max(xRight, xL + 4*st + 8);  yLo = yL - 1.5;  yHi = ySup + 5.2;
     xlim(ax,[xLo, xHi]); ylim(ax,[yLo, yHi]);
     title(ax, sprintf('District heating network  -  %d building(s), %d junction(s)', nB, nJ), ...
         'Interpreter','none','FontSize',12);

@@ -63,7 +63,7 @@ time step unless stated otherwise.
 | `res.time`, `res.Tout` | Time stamps (`datetime`) and outdoor temperature (degC). |
 | `res.plant.Tsupply`, `.Tboiler`, `.Treturn`, `.TreturnNet`, `.TsupSet` | Plant temperatures (degC): supply, boiler water, return header, return from the network, supply setpoint. |
 | `res.plant.Qgas`, `.Qboiler`, `.Qdist_loss`, `.Qbase`, `.eta`, `.firing` | Gas input, heat to the water, distribution loss (W), base load (W), efficiency, burner firing fraction. |
-| `res.plant.Mtot`, `.dpPump`, `.pSupHeader` | Total flow (kg/s), central pump head (Pa) and supply-header gauge pressure (Pa). |
+| `res.plant.Mtot`, `.Mbypass`, `.dpPump`, `.pSupHeader` | Total flow (kg/s), the part of it that passes through the end-of-line bypass (0 without one), central pump head (Pa) and supply-header gauge pressure (Pa). |
 | `res.bldg(i).Tzone`, `.setpoint`, `.Tzones`, `.zoneNames` | Air temperature and setpoint (degC); per-zone temperatures for a multi-zone building. |
 | `res.bldg(i).Qdeliv`, `.Qsolar`, `.Qint`, `.Qvent`, `.Qfreecool` | Heat delivered by the substation, solar gain, internal gain, ventilation loss, free cooling (W). |
 | `res.bldg(i).valve`, `.pump`, `.mdot`, `.vel` | Valve position and pump speed (0 to 1), branch flow (kg/s), velocity (m/s). |

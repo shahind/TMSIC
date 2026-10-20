@@ -161,7 +161,7 @@ end
 % ================= hydraulic solve =================
 function test_hydro_sum_equals_Mtot(tc)
     hyd = tc.TestData.sys.network.solve(1);
-    verifyEqual(tc, sum(hyd.mdot), hyd.Mtot, 'RelTol', 1e-9);
+    verifyEqual(tc, sum(hyd.mdot) + hyd.mdotBypass, hyd.Mtot, 'RelTol', 1e-9);
     verifyGreaterThan(tc, min(hyd.pSupBranch), hyd.pRetBranch(1)*0);   % pressures set
     verifyGreaterThan(tc, hyd.dpPump, 0);
 end
@@ -304,11 +304,33 @@ function test_pipe_heat_loss_counted_once(tc)
     q = 0;
     for k = 1:numel(hn.pipes),     q = q + hn.pipes{k}.Qloss + hn.retPipes{k}.Qloss; end
     for b = 1:numel(hn.buildings), q = q + hn.buildings{b}.connPipeSup.Qloss + hn.buildings{b}.connPipeRet.Qloss; end
+    if hn.hasBypass(), q = q + hn.bypassPipe.Qloss; end
     verifyEqual(tc, q, res.plant.Qdist_loss(end), 'RelTol', 1e-9);
     % water cools along the supply tree and every pipe's outlet is its Tin minus its drop
     p1 = hn.pipes{hn.pipeOrder(1)};
     verifyLessThan(tc, p1.Tout, p1.Tin);
     verifyEqual(tc, p1.Tdrop, p1.Tin - p1.Tout, 'AbsTol', 1e-12);
+end
+
+function test_end_bypass_takes_undrawn_flow(tc)
+    % The campus has an end-of-line bypass: water the buildings do not draw
+    % passes through it, so total flow = building flows + bypass flow, and the
+    % bypass carries a larger share when the buildings' valves are closed than
+    % when they are open.
+    sys = tc.TestData.sys;  hn = sys.network;
+    verifyTrue(tc, hn.hasBypass());
+    pos = cellfun(@(b) b.heatExchanger.valve.pos, hn.buildings);
+    share = zeros(1,2);  tot = zeros(1,2);
+    for k = 1:2                                       % 1: valves closed, 2: valves open
+        for b = 1:numel(hn.buildings), hn.buildings{b}.heatExchanger.valve.pos = k-1; end
+        s = hn.solve(1);
+        verifyGreaterThan(tc, s.mdotBypass, 0);
+        verifyEqual(tc, s.Mtot, sum(s.mdot) + s.mdotBypass, 'AbsTol', 1e-9);
+        share(k) = s.mdotBypass / s.Mtot;  tot(k) = sum(s.mdot);
+    end
+    for b = 1:numel(hn.buildings), hn.buildings{b}.heatExchanger.valve.pos = pos(b); end
+    verifyGreaterThan(tc, share(1), share(2));
+    verifyGreaterThan(tc, tot(2), tot(1));
 end
 
 % ================= helpers =================

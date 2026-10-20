@@ -362,12 +362,21 @@ On the three-building tree, the temperature at each heat-exchanger inlet and the
 loss equal a hand calculation in which every pipe loses heat once, with the flow it carries.
 In the return tree the temperature reaching the plant equals a hand calculation with enthalpy
 mixing at each junction, and the enthalpy flowing in minus out equals the heat lost.
+An end-of-line bypass, a pipe and a fixed valve from the last supply junction to the return, is
+one more branch: with a building and the bypass in parallel the total flow equals the closed form
+for the pump curve against the trunk plus the two branches in parallel, the bypass-to-building
+flow ratio equals $\sqrt{K_\text{building}/K_\text{bypass}}$, and closing the building's valve cuts
+its flow and sends more through the bypass. The bypass water joins the return by enthalpy mixing,
+and the plant heat equals the delivered heat plus the pipe losses.
 
 **Component output.** Mass balance closes exactly at every junction and pipe segment. Two
 identical branches carry identical flow. A single branch carries 8.003 kg/s against an
 analytic 8.003 kg/s (4e-11 relative). Opening one valve reduces the flow in every other
 branch. The pipe, supply-walk and return-walk temperatures agree with the hand calculations
-to 1e-9 K or better, and the return-side enthalpy balance closes to 9e-14.
+to 1e-9 K or better, and the return-side enthalpy balance closes to 9e-14. With the bypass,
+the total flow matches the closed form to 9e-13 (relative), the flow ratio to 3e-14, closing the
+valve moves the flow to the bypass as expected, and the bypass temperatures agree with the hand
+calculation to 1e-9 K with the heat balance closing to 4e-17.
 
 ---
 

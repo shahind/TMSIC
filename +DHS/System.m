@@ -156,7 +156,7 @@ classdef System < handle
             zc = @() zeros(nt,1);
             P = struct('Tsupply',zc(),'Tboiler',zc(),'Treturn',zc(),'TreturnNet',zc(), ...
                        'TsupSet',zc(),'Qgas',zc(),'Qboiler',zc(),'Qdist_loss',zc(),'Qbase',zc(), ...
-                       'eta',zc(),'firing',zc(),'Mtot',zc(),'dpPump',zc(),'pSupHeader',zc());
+                       'eta',zc(),'firing',zc(),'Mtot',zc(),'Mbypass',zc(),'dpPump',zc(),'pSupHeader',zc());
             b0 = struct('name','','Tzone',zc(),'Twall',zc(),'Troof',zc(),'Tmass',zc(), ...
                         'setpoint',zc(),'Qdeliv',zc(),'Qsolar',zc(),'Qint',zc(), ...
                         'Qvent',zc(),'Qfreecool',zc(),'valve',zc(),'pump',zc(),'mdot',zc(), ...
@@ -180,7 +180,7 @@ classdef System < handle
             hyd0 = obj.network.solve(obj.pumpFrac);
             P.Tsupply(1)=obj.plant.Tsupply; P.Tboiler(1)=obj.plant.Tboiler; P.eta(1)=obj.plant.eta;
             P.TsupSet(1)=obj.plant.TsupSet; P.Treturn(1)=obj.plant.TretHdr; P.TreturnNet(1)=obj.plant.TretHdr;
-            P.Mtot(1)=hyd0.Mtot; P.dpPump(1)=hyd0.dpPump; P.pSupHeader(1)=hyd0.pSupHeader;
+            P.Mtot(1)=hyd0.Mtot; P.Mbypass(1)=hyd0.mdotBypass; P.dpPump(1)=hyd0.dpPump; P.pSupHeader(1)=hyd0.pSupHeader;
             for b = 1:n
                 bd = obj.buildings{b};
                 bd.prepare(time(1), wx1);
@@ -244,7 +244,7 @@ classdef System < handle
                 P.TreturnNet(k)=Tret; P.Qgas(k)=obj.plant.Qgas;
                 P.Qboiler(k)=obj.plant.Qboiler + Qbase; P.eta(k)=obj.plant.eta;
                 P.Qdist_loss(k)=Qdist; P.Qbase(k)=Qbase; P.firing(k)=obj.plant.firing;
-                P.Mtot(k)=hyd.Mtot; P.dpPump(k)=hyd.dpPump; P.pSupHeader(k)=hyd.pSupHeader;
+                P.Mtot(k)=hyd.Mtot; P.Mbypass(k)=hyd.mdotBypass; P.dpPump(k)=hyd.dpPump; P.pSupHeader(k)=hyd.pSupHeader;
                 for b = 1:n
                     sg = obj.buildings{b}.signals();
                     Bd(b).Tzone(k)=sg.Tzone; Bd(b).Twall(k)=sg.Twall; Bd(b).Troof(k)=sg.Troof;
