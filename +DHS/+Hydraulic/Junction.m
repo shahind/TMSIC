@@ -14,6 +14,8 @@ classdef Junction < handle
 %   LIVE STATE (filled by HydraulicNetwork.solve each step)
 %     p           [Pa]        gauge pressure at this node
 %     mdotThrough [kg/s]      total flow passing this node toward the leaves
+%     T           [degC]      water temperature at this node (supply: arriving from
+%                             the plant; return: the mix of the streams joining here)
 
     properties
         name (1,:) char = ''
@@ -21,6 +23,7 @@ classdef Junction < handle
     end
     properties
         p           (1,1) double = NaN
+        T           (1,1) double = NaN
         mdotThrough (1,1) double = 0
     end
     % topology (managed by DHS.HydraulicNetwork)

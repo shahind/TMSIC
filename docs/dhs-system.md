@@ -51,7 +51,7 @@ res = sys.run(days(7));                                  % 10,081 one-minute ste
 Running it takes about 5 s. During occupied hours the zone temperature follows the 21 degC
 setpoint with a mean bias of +0.02 K and a root-mean-square deviation of 0.07 K, and it
 falls to 17.6 degC overnight. Supply temperature at the plant stays between 69.5 and
-75.8 degC around its 70 degC setpoint. Over the week the boiler burns 13,511 kWh of gas
+75.8 degC around its 70 degC setpoint. Over the week the boiler burns 13,510 kWh of gas
 and the substation delivers 10,102 kWh to the building. Closure of the energy balance
 is 1e-10 of the gas input, the quantity `res.energy.closure_err` reports.
 

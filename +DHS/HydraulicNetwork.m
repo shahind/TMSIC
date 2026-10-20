@@ -44,6 +44,13 @@ classdef HydraulicNetwork < handle
 %       fixed-displacement pump answer differently, see DHS.Hydraulic.Pump
 %     * damped fixed-point on Mtot (segment flows and dpC depend on it)
 %
+%   TEMPERATURES  (supplyTemperatures / returnTemperatures, called by DHS.System each step
+%   with the flows from solve): the supply walk takes the plant supply temperature out
+%   through every pipe, each losing heat to the ground with its own flow
+%   (DHS.Hydraulic.Pipe.outletTemperature); the return walk takes each heat-exchanger
+%   outlet temperature back, loses heat in every return pipe and mixes the streams at
+%   each junction by enthalpy flow. Junctions themselves lose no heat.
+%
 %   The buildings are COUPLED: opening one valve/pump raises Mtot, raises the
 %   shared-trunk friction and pulls the central pump down its curve, so every
 %   other tee loses differential pressure.
@@ -272,6 +279,68 @@ classdef HydraulicNetwork < handle
 
             s = struct('Mtot',Mtot, 'dpPump',dpC, 'pSupHeader',obj.pReturnRef + dpC, ...
                        'mdot',m, 'vel',vel, 'pSupBranch',pSupBranch, 'pRetBranch',pRetBranch);
+        end
+
+        function [TsupHx, Qloss] = supplyTemperatures(obj, Tplant, Tground, m, cp)
+            % SUPPLYTEMPERATURES  Walk the supply tree out from the plant.
+            %   [TsupHx, Qloss] = hn.supplyTemperatures(Tplant, Tground, m, cp)
+            %   Water leaves the plant at Tplant [degC] and loses heat in every pipe
+            %   with the flow that pipe carries (DHS.Hydraulic.Pipe.outletTemperature);
+            %   a junction splits the flow and passes the temperature on unchanged
+            %   (no heat loss in the fitting). m is the building flow vector [kg/s].
+            %   Returns the temperature at each building's heat exchanger inlet and
+            %   the total supply-side heat loss [W]. Pipe and junction temperatures
+            %   are stored (pipe.Tin/Tout, junction.T).
+            if ~obj.compiled, obj.compile(); end
+            Tn = zeros(1, obj.nS);  Tn(obj.idxPlantS) = Tplant;  Qloss = 0;
+            for kk = 1:numel(obj.pipeOrder)
+                k = obj.pipeOrder(kk);
+                Q = sum(m(obj.downB{k}));
+                [To, ql] = obj.pipes{k}.outletTemperature(Tn(obj.pipeA(k)), Tground, Q, cp);
+                Tn(obj.pipeB(k)) = To;  Qloss = Qloss + ql;
+            end
+            nB = numel(obj.buildings);  TsupHx = zeros(1, nB);
+            for b = 1:nB
+                [TsupHx(b), ql] = obj.buildings{b}.connPipeSup.outletTemperature( ...
+                    Tn(obj.branchNode(b)), Tground, m(b), cp);
+                Qloss = Qloss + ql;
+            end
+            obj.plantSupply.T = Tplant;
+            for k = 1:numel(obj.junctions), obj.junctions{k}.T = Tn(k+1); end
+        end
+
+        function [Tret, Qloss] = returnTemperatures(obj, Thx, Tground, m, cp)
+            % RETURNTEMPERATURES  Walk the return tree in toward the plant.
+            %   [Tret, Qloss] = hn.returnTemperatures(Thx, Tground, m, cp)
+            %   Thx is each building's heat-exchanger outlet temperature [degC].
+            %   Every return pipe loses heat with its own flow, and at each junction
+            %   the incoming streams mix with their enthalpy flows (m*cp*T). Returns the
+            %   temperature arriving at the plant and the total return-side heat loss [W].
+            if ~obj.compiled, obj.compile(); end
+            nB = numel(obj.buildings);  Qloss = 0;
+            sumM = zeros(1, obj.nS);  sumMT = zeros(1, obj.nS);
+            for b = 1:nB
+                [To, ql] = obj.buildings{b}.connPipeRet.outletTemperature(Thx(b), Tground, m(b), cp);
+                Qloss = Qloss + ql;
+                n = obj.branchNode(b);
+                sumM(n) = sumM(n) + m(b);  sumMT(n) = sumMT(n) + m(b)*To;
+            end
+            Tn = repmat(Tground, 1, obj.nS);
+            for kk = numel(obj.pipeOrder):-1:1          % leaves first
+                k = obj.pipeOrder(kk);  a = obj.pipeA(k);  b = obj.pipeB(k);
+                Q = sum(m(obj.downB{k}));
+                if sumM(b) > 0, Tmix = sumMT(b)/sumM(b); else, Tmix = Tground; end
+                Tn(b) = Tmix;
+                [To, ql] = obj.retPipes{k}.outletTemperature(Tmix, Tground, Q, cp);
+                Qloss = Qloss + ql;
+                sumM(a) = sumM(a) + Q;  sumMT(a) = sumMT(a) + Q*To;
+            end
+            if sumM(obj.idxPlantS) > 0, Tret = sumMT(obj.idxPlantS)/sumM(obj.idxPlantS);
+            else,                       Tret = mean(Thx);
+            end
+            Tn(obj.idxPlantS) = Tret;
+            obj.plantReturn.T = Tret;
+            for k = 1:numel(obj.junctions), obj.junctions{k}.mirror.T = Tn(k+1); end
         end
     end
 

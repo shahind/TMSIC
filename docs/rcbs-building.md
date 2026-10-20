@@ -132,7 +132,7 @@ decimals.
 | `RCBS.Building()` | none | An empty building with a 10 degC outdoor boundary. |
 | `addStorey(name)` | `name`: valid MATLAB identifier | Adds a storey, reachable as `building.(name)`. |
 | `simulate(duration)` | `duration`: a `duration`, or five numbers `(y,mo,d,h,min)` | Runs the model and writes `simulation.results`. `simulation.startDate` and `simulation.timeStep` must be set first. |
-| `visualize()` | none | Draws the RC network: rooms, envelope T-networks, windows, internal mass, boundary terminals, heat inputs and inter-zone couplings. |
+| `visualize()`, `visualize('FontSize', f)` | none, or the base label size in points (default 8) | Draws the RC network: rooms, envelope T-networks, windows, internal mass, boundary terminals, heat inputs and inter-zone couplings. |
 | `getAllZoneTemps()` | none | `containers.Map` from `"Storey.Zone"` to the current air temperature (degC). |
 | `.outdoorTempFunc` | `@(t)` returning degC for a `datetime` | Outdoor boundary condition. |
 | `.simulation` | none | The owned `RCBS.Simulation`. |

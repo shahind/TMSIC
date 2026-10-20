@@ -56,7 +56,7 @@ boiler1.etaOf(80)    % 0.845
 
 In the five-building campus example (`+DHS/+examples/campus.m`) this plant holds the
 supply temperature between 65.8 and 74.9 degC around a 70 degC setpoint over 14 days,
-its efficiency ranges from 0.885 to 0.927, and its peak gas input is 1,108 kW against a
+its efficiency ranges from 0.884 to 0.925, and its peak gas input is 1,098 kW against a
 1,500 kW capacity.
 
 ## Function reference

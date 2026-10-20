@@ -355,12 +355,19 @@ Todini and Pilati [19](../docs/references.md#r19), the basis of EPANET [20](../d
 **Expected output.** The flow into each junction equals the flow out. Two identical parallel
 branches carry equal flow. A single branch settles at the intersection of the pump curve and
 the network resistance, which has a closed form. Opening one building's valve reduces the
-flow in every other building, because they share the pump.
+flow in every other building, because they share the pump. The water temperature follows the
+same tree: a pipe's outlet temperature and heat loss equal
+$T_g + (T_\text{in}-T_g)\exp(-U'L/(\dot m c_p))$ and $\dot m c_p (T_\text{in}-T_\text{out})$.
+On the three-building tree, the temperature at each heat-exchanger inlet and the total supply
+loss equal a hand calculation in which every pipe loses heat once, with the flow it carries.
+In the return tree the temperature reaching the plant equals a hand calculation with enthalpy
+mixing at each junction, and the enthalpy flowing in minus out equals the heat lost.
 
 **Component output.** Mass balance closes exactly at every junction and pipe segment. Two
 identical branches carry identical flow. A single branch carries 8.003 kg/s against an
 analytic 8.003 kg/s (4e-11 relative). Opening one valve reduces the flow in every other
-branch.
+branch. The pipe, supply-walk and return-walk temperatures agree with the hand calculations
+to 1e-9 K or better, and the return-side enthalpy balance closes to 9e-14.
 
 ---
 

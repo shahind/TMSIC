@@ -64,6 +64,7 @@ classdef Building < dynamicprops & handle
             %
             %   B.visualize()          new figure
             %   B.visualize(ax)        draw into an existing axes
+            %   B.visualize('FontSize', 12)   base label size in points (default 8)
             %
             %   Every zone uses the SAME fixed-size template.  A thin shell
             %   frames the room; the RC ladders rise from the room edges:
@@ -97,6 +98,8 @@ classdef Building < dynamicprops & handle
             C_HEAT = [0.90 0.45 0.10];  C_ZONE = [0.78 0 0];
             C_SHELL_F = [0.965 0.965 0.965];  C_SHELL_E = [0.78 0.78 0.78];
             FS = 8;
+            iFS = find(cellfun(@(a) (ischar(a) || isstring(a)) && strcmpi(a, 'FontSize'), varargin), 1);
+            if ~isempty(iFS), FS = varargin{iFS+1}; end        % B.visualize('FontSize', 12)
             lbl = {'FontSize', FS, 'Interpreter', 'tex', 'Margin', 0.5, ...
                    'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'Clipping', 'off'};
 

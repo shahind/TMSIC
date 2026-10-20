@@ -481,7 +481,7 @@ function plot_identification(training_data, validation_data, model, ...
         title('identified parameters');
     end
     set(gca, 'XTick', 1:model.n_parameters, 'XTickLabel', cellstr(model.parameter_names), ...
-        'XTickLabelRotation', 30, 'FontSize', 8);
+        'XTickLabelRotation', 30);
 end
 
 % ---------------------------------------------------------------------------

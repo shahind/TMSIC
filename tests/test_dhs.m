@@ -295,6 +295,22 @@ function test_multizone_slab_couples_storeys(tc)
     verifyGreaterThan(tc, dS2, 0.3);          % the coupling actually transmits heat upward
 end
 
+% ================= pipe temperatures =================
+function test_pipe_heat_loss_counted_once(tc)
+    % The network's heat loss is the sum over the pipes that exist (trunk,
+    % service and return pipes), each with its own flow; a trunk shared by
+    % several buildings is not counted once per building.
+    sys = tc.TestData.sys;  hn = sys.network;  res = tc.TestData.res;
+    q = 0;
+    for k = 1:numel(hn.pipes),     q = q + hn.pipes{k}.Qloss + hn.retPipes{k}.Qloss; end
+    for b = 1:numel(hn.buildings), q = q + hn.buildings{b}.connPipeSup.Qloss + hn.buildings{b}.connPipeRet.Qloss; end
+    verifyEqual(tc, q, res.plant.Qdist_loss(end), 'RelTol', 1e-9);
+    % water cools along the supply tree and every pipe's outlet is its Tin minus its drop
+    p1 = hn.pipes{hn.pipeOrder(1)};
+    verifyLessThan(tc, p1.Tout, p1.Tin);
+    verifyEqual(tc, p1.Tdrop, p1.Tin - p1.Tout, 'AbsTol', 1e-12);
+end
+
 % ================= helpers =================
 function B = trivialRC()
     B = RCBS.Building(); B.addStorey('S'); B.S.addZone('Z','C_main',2e6);

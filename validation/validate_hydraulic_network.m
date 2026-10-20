@@ -28,6 +28,16 @@ function V = validate_hydraulic_network(plotMode)
 %        differential pressure at the other tees, so every other branch loses
 %        flow (documented physics; verifies the tree solve captures the shared
 %        trunk + central-pump curve coupling).
+%     E  PIPE HEAT LOSS: one pipe's outlet temperature and heat loss against
+%        T_out = T_g + (T_in - T_g) exp(-U'L/(mdot cp)),  Q_loss = mdot cp (T_in - T_out).
+%     F  SUPPLY WALK: on the 3-building tree the temperature at each heat-exchanger
+%        inlet and the total supply heat loss equal a hand calculation in which
+%        every pipe (trunk segments and connection pipes) loses heat once, with the
+%        flow it carries -- a trunk shared by several buildings is not counted per
+%        building.
+%     G  RETURN WALK: the temperature arriving at the plant equals a hand calculation
+%        with enthalpy mixing (m cp T) at each junction and heat loss in every return
+%        pipe, and the enthalpy flowing in minus out equals the heat lost.
 %
 %   WHY THIS TEST IS GOOD
 %     A is the conservation law the solver must never violate; B checks the
@@ -120,13 +130,49 @@ function V = validate_hydraulic_network(plotMode)
     Man = Mmax / sqrt(1 + Mmax^2 * Kt / dp0);
     eC  = abs(s3.Mtot - Man) / Man;
 
+    % ================= E, F, G: temperatures along the same tree (state s0) =================
+    cp = 4186;  Tp = 70;  Tg = 5;  m = s0.mdot;
+    Q  = [sum(m), sum(m(2:3)), m(3)];                 % trunk segment flows (T1 -> T2 -> T3 chain)
+    UL = cellfun(@(p) p.UperM*p.L, hn.pipes(1:3));    % W/K of each trunk pipe
+    Ucn = cellfun(@(b) b.connPipeSup.UperM*b.connPipeSup.L, hn.buildings);
+    decay = @(UAx, flow) exp(-UAx ./ (flow*cp));
+    % E  one pipe: analytic outlet temperature and heat loss
+    [ToE, qlE] = hn.pipes{1}.outletTemperature(Tp, Tg, Q(1), cp);
+    ToEan = Tg + (Tp - Tg)*decay(UL(1), Q(1));
+    eE = max(abs(ToE - ToEan), abs(qlE - Q(1)*cp*(Tp - ToEan))/(Q(1)*cp));
+    % F  supply walk: every pipe loses heat ONCE with its own flow (hand chain)
+    Tn = zeros(1,3);  Tprev = Tp;  qlF = 0;
+    for k = 1:3
+        Tn(k) = Tg + (Tprev - Tg)*decay(UL(k), Q(k));
+        qlF = qlF + Q(k)*cp*(Tprev - Tn(k));  Tprev = Tn(k);
+    end
+    ThxAn = Tg + (Tn - Tg).*decay(Ucn, m);
+    qlF = qlF + sum(m.*cp.*(Tn - ThxAn));
+    [Thx, qlS] = hn.supplyTemperatures(Tp, Tg, m, cp);
+    eF = max(max(abs(Thx - ThxAn)), abs(qlS - qlF)/qlF);
+    % G  return walk: enthalpy mixing at the tees and heat loss in every return pipe (hand chain)
+    Thx0 = [45 40 35];
+    Tr = Tg + (Thx0 - Tg).*decay(Ucn, m);             % return connection pipes
+    ToR3 = Tg + (Tr(3) - Tg)*decay(UL(3), Q(3));
+    Tmix2 = (m(2)*Tr(2) + Q(3)*ToR3)/Q(2);
+    ToR2 = Tg + (Tmix2 - Tg)*decay(UL(2), Q(2));
+    Tmix1 = (m(1)*Tr(1) + Q(2)*ToR2)/Q(1);
+    TretAn = Tg + (Tmix1 - Tg)*decay(UL(1), Q(1));
+    [Tret, qlR] = hn.returnTemperatures(Thx0, Tg, m, cp);
+    eG1 = abs(Tret - TretAn);
+    eG2 = abs(sum(m.*cp.*Thx0) - Q(1)*cp*Tret - qlR)/qlR;      % energy: enthalpy in - out = heat lost
+
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
+    C(6) = mk('E  one pipe: outlet temperature and heat loss vs analytic', 0, eE, 1e-9, 'abs');
+    C(7) = mk('F  supply walk: each pipe loses heat once, own flow',       0, eF, 1e-9, 'abs');
+    C(8) = mk('G  return walk: enthalpy mixing vs hand calculation  [K]',  0, eG1, 1e-9, 'abs');
+    C(9) = mk('G  return walk: enthalpy in - out = heat lost (rel)',       0, eG2, 1e-9, 'abs');
     C(1) = mk('A  continuity  sum(branch mdot) = Mtot  [kg/s]',   0, eCont, 1e-9, 'abs');
     C(2) = mk('A  each segment carries its downstream subtree flow',0, segErr, 1e-9, 'abs');
     C(3) = mk('B  identical parallel branches -> equal flow',      0, eSym, 1e-6, 'abs');
     C(4) = mk('C  single-branch Mtot vs pump+system analytic',     Man, s3.Mtot, 5e-3, 'rel');
     C(5) = mk('D  open one valve -> every other branch loses flow',1, double(okD), 0, 'abs');
-    V.name = 'Hydraulic network: continuity, symmetry, operating point, coupling';
+    V.name = 'Hydraulic network: continuity, symmetry, operating point, coupling, pipe temperatures';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eCont',eCont,'segErr',segErr,'eSym',eSym,'Mtot',s3.Mtot,'Man',Man,'eC',eC);
 

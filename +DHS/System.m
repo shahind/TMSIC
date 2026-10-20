@@ -62,8 +62,6 @@ classdef System < handle
     end
     properties (SetAccess = private)
         nB        (1,1) double = 0
-        Lsup double = []          % per-building buried supply length [m]
-        Lret double = []          % per-building buried return length [m]
         plantInit (1,2) double = [78 70]
         live      struct = struct()
         compiled  (1,1) logical = false
@@ -134,21 +132,6 @@ classdef System < handle
             obj.network.plantPump = obj.plant.supplyPump;
             obj.network.compile();
 
-            % per-building buried pipe lengths: plant -> feeding junction + connection
-            n = obj.nB;
-            obj.Lsup = zeros(1,n);  obj.Lret = zeros(1,n);
-            for b = 1:n
-                bd = obj.buildings{b};
-                Ls = bd.connLength;  Lr = bd.connLength;
-                j  = bd.inlet.parentPipe;                 % feeding supply junction
-                pj = j.parentPipe;
-                while ~isempty(pj)
-                    Ls = Ls + pj.L;
-                    Lr = Lr + pj.L;
-                    pj = pj.nodeA.parentPipe;
-                end
-                obj.Lsup(b) = Ls;  obj.Lret(b) = Lr;
-            end
             obj.plantInit = [obj.plant.Tboiler, obj.plant.Tsupply];
             obj.compiled = true;
         end
@@ -160,12 +143,6 @@ classdef System < handle
             if isduration(duration_), total = seconds(duration_); else, total = double(duration_); end
             nt = floor(total/dt) + 1;
             n  = obj.nB;
-            Upm = 0.30;                     % fallback W/m/K
-            UAs = zeros(1,n); UAr = zeros(1,n);
-            for b = 1:n
-                UAs(b) = Upm * obj.Lsup(b);
-                UAr(b) = Upm * obj.Lret(b);
-            end
 
             obj.plant.reset(obj.plantInit(1), obj.plantInit(2));
             wfcn = @(t) obj.weather.at(t).Tout;
@@ -235,27 +212,19 @@ classdef System < handle
                                                  'Tret_prev',P.Treturn(max(k-1,1))));
 
                 TsupPlant = obj.plant.Tsupply;
-                Qdel = zeros(1,n); TretP = zeros(1,n); TsupHx = zeros(1,n);
-                QlossS = zeros(1,n); QlossR = zeros(1,n);
+                Qdel = zeros(1,n); Tri = zeros(1,n); TsupHx = zeros(1,n);
+                QlossS = 0; QlossR = 0;
                 Tb=obj.plant.Tboiler; Ts=TsupPlant; Trh=obj.plant.TretHdr;
                 Qb=0; ef=obj.plant.eta; Tret=TsupPlant;
                 maxit = max(1, obj.couplingIterations) + 3;
                 for it = 1:maxit %#ok<NASGU>
+                    % supply walk: plant -> every pipe (own flow, own heat loss) -> each HX
+                    [TsupHx, QlossS] = obj.network.supplyTemperatures(TsupPlant, wx.Tground, mdot, obj.cp);
                     for b = 1:n
-                        mc = max(mdot(b),1e-6)*obj.cp;
-                        dTs = UAs(b)*(TsupPlant - wx.Tground)/mc;
-                        TsupHx(b) = max(wx.Tground, TsupPlant - dTs);
-                        QlossS(b) = mc*(TsupPlant - TsupHx(b));
-                        [Qdel(b), Tri] = obj.buildings{b}.exchange(mdot(b), TsupHx(b));
-                        dTr = UAr(b)*(Tri - wx.Tground)/mc;
-                        TretP(b) = max(wx.Tground, Tri - dTr);
-                        QlossR(b) = mc*(Tri - TretP(b));
+                        [Qdel(b), Tri(b)] = obj.buildings{b}.exchange(mdot(b), TsupHx(b));
                     end
-                    if sum(mdot) > 1e-9
-                        Tret = sum(mdot.*TretP)/sum(mdot);
-                    else
-                        Tret = mean(TretP);
-                    end
+                    % return walk: each HX -> every return pipe, enthalpy mixing at junctions
+                    [Tret, QlossR] = obj.network.returnTemperatures(Tri, wx.Tground, mdot, obj.cp);
                     [Ts, Tb, Trh, Qb, ef] = obj.plant.evalBoiler(hyd.Mtot, Tret, dt, obj.baseHeatW);
                     if abs(Ts - TsupPlant) < 1e-7 && it >= obj.couplingIterations
                         TsupPlant = Ts; break
@@ -264,7 +233,7 @@ classdef System < handle
                 end
                 obj.plant.commit(Tb, Trh, Ts, Qb, ef);
                 Qbase = obj.baseHeatW;
-                Qdist = sum(QlossS) + sum(QlossR);
+                Qdist = QlossS + QlossR;
 
                 for b = 1:n
                     obj.buildings{b}.advance(dt, tnp, wx);

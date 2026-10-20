@@ -131,8 +131,17 @@ $$\Delta p = K\,\dot m^2,\qquad K = \frac{f\,L}{D\cdot 2\rho A^2},\qquad
 f = \frac{0.25}{\left[\log_{10}\!\left(\dfrac{\varepsilon/D}{3.7}+\dfrac{5.74}{\mathrm{Re}^{0.9}}\right)\right]^2}.$$
 
 The factor is clamped to the range 0.008 to 0.1, and $f = 64/\mathrm{Re}$ below
-$\mathrm{Re} = 2300$. Heat loss is steady, $\dot Q = U'\,L\,(T_\text{water} - T_\text{ground})$, and
-the network applies it as a transport temperature drop along the pipe.
+$\mathrm{Re} = 2300$. A pipe also loses heat to the ground. For steady flow $\dot m$ with a
+constant loss coefficient $U'$ (W/m/K), water entering at $T_\text{in}$ leaves at
+
+$$T_\text{out} = T_g + (T_\text{in} - T_g)\,\exp\!\left(-\frac{U' L}{\dot m\,c_p}\right),\qquad
+\dot Q_\text{loss} = \dot m\,c_p\,(T_\text{in} - T_\text{out}).$$
+
+The network applies this to every pipe, supply and return, with the flow that pipe carries.
+A junction splits the flow and passes the temperature on without loss; in the return tree
+the streams meeting at a junction mix by enthalpy flow, $\sum \dot m\,c_p\,T$. So the plant
+supply temperature, pressure and flow enter pipe A, leave it changed by its loss, and reach
+the next junction, which divides the flow between its two outlets.
 
 This matches MathWorks' Simscape Pipe (TL) block [50](references.md#r50): the same
 $K\dot m^2$ Darcy-Weisbach term and the same $f=64/\mathrm{Re}$ laminar law (Simscape uses
@@ -229,7 +238,9 @@ flow-coefficient model used here.
 | `connectOutput(port)` | a junction or port | Ends the pipe at `port` and registers it with the network its input belongs to. Returns the pipe. |
 | `addTjunction(name, sideDiameter)` | name; side-leg diameter (m) | Creates a `TJunction` of this pipe's diameter at its downstream end and returns it. |
 | `resistance(mdot, rho, mu)` | flow (kg/s), density (kg/m³), viscosity (Pa·s) | $K$ in Pa/(kg/s)², including any tee loss. |
-| `.mdot`, `.vel`, `.dp`, `.f`, `.Tdrop` | none | Live flow, velocity, pressure drop, friction factor and temperature drop, filled by `solve`. |
+| `outletTemperature(Tin, Tground, mdot, cp)` | inlet and ground temperatures (degC), flow (kg/s), specific heat (J/kg/K) | `[Tout, Qloss]`: outlet temperature (degC) and heat lost (W). Also sets `.Tin`, `.Tout`, `.Tdrop` and `.Qloss`. |
+| `.mdot`, `.vel`, `.dp`, `.f` | none | Live flow, velocity, pressure drop and friction factor, filled by `solve`. |
+| `.Tin`, `.Tout`, `.Tdrop`, `.Qloss` | none | Live inlet and outlet temperature, temperature drop and heat loss, filled by the temperature walks. |
 
 ### `DHS.Hydraulic.Junction` and `TJunction`
 
@@ -242,7 +253,7 @@ flow-coefficient model used here.
 | `connectToPipe('portC', pipe)` | port name, pipe | Wires the side branch. |
 | `teeLossK(side, rho, mu, mdot)` | `'run'` or `'branch'`, density, viscosity, flow (kg/s, only used when `frictionModel='actual'`) | The coefficient $K_\text{run}$ or $K_\text{branch}$ in Pa/(kg/s)². |
 | `.frictionModel` | `'fixed'` (default) or `'actual'` | Whether $f$ is evaluated at the fully turbulent asymptote or at the leg's own flow. |
-| `.p`, `.mdotThrough` | none | Live gauge pressure (Pa) and through flow (kg/s). |
+| `.p`, `.T`, `.mdotThrough` | none | Live gauge pressure (Pa), water temperature (degC) and through flow (kg/s). |
 
 ### `DHS.Hydraulic.CentrifugalPump` and `FixedDisplacementPump`
 
@@ -282,11 +293,13 @@ For $K_{vs} = 18$ and $R = 50$ the coefficient is 4,182 Pa/(kg/s)² fully open, 
 | `connectBuilding(junction, building)` | a supply junction, a `DHS.Building` | Hangs the building from the junction. |
 | `compile()` | none | Freezes the topology into index arrays. `solve` calls it when needed. |
 | `solve(pumpFrac)` | central pump speed, 0 to 1 (default 1) | A structure with `Mtot` (kg/s), `dpPump` and `pSupHeader` (Pa), and per building `mdot`, `vel`, `pSupBranch`, `pRetBranch`. |
+| `supplyTemperatures(Tplant, Tground, m, cp)` | plant supply temperature, ground temperature (degC), building flows `m` (kg/s), specific heat | `[TsupHx, Qloss]`: water temperature at each building's heat-exchanger inlet (degC) and the total supply-side heat loss (W). Walks the supply tree pipe by pipe. |
+| `returnTemperatures(Thx, Tground, m, cp)` | heat-exchanger outlet temperatures (degC), ground temperature, flows, specific heat | `[Tret, Qloss]`: temperature arriving at the plant (degC) and the total return-side heat loss (W), with enthalpy mixing at each junction. |
 | `.rho`, `.mu`, `.pReturnRef` | scalars | Density (978 kg/m³), viscosity (4.0e-4 Pa·s) and the return-side reference gauge pressure (1.5e5 Pa). |
 | `.junctions`, `.pipes`, `.retPipes`, `.buildings` | none | The registered parts, as cell arrays. |
 
 The solver walks the tree from the plant, computes each segment's flow from the branch
 flows below it, subtracts $K\,\dot m^2$ along every pipe, closes each building branch
 through its own pump's `solveBranch`, and repeats with damping until the total flow
-converges. Its accuracy is checked against closed-form solutions in
+converges. `DHS.System` then calls `supplyTemperatures` and `returnTemperatures` with those flows each step. Its accuracy is checked against closed-form solutions in
 [`../validation/README.md`](../validation/README.md).

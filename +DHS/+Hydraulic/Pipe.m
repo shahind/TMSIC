@@ -3,8 +3,11 @@ classdef Pipe < handle
 %
 %   Hydraulics : Darcy-Weisbach with the Swamee-Jain explicit friction
 %                factor.  dp = K(mdot) * mdot^2 ,  K = f*L / (D * 2*rho * A^2).
-%   Heat loss  : steady  Q_loss = UperM * L * (T_water - T_ground)  [W], applied
-%                by the network as a transport temperature drop.
+%   Heat loss  : steady heat loss to the ground along the pipe. Water entering at
+%                T_in leaves at  T_out = T_g + (T_in - T_g) * exp(-UperM*L / (mdot*cp))
+%                and the pipe loses  Q_loss = mdot*cp*(T_in - T_out)  [W]. The network
+%                applies it pipe by pipe, so every pipe loses heat once, with the
+%                flow it actually carries.
 %
 %   Two equivalent ways to wire a pipe into a network (see DHS.HydraulicNetwork):
 %     declarative   hn.addPipe(nodeA, nodeB, 'L',40, 'D',0.11)
@@ -26,7 +29,10 @@ classdef Pipe < handle
 %     vel     [m/s]   bulk velocity
 %     dp      [Pa]    friction pressure drop
 %     f       [-]     Darcy friction factor
-%     Tdrop   [K]     transport temperature drop over the pipe
+%     Tin     [degC]  water temperature entering the pipe
+%     Tout    [degC]  water temperature leaving the pipe
+%     Tdrop   [K]     temperature drop over the pipe, Tin - Tout
+%     Qloss   [W]     heat lost to the ground
 %     decorative logical  true for a same-node round trip (e.g. a boiler-to-pump
 %                     stub inside the lumped plant) -- wired for a clear diagram,
 %                     but outside the solved topology since both ends alias one
@@ -47,7 +53,10 @@ classdef Pipe < handle
         vel   (1,1) double = 0
         dp    (1,1) double = 0
         f     (1,1) double = 0.02
+        Tin   (1,1) double = NaN
+        Tout  (1,1) double = NaN
         Tdrop (1,1) double = 0
+        Qloss (1,1) double = 0
         decorative double = false
         downBuildings double = []   % indices of the buildings in this pipe's subtree
     end
@@ -110,6 +119,18 @@ classdef Pipe < handle
             if ~isempty(obj.teeSide) && isa(obj.nodeA, 'DHS.Hydraulic.TJunction')
                 K = K + obj.nodeA.teeLossK(obj.teeSide, rho, mu, mdot);
             end
+        end
+    end
+
+    methods
+        function [Tout, Qloss] = outletTemperature(obj, Tin, Tground, mdot, cp)
+            % OUTLETTEMPERATURE  Water temperature leaving the pipe and the heat lost.
+            %   [Tout, Qloss] = pipe.outletTemperature(Tin, Tground, mdot, cp)
+            %   Also stores Tin, Tout, Tdrop and Qloss in the pipe.
+            mc   = max(mdot, 1e-6) * cp;                    % capacity rate [W/K]
+            Tout = Tground + (Tin - Tground) * exp(-obj.UperM * obj.L / mc);
+            Qloss = mc * (Tin - Tout);
+            obj.Tin = Tin;  obj.Tout = Tout;  obj.Tdrop = Tin - Tout;  obj.Qloss = Qloss;
         end
     end
 
