@@ -9,6 +9,9 @@ classdef CentrifugalPump < DHS.Hydraulic.Pump
 %   MATLAB/Simscape's Centrifugal Pump (TL) general affinity-law model for a
 %   quadratic reference head curve (docs/dhs-hydraulic.md).
 %
+%   A pump with speed 0 is stopped: as a substation pump it adds no head and no
+%   resistance (the branch flow is sqrt(dpAvailable/Kbranch)).
+%
 %   PROPERTIES (SI, in addition to DHS.Hydraulic.Pump)
 %     dp0       [Pa]    shut-off head (mdot = 0)
 %     mdotMax   [kg/s]  run-out flow (head = 0 at speed 1)
@@ -36,6 +39,9 @@ classdef CentrifugalPump < DHS.Hydraulic.Pump
             %   pressure dpAvailable already present at its tee:
             %     s^2 dp0 + dpAvailable = (Kbranch + dp0/mdotMax^2) * m^2
             if nargin < 4 || isempty(frac), frac = obj.speed; end
+            if frac <= 0                          % stopped: no head, no extra resistance
+                m = sqrt(max(0, dpAvailable) / Kbranch);  h = 0;  return
+            end
             s = min(1, max(obj.minSpeed, frac));
             Kden = Kbranch + obj.dp0 / obj.mdotMax^2;
             m = sqrt(max(0, (s^2*obj.dp0 + dpAvailable) / Kden));

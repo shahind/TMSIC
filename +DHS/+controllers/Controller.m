@@ -1,24 +1,31 @@
 classdef Controller < handle
-% DHS.CONTROLLERS.CONTROLLER  Abstract single-input / single-output feedback law.
+% DHS.CONTROLLERS.CONTROLLER  Abstract control law: the general form every controller follows.
 %
-%   Every controllable actuator in a DHS system (a valve, a pump, the plant
-%   firing) is driven by one of these. Swapping PID -> LQR -> your MPC is done by
-%   handing a different Controller subclass to  actuator.attachController(c) ; the
-%   rest of the model does not change.
+%   Every controllable actuator in a DHS system (a building's valve, a pump, a
+%   boiler's burner, the bypass valve) is driven by an object derived from this
+%   class and attached with one call:
 %
-%   CONTRACT
-%     reset(obj)                         clear internal state before a run
-%     u = update(obj, meas, ref, dt)     one control step
-%     u = update(obj, meas, ref, dt, aux)  optional 5th arg for model-based laws
+%       actuator.attachController(c)
 %
-%     meas : measured process value        (scalar, SI units of the loop)
-%     ref  : setpoint                       (scalar, same units as meas)
-%     dt   : controller sample time         [s], > 0
-%     aux  : struct, optional. LQR / MPC read fields such as aux.x (full plant
-%            state vector), aux.wx (weather), aux.Tout. PID / Relay ignore it.
-%     u    : command, normalised to [0,1] for actuators in this project
-%            (0 = shut / no firing, 1 = fully open / max firing); clamped to
-%            [obj.uMin, obj.uMax].
+%   At every step the actuator asks its controller for a command, passing the
+%   whole simulation:
+%
+%       u = c.update(sys, dt)
+%
+%     sys : the DHS.System being run. The controller reads whatever it needs
+%           from it (building temperatures, junction pressures, weather,
+%           sys.time, ...) and decides what to measure and how.
+%     dt  : step [s], greater than zero.
+%     u   : command, clamped to [uMin, uMax] (default 0 to 1). Zero means shut,
+%           stopped or no firing, one means fully open, full speed or full firing.
+%
+%   Each law carries its own parameters as properties: a PID its gains, measure
+%   and reference; a Relay its band, measure and reference; an LQR its model, Q, R
+%   and the state it regulates. The base class holds only the command limits and
+%   a label.
+%
+%   Shipped laws: PID, LQR, Relay and Callback (a function handle). A law of your
+%   own subclasses Controller and implements reset() and update(sys, dt).
 
     properties
         uMin (1,1) double = 0
@@ -28,7 +35,7 @@ classdef Controller < handle
 
     methods (Abstract)
         reset(obj)
-        u = update(obj, meas, ref, dt, varargin)
+        u = update(obj, sys, dt)
     end
 
     methods

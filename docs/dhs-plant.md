@@ -44,10 +44,13 @@ chp.mdotMinBoiler = 2.5;  chp.TboilerMax = 90;               % low-loss header, 
 chp.setSupplySetpoint(70);                                   % supply setpoint [degC]
 
 boiler1 = chp.addBoiler('B1', 'QMax',1.5e6, 'etaRef',0.92, 'etaSlope',0.0025);
-pump0   = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',3.0e5, 'mdotMax',14);
+pump0   = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',6.0e5, 'mdotMax',20);
 chp.attachPump(pump0);                                       % any DHS.Hydraulic.Pump
 boiler1.connectTo(pump0);                                    % records the link for the drawing
-chp.attachFiringController( DHS.controllers.PID(0.045, 3e-5, 1.5, 150) );
+firing = DHS.controllers.PID(0.045, 3e-5, 1.5, 150);
+firing.measure   = @(sys) sys.plant.TsupplyMeas;            % the supply-temperature sensor
+firing.reference = @(sys) sys.plant.TsupSet;
+boiler1.attachController(firing);
 
 boiler1.etaOf(30)    % 0.970
 boiler1.etaOf(60)    % 0.895
@@ -55,9 +58,11 @@ boiler1.etaOf(80)    % 0.845
 ```
 
 In the five-building campus example (`+DHS/+examples/campus.m`) this plant holds the
-supply temperature between 65.9 and 74.9 degC around a 70 degC setpoint over 14 days,
-its efficiency ranges from 0.884 to 0.920, and its peak gas input is 1,092 kW against a
+supply temperature between 65.3 and 75.1 degC around a 70 degC setpoint over 14 days,
+its efficiency ranges from 0.879 to 0.925, and its peak gas input is 1,204 kW against a
 1,500 kW capacity.
+
+The boilers and the pump are reachable by name: `sys.CHP.B1.QMax`, `sys.CHP.P0.dp0`.
 
 ## Function reference
 
@@ -65,11 +70,11 @@ its efficiency ranges from 0.884 to 0.920, and its peak gas input is 1,092 kW ag
 
 | Function | Inputs | Output or effect |
 |---|---|---|
-| `CentralHeatPlant(name)` | name | A plant with a default firing PID and the two ports `supplyPort` and `returnPort`. |
-| `addBoiler(name, ...)` | name; `Boiler` properties as name-value pairs | Creates a `DHS.Boiler`, adds it to the plant and returns it. |
+| `CentralHeatPlant(name)` | name | A plant with the two ports `supplyPort` and `returnPort`. |
+| `addBoiler(name, ...)` | name; `Boiler` properties as name-value pairs | Creates a `DHS.Boiler` with a default PID on the supply temperature, adds it to the plant and returns it. |
 | `addPump(name, 'dp0',.., 'mdotMax',..)` | name; pump properties | Builds a `CentrifugalPump`, installs it as the central pump and returns it. |
 | `attachPump(pump)` | any `DHS.Hydraulic.Pump` | Installs a pre-built pump, for example a `FixedDisplacementPump`. |
-| `attachFiringController(c)` | a `DHS.controllers.Controller` | Replaces the burner-firing law. |
+
 | `setSupplySetpoint(T)` | temperature (degC) | Sets the fixed supply setpoint. |
 | `QgasMax()` | none | Sum of the boilers' `QMax` (W). |
 | `.Cw`, `.Cw_rh`, `.Cw_sh` | J/K | Water-mass heat capacities. |
@@ -82,6 +87,7 @@ its efficiency ranges from 0.884 to 0.920, and its peak gas input is 1,092 kW ag
 | Function | Inputs | Output or effect |
 |---|---|---|
 | `Boiler(name, 'QMax',W, 'etaCurve',f, 'etaRef',.., 'etaSlope',.., 'TetaRef',.., 'etaMin',.., 'etaMax',..)` | name; capacity (W); optional curve `@(Tret)` returning efficiency; line parameters | A burner stage. Normally created with `chp.addBoiler`. |
+| `attachController(c)` | a `DHS.controllers.Controller` | Replaces the boiler's firing law. The controller decides what to measure, normally the supply temperature (`sys.plant.TsupplyMeas`) against the setpoint (`sys.plant.TsupSet`). |
 | `etaOf(Tret)` | return-water temperature (degC) | Efficiency between 0 and 1. |
 | `connectTo(pump)` | a pump | Records that the boiler discharges into `pump`, for the drawing. |
 | `connectToPipe('output', pipe)` | port name, a `Pipe` | Port-wiring: connects `pipe` to the plant's supply port. The boiler and pump form one lumped pressure node, so a pipe wired between them has no resistance of its own. |

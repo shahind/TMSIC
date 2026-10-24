@@ -26,13 +26,18 @@ b.S1.Lab.addWindow(0.01, 'Window');
 b.S1.Lab.connectToZone(b.S1.Corridor, 0.02, 'Partition', 5e6);
 
 % A district network: connect a pipe's output to the next part
-pipe1 = DHS.Hydraulic.Pipe('CHP->T1', 'L',40, 'D',0.11);
+pipe1 = DHS.Hydraulic.Pipe('pipe1', 'L',40, 'D',0.11);
 chp.supplyPort.connectToPipe(pipe1);
 tee1  = pipe1.addTjunction('T1', 0.05);
-hn.connectBuilding(tee1, building);
+ret1  = DHS.Hydraulic.Pipe('ret1', 'L',45, 'D',0.13);      % the return side is wired separately
+r1    = DHS.Hydraulic.Junction('R1', 'return');
+r1.connectToPipe(ret1);  ret1.connectOutput(chp.returnPort);
+hn.connectBuilding(tee1, building, r1);
 
 % A control law: attach it to the actuator it drives
-hx.valve.attachController( DHS.controllers.PID(0.14, 1.6e-4, 0) );
+c = DHS.controllers.PID(0.14, 1.6e-4, 0);
+c.measure = @(sys) building.Tzone;  c.reference = @(sys) building.setpoint;   % zone temperature held at the setpoint
+hx.valve.attachController(c);
 ```
 
 These are excerpts, so `chp`, `hn`, `building` and `hx` are assumed to exist. The
@@ -64,7 +69,7 @@ so the building models can be used alone.
   steps) takes about 30 s on the development machine. The 30-zone version takes one to two
   minutes.
 - **Trust the physics.** Eighteen component checks compare each part with a closed-form
-  solution or a published correlation, and 22 unit tests cover the interfaces
+  solution or a published correlation, and 37 unit tests cover the interfaces
   ([validation report](validation/README.md)).
 
 ## Examples
@@ -75,14 +80,15 @@ All examples are in `examples/` and run without extra data. Start with `dhs_camp
 |---|---|
 | `RCBS_example.m` | A three-storey, seven-zone building built by hand: walls, windows, internal mass, capacitive partitions and slabs, and two heat inputs. It simulates three days and draws the RC schematic. |
 | `dhs_campus.m` | A five-building campus on one gas plant. It builds the network with the port-wiring API, runs 14 days, prints a plausibility summary and plots the plant and building signals. The assembly is in `+DHS/+examples/campus.m`. |
+| `dhs_campus_with_bypass.m` | The same campus with an end-of-line bypass added to the supply main by one `addBypass` call, with the flow through it plotted. Shows how to add a bypass and, in comments, how to control its valve. |
 | `dhs_campus_multizone.m` | The same campus with 30 zones of different room types, all served by one substation per building. It prints the temperature error of every zone and shows where building-level control stops being enough. |
 | `system_identification.m` | Fits a 10-parameter single-zone model (topology R5C4) to a temperature record and checks it on held-out data. On the synthetic record supplied, the validation error is 0.15 °C. |
 | `multi_zone_system_identification.m` | The same procedure for an eight-zone building with 75 parameters, fitted against eight measured zone temperatures at once. |
 
 <img src="docs/images/dhs_campus_buildings.png" alt="Zone temperatures, delivered heat and valve positions of the five campus buildings over 14 days" width="720">
 
-In the campus run the plant supply temperature stays between 65.9 and 74.9 °C around a 70 °C
-setpoint, the boiler efficiency ranges from 0.884 to 0.920, and the energy balance closes to
+In the campus run the plant supply temperature stays between 65.3 and 75.1 °C around a 70 °C
+setpoint, the boiler efficiency ranges from 0.879 to 0.925, and the energy balance closes to
 0.00 % over the two weeks.
 
 ## Getting started
@@ -94,7 +100,7 @@ Optimization Toolbox for the two identification examples. The rest runs on base 
 ```matlab
 setup                              % adds the toolbox folders to the path
 run('examples/dhs_campus.m')       % a first district heating simulation
-runtests('tests')                  % 22 unit tests
+runtests('tests')                  % 37 unit tests
 run_all_validation                 % 18 accuracy checks and their figures
 ```
 

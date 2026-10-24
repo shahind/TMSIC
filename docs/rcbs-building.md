@@ -37,8 +37,8 @@ a single lumped thermal-mass capacitance; RCBS instead applies it once per const
 element, so several elements each keep their own state
 [1](references.md#r1), [2](references.md#r2).
 Its mass sits on one internal node, joined to the zone air by $R/2$ and to the outdoor
-boundary by $R/2$. A window is a single conductance from the air node to the outdoor
-boundary and has no state. Internal mass is one node tied to the air node by a
+boundary by $R/2$. A window is by default a single conductance from the air node to the outdoor
+boundary and has no state; given a heat capacity as well, it becomes the same 2R1C element as a wall. Internal mass is one node tied to the air node by a
 resistance. `connectToZone` places a plain conductance between two air nodes (an open
 doorway) or, if a mid-node capacity is given, a capacitive $R/2$–$C$–$R/2$ element (a
 partition wall on one storey, or a floor slab between storeys).
@@ -145,12 +145,29 @@ decimals.
 
 ### `RCBS.Zone`
 
+Each wall, roof, window and internal mass added to a zone is reachable by its name, and the air node as
+`Air`, through an `RCBS.Part`:
+
+```matlab
+z = building.S1.Lab;
+z.Wall.R              % total resistance (K/W), read and write; a wall's two halves move together
+z.Wall.C = 3e7;       % capacitance (J/K)
+z.Wall.T              % temperature (degC), read-only, live during a run
+z.Window.R = 2*z.Window.R;
+z.Air.T               % indoor-air temperature
+```
+
+A window defined without a capacity has no capacitance or temperature, and the air node has no resistance; asking for one raises an error.
+Writing `R` or `C` changes the model, and a simulation that is running rebuilds itself on its next step with the
+temperatures kept.
+
 | Function | Inputs | Output or effect |
 |---|---|---|
 | `setAir(C_air, T0)` | capacity (J/K), initial temperature (degC, optional) | Sets the air node. |
 | `addWall(R, C, T0, name)` | total resistance (K/W), mass (J/K), initial temperature (degC, `[]` for the air value), name | Adds a 2R1C wall. |
 | `addRoof(R, C, T0, name)` | as `addWall` | Adds a 2R1C roof. |
 | `addWindow(R, name)` | resistance (K/W), name | Adds an air-to-outdoor conductance with no state. |
+| `addWindow(R, C, T0, name)` | resistance (K/W), mass (J/K), initial temperature (degC, `[]` for the air value), name; `T0` and `name` are optional | Adds a 2R1C element like a wall: a node tied to the air and to the outdoor by $R/2$ each. |
 | `addInternalMass(R, C, T0, name)` | resistance to air (K/W), mass (J/K), initial temperature, name | Adds a mass node tied to the air node. |
 | `addNode(name, C, T0)` | name, capacity, initial temperature | Adds a bare node. Wire it with your own resistors. |
 | `connectToZone(other, R, name, C_mid, T0, kind)` | other zone; total resistance (K/W); name; optional mid capacity (J/K), initial temperature, and drawing hint `'wall'`, `'slab'` or `'air'` | Plain conductance if `C_mid` is omitted, capacitive partition or slab otherwise. The mid node lives in the calling zone. `kind` affects the drawing only. |

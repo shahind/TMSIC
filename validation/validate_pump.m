@@ -29,6 +29,9 @@ function V = validate_pump(plotMode)
 %        Kbranch*mdot^2 - dpAvailable (the equation solveBranch is solving) --
 %        checks solveBranch and curveHead cannot silently disagree with each
 %        other after an edit to either one.
+%     G  STOPPED PUMP  with speed 0 a substation pump adds no head and no
+%        resistance, for both pump types: solveBranch(Kbranch, dpAvailable, 0)
+%        returns mdot = sqrt(dpAvailable/Kbranch) and head 0.
 %
 %   WHY THIS TEST IS GOOD
 %     A is the pressure scale, B is the flow scale, C is the speed-scaling
@@ -97,6 +100,18 @@ function V = validate_pump(plotMode)
         end
     end
 
+    % ---- G: stopped pump ----
+    pdG = DHS.Hydraulic.FixedDisplacementPump('PD','mdotRated',5,'dpMax',3e5);
+    eStop = 0;
+    for Kbr = Kbr_g
+        for dpAv = dpAv_g(2:end)
+            for pp = {p, pdG}
+                [mS, hS] = pp{1}.solveBranch(Kbr, dpAv, 0);
+                eStop = max(eStop, max(abs(mS - sqrt(dpAv/Kbr))/sqrt(dpAv/Kbr), abs(hS)));
+            end
+        end
+    end
+
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
     C(1) = mk('A  shut-off head  head(0,1) = dp0  [Pa]',       dp0, hShut, 1e-12, 'rel');
     C(2) = mk('B  run-out        head(mdotMax,1) [Pa]',        0,   hRun,  1e-9,  'abs');
@@ -105,6 +120,7 @@ function V = validate_pump(plotMode)
     C(5) = mk('D  pump head = system head at Q*',              0,   eH,    1e-12, 'abs');
     C(6) = mk('E  solveBranch matches its own closed form',    0,   eBranch, 1e-12, 'abs');
     C(7) = mk('F  solveBranch/curveHead self-consistency',     0,   eSelf,   1e-12, 'abs');
+    C(8) = mk('G  stopped pump: mdot = sqrt(dp/K), head 0',    0,   eStop,   1e-12, 'abs');
     V.name = 'Centrifugal pump: curve, affinity laws, operating point, branch closure';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('hShut',hShut,'hRun',hRun,'eAff',eAff,'Qstar',Qstar,'Qstar_an',Qstar_an,'Hstar_an',Hstar_an,'eBranch',eBranch,'eSelf',eSelf);

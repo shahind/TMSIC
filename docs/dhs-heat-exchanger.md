@@ -61,12 +61,15 @@ K = hx.primaryResistance(978);          % valve fully open: 4,182 + 1,481 = 5,66
 dp = K * 4.5^2;                         % 114.7 kPa at the design flow (84.7 kPa valve + 30 kPa body)
 ```
 
-Inside a building the same object is created with `addHeatExchanger`, and its valve and
-pump receive controllers. A different primary pump can be installed afterwards:
+Inside a building the same object is created with `addHeatExchanger`. Its valve sets the
+building's flow and receives a controller (`hx.valve.attachController(c)`). Its pump is a booster in series with the valve and is
+stopped by default; set `hx.pump.speed`, attach a controller, or install a different pump to use it:
 
 ```matlab
 hx = building.addHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5, 'mdotSecNom',6, 'secApproach',28);
-hx.valve.attachController( DHS.controllers.PID(0.14, 1.6e-4, 0) );
+c = DHS.controllers.PID(0.14, 1.6e-4, 0);
+c.measure = @(sys) building.Tzone;  c.reference = @(sys) building.setpoint;   % zone temperature held at the setpoint
+hx.valve.attachController(c);
 hx.attachPump( DHS.Hydraulic.FixedDisplacementPump('HX.pump', 'mdotRated',4, 'dpMax',2.5e5) );
 ```
 
@@ -74,12 +77,12 @@ hx.attachPump( DHS.Hydraulic.FixedDisplacementPump('HX.pump', 'mdotRated',4, 'dp
 
 | Function | Inputs | Output or effect |
 |---|---|---|
-| `HeatExchanger(name, 'UA',.., 'Qcap',.., 'mdotSecNom',.., 'secApproach',.., 'dpNomPrimary',.., 'mdotNomPrimary',..)` | name; conductance (W/K), delivery limit (W), secondary nominal flow (kg/s, default 6), emitter approach (K, default 28), body pressure drop (Pa, default 3.0e4), design flow (kg/s, default empty) | A substation with a default valve and a default centrifugal pump. The secondary return entering the exchanger is the zone air temperature plus `secApproach`. |
+| `HeatExchanger(name, 'UA',.., 'Qcap',.., 'mdotSecNom',.., 'secApproach',.., 'dpNomPrimary',.., 'mdotNomPrimary',..)` | name; conductance (W/K), delivery limit (W), secondary nominal flow (kg/s, default 6), emitter approach (K, default 28), body pressure drop (Pa, default 3.0e4), design flow (kg/s, default empty) | A substation with a default valve and a default centrifugal pump, stopped (`speed` 0). The secondary return entering the exchanger is the zone air temperature plus `secApproach`. |
 | `transfer(mdotPrimary, TsupPrimary, TsecIn)` | primary flow (kg/s), primary supply and secondary inlet temperatures (degC) | `[Qdel, TretPrimary]`: delivered heat (W) and primary return temperature (degC). |
 | `primaryResistance(rho)` | density (kg/m³) | $K_\text{primary}$ in Pa/(kg/s)². |
-| `attachPump(pump)` | any `DHS.Hydraulic.Pump` | Installs a pre-built primary pump. |
-| `attachValve(valve)` | a `DHS.Hydraulic.Valve` | Installs a pre-built primary valve. |
-| `.valve`, `.pump` | none | The owned valve and pump. Attach controllers with `hx.valve.attachController(c)` and `hx.pump.attachController(c)`. |
+| `attachPump(pump)` | any `DHS.Hydraulic.Pump` | Installs a pre-built primary booster pump, reachable under its own name. It runs at full speed until `speed` is changed. |
+| `attachValve(valve)` | a `DHS.Hydraulic.Valve` | Installs a pre-built primary valve, reachable under its own name: `hx.attachValve(DHS.Hydraulic.Valve('V1','Kvs',12))` gives `hx.V1.Kvs`. |
+| `.valve`, `.pump` | none | The owned valve and booster pump. Attach a controller to either with `attachController(c)`; the controller chooses what to measure. |
 | `inlet()`, `outlet()` | none | The host building's supply and return ports, for port-wiring diagrams. The substation is one lumped branch fed from the building's inlet junction. |
 | `.Qdel`, `.TretPrimary` | none | Live delivered heat and primary return temperature. |
 | `.dpNomPrimary`, `.mdotNomPrimary` | Pa, kg/s | Body pressure drop and the flow at which it is quoted. |

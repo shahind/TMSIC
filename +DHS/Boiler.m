@@ -14,6 +14,10 @@ classdef Boiler < handle
 %     QMax      [W]     maximum burner heat release
 %     etaCurve  handle  optional  @(Tret) -> efficiency [-]
 %     etaRef etaSlope TetaRef etaMin etaMax   default curve parameters
+%     controller  [] or a DHS.controllers.Controller driving the firing fraction 0..1;
+%                 chp.addBoiler gives each boiler a PID on the supply temperature
+%                 (measure = plant supply sensor, reference = plant setpoint). Replace it:
+%                     boiler.attachController(c)
 
     properties
         name     (1,:) char = ''
@@ -24,16 +28,26 @@ classdef Boiler < handle
         TetaRef  (1,1) double = 50
         etaMin   (1,1) double = 0.80
         etaMax   (1,1) double = 0.98
+        controller           = []
     end
     properties (SetAccess = ?DHS.CentralHeatPlant)
         feedsPump  = []       % DHS.Hydraulic.Pump the boiler discharges into (visual/topology)
         parentPlant = []      % the DHS.CentralHeatPlant this boiler belongs to (set by chp.addBoiler)
+        firing     (1,1) double = 0   % firing fraction this step
+        firingPrev (1,1) double = 0
     end
 
     methods
         function obj = Boiler(name, varargin)
             if nargin >= 1, obj.name = name; end
             for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
+        end
+
+        function attachController(obj, c)
+            % ATTACHCONTROLLER  Attach a feedback law that sets the firing fraction each step.
+            assert(isa(c,'DHS.controllers.Controller'), 'DHS:Boiler:ctrl', ...
+                'Controller must be a DHS.controllers.Controller.');
+            obj.controller = c;
         end
 
         function connectTo(obj, pump)

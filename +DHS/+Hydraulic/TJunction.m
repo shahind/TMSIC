@@ -5,9 +5,13 @@ classdef TJunction < DHS.Hydraulic.Junction
 %
 %   BUILD IT
 %     tee = DHS.Hydraulic.TJunction('T1', 'mainDiameter',0.10, 'sideDiameter',0.05);
-%     tee.connectToPipe('portB', pipeRun);      pipeRun.connectOutput(nextTee);
-%     tee.connectToPipe('portC', pipeBranch);   pipeBranch.connectOutput(building.inlet);
-%     pipeIn.connectOutput(tee);                % (or tee.portA, equivalently)
+%     tee.portB.connectToPipe(pipeRun);      pipeRun.connectOutput(nextTee);
+%     tee.portC.connectToPipe(pipeBranch);   pipeBranch.connectOutput(building.inlet);
+%   or, the same wires with the port named as text:
+%     tee.connectToPipe('portB', pipeRun);   tee.connectToPipe('portC', pipeBranch);
+%     tee.connectToPipe(pipeRun)             % portB, the run, when no port is named
+%     pipeIn.connectOutput(tee);             % (or tee.portA, equivalently)
+%   The ports are objects (DHS.Hydraulic.Port): tee.portC.D, tee.portC.p, tee.portB.pipe.
 %
 %   or insert one on an existing pipe's downstream end:
 %     tee = pipe1.addTjunction('T1', 0.05);     % mainDiameter = pipe1.D
@@ -24,10 +28,10 @@ classdef TJunction < DHS.Hydraulic.Junction
 %       K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
 %   This K is added on top of the ordinary pipe resistance of whichever pipe
 %   leaves portB (run) or portC (branch) -- see DHS.Hydraulic.Pipe.resistance.
-%   Applied on the supply side only (the return-side mirror pipe is a plain
-%   junction, not a tee).
+%   Applied on the supply side only (return junctions are plain junctions).
 %
 %   PROPERTIES (SI, in addition to DHS.Hydraulic.Junction)
+%     portA portB portC   the three connections, see DHS.Hydraulic.Port
 %     mainDiameter  [m]    diameter of the straight-through run
 %     sideDiameter  [m]    diameter of the side branch
 %     roughness     [m]    wall roughness for the tee's own loss (4.6e-5, steel)
@@ -39,6 +43,11 @@ classdef TJunction < DHS.Hydraulic.Junction
         roughness    (1,1) double = 4.6e-5
         frictionModel (1,:) char {mustBeMember(frictionModel,{'fixed','actual'})} = 'fixed'
     end
+    properties (SetAccess = private)
+        portA     % inlet
+        portB     % straight run
+        portC     % side branch
+    end
     properties (Access = private)
         pipeCount (1,1) double = 0    % counts declarative hn.addPipe calls off this tee
     end
@@ -47,18 +56,15 @@ classdef TJunction < DHS.Hydraulic.Junction
         function obj = TJunction(name, varargin)
             obj@DHS.Hydraulic.Junction(name, 'supply');
             for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
-        end
-
-        function j = portA(obj)
-            % PORTA  The inbound port -- this tee IS the node pipes connect into.
-            j = obj;
+            obj.portA = DHS.Hydraulic.Port(obj, 'portA');
+            obj.portB = DHS.Hydraulic.Port(obj, 'portB');
+            obj.portC = DHS.Hydraulic.Port(obj, 'portC');
         end
 
         function p = connectToPipe(obj, varargin)
-            % CONNECTTOPIPE  tee.connectToPipe('portB', pipe) for the straight
-            %   run, tee.connectToPipe('portC', pipe) for the side branch, or
-            %   tee.connectToPipe(pipe) -- portB (the run) is the default, since
-            %   a tee usually sits on a trunk that keeps going.
+            % CONNECTTOPIPE  tee.connectToPipe('portB', pipe) for the straight run,
+            %   tee.connectToPipe('portC', pipe) for the side branch, or tee.connectToPipe(pipe)
+            %   for portB, the run. tee.portB.connectToPipe(pipe) is the same wire.
             if numel(varargin) == 1
                 portName = 'portB';  pipe = varargin{1};
             else

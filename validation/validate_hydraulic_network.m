@@ -44,6 +44,9 @@ function V = validate_hydraulic_network(plotMode)
 %     I  The bypass-to-building flow ratio equals sqrt(K_building / K_bypass).
 %     J  VALVE POSITION: closing the building valve cuts the building flow and sends
 %        more through the bypass (total = building + bypass flow).
+%     L  BYPASS VALVE POSITION: with the bypass valve at a fixed position, the bypass flow
+%        is sqrt(dp/(K_pipe + K_valve(pos))) with dp the differential pressure at its
+%        junction, so a half-open valve carries less than an open one.
 %     K  The bypass water leaves the supply tree, loses heat in its pipe and joins the
 %        return by enthalpy mixing; temperatures equal a hand calculation and the plant
 %        heat equals the delivered heat plus the pipe losses.
@@ -68,14 +71,18 @@ function V = validate_hydraulic_network(plotMode)
     hn.addPipe(chp.supplyPort, t1, 'L',30,'D',0.10);
     hn.addPipe(t1, t2, 'L',40,'D',0.10);
     hn.addPipe(t2, t3, 'L',40,'D',0.10);
-    tees = {t1, t2, t3};
+    r1 = hn.addJunction('R1', 'side','return');  r2 = hn.addJunction('R2', 'side','return');  r3 = hn.addJunction('R3', 'side','return');
+    hn.addPipe(r1, chp.returnPort, 'L',30,'D',0.10);               % the return side is defined on its own
+    hn.addPipe(r2, r1, 'L',40,'D',0.10);
+    hn.addPipe(r3, r2, 'L',40,'D',0.10);
+    tees = {t1, t2, t3};  rets = {r1, r2, r3};
     for i = 1:3
         b = sys.addBuilding(sprintf('B%d', i));
         b.useRCModel( trivialRC() );
         hx = b.addHeatExchanger('HX','UA',3e4,'Qcap',5e5);
         hx.valve.Kvs = 18;  hx.pump.dp0 = 0.9e5;  hx.pump.mdotMax = 5;  hx.pump.minSpeed = 0.2;
         b.attachSolar(DHS.Solar());  b.attachSchedule(DHS.Schedule());
-        hn.connectBuilding(tees{i}, b);
+        hn.connectBuilding(tees{i}, b, rets{i});
     end
     sys.compile();
 
@@ -99,12 +106,13 @@ function V = validate_hydraulic_network(plotMode)
     c2 = sys2.addCentralHeatPlant('C');  c2.addBoiler('B','QMax',1e6);  c2.addPump('P','dp0',3e5,'mdotMax',16);
     h2 = sys2.addHydraulicNetwork();  tt = h2.addJunction('TT');
     h2.addPipe(c2.supplyPort, tt, 'L',20,'D',0.12);
+    rr = h2.addJunction('RR', 'side','return');  h2.addPipe(rr, c2.returnPort, 'L',20,'D',0.12);
     for i = 1:2
         b = sys2.addBuilding(sprintf('P%d',i));  b.useRCModel(trivialRC());
         hx = b.addHeatExchanger('HX','UA',3e4,'Qcap',5e5);
         hx.valve.Kvs = 20;  hx.pump.dp0 = 1e5;  hx.pump.mdotMax = 5;
         b.attachSolar(DHS.Solar()); b.attachSchedule(DHS.Schedule());
-        h2.connectBuilding(tt, b);
+        h2.connectBuilding(tt, b, rr);
     end
     sys2.compile();  sB = h2.solve(1);
     eSym = abs(sB.mdot(1) - sB.mdot(2)) / sB.mdot(1);
@@ -118,12 +126,13 @@ function V = validate_hydraulic_network(plotMode)
     tc = h3.addJunction('TC');
     Lm = 25;  Dm = 0.11;
     h3.addPipe(c3.supplyPort, tc, 'L',Lm,'D',Dm);
+    rc = h3.addJunction('RC', 'side','return');  h3.addPipe(rc, c3.returnPort, 'L',Lm,'D',Dm);
     b = sys3.addBuilding('S');  b.useRCModel(trivialRC());
     hx = b.addHeatExchanger('HX','UA',1e5,'Qcap',5e5,'dpNomPrimary',1e-6);   % near-zero HX & valve loss
     hx.valve.Kvs = 1e6;  hx.pump.dp0 = 0;  hx.pump.mdotMax = 1e6;  hx.pump.minSpeed = 0;  % no building pump
     b.connLength = 20;  b.connD = 0.05;  b.Kminor = 0;
     b.attachSolar(DHS.Solar()); b.attachSchedule(DHS.Schedule());
-    h3.connectBuilding(tc, b);
+    h3.connectBuilding(tc, b, rc);
     sys3.compile();  b.heatExchanger.valve.pos = 1;  b.heatExchanger.pump.speed = 0;
     for it = 1:6, s3 = h3.solve(1); end          % iterate so the lagged pipe friction factor settles
     % reconstruct the branch resistance the solver used (connection pipes only here)
@@ -132,7 +141,7 @@ function V = validate_hydraulic_network(plotMode)
     Kret = b.connPipeRet.resistance(s3.mdot, rho, mu);
     Kmain = 0;
     for k = 1:numel(h3.pipes)
-        Kmain = Kmain + h3.pipes{k}.resistance(s3.Mtot, rho, mu) + h3.retPipes{k}.resistance(s3.Mtot, rho, mu);
+        Kmain = Kmain + h3.pipes{k}.resistance(s3.Mtot, rho, mu) + h3.returnPipes{k}.resistance(s3.Mtot, rho, mu);
     end
     Kbr = Ksup + Kret + hx.primaryResistance(rho);
     Kt  = Kmain + Kbr;
@@ -177,19 +186,20 @@ function V = validate_hydraulic_network(plotMode)
     c4.addPump('P','dp0',dp0,'mdotMax',Mmax);
     h4 = sys4.addHydraulicNetwork();  h4.pReturnRef = 1.5e5;
     t4 = h4.addJunction('TB');  h4.addPipe(c4.supplyPort, t4, 'L',Lm,'D',Dm);
-    h4.addBypass('L',20, 'D',0.05, 'Kvs',1.5);
+    r4 = h4.addJunction('RB', 'side','return');  h4.addPipe(r4, c4.returnPort, 'L',Lm,'D',Dm);
+    h4.addBypass(t4, r4, 'L',20, 'D',0.05, 'Kvs',1.5);
     b4 = sys4.addBuilding('S');  b4.useRCModel(trivialRC());
     hx4 = b4.addHeatExchanger('HX','UA',1e5,'Qcap',5e5,'dpNomPrimary',1e-6);
     hx4.valve.Kvs = 25;  hx4.pump.dp0 = 0;  hx4.pump.mdotMax = 1e6;  hx4.pump.minSpeed = 0;
     b4.connLength = 20;  b4.connD = 0.05;  b4.Kminor = 0;
     b4.attachSolar(DHS.Solar()); b4.attachSchedule(DHS.Schedule());
-    h4.connectBuilding(t4, b4);
+    h4.connectBuilding(t4, b4, r4);
     sys4.compile();  hx4.pump.speed = 0;
     hx4.valve.pos = 1;  for it = 1:10, s4 = h4.solve(1); end
     rho = h4.rho;  mu = h4.mu;
     Kb4  = b4.connPipeSup.resistance(s4.mdot,rho,mu) + b4.connPipeRet.resistance(s4.mdot,rho,mu) + hx4.primaryResistance(rho);
     Kbp  = h4.bypassPipe.resistance(s4.mdotBypass,rho,mu) + h4.bypassValve.resistance(rho);
-    Kmn  = h4.pipes{1}.resistance(s4.Mtot,rho,mu) + h4.retPipes{1}.resistance(s4.Mtot,rho,mu);
+    Kmn  = h4.pipes{1}.resistance(s4.Mtot,rho,mu) + h4.returnPipes{1}.resistance(s4.Mtot,rho,mu);
     Keq  = 1 / (1/sqrt(Kb4) + 1/sqrt(Kbp))^2;                    % two branches in parallel at one junction
     Man4 = Mmax / sqrt(1 + Mmax^2*(Kmn + Keq)/dp0);
     eH = abs(s4.Mtot - Man4)/Man4;
@@ -200,6 +210,13 @@ function V = validate_hydraulic_network(plotMode)
     okJ = sClosed.mdot < 0.5*sFull.mdot && sClosed.mdotBypass > sFull.mdotBypass ...
         && abs(sClosed.Mtot - sum(sClosed.mdot) - sClosed.mdotBypass) < 1e-12 && sClosed.Mtot < sFull.Mtot;
     hx4.valve.pos = 1;  for it = 1:10, s4 = h4.solve(1); end
+    % L  bypass valve position: flow = sqrt(dp / (K_pipe + K_valve(pos)))
+    sOpen = s4;  h4.bypassValve.pos = 0.5;  for it = 1:10, sHalf = h4.solve(1); end
+    dpJ = t4.p - r4.p;
+    KbL = h4.bypassPipe.resistance(sHalf.mdotBypass,rho,mu) + h4.bypassValve.resistance(rho);
+    eL  = abs(sHalf.mdotBypass - sqrt(dpJ/KbL)) / sHalf.mdotBypass;
+    okL = sHalf.mdotBypass < sOpen.mdotBypass;
+    h4.bypassValve.pos = 1;  for it = 1:10, s4 = h4.solve(1); end
     % K  temperatures with the bypass: supply walk, bypass stream joins the return at the end junction
     mb = s4.mdot;  mbp = s4.mdotBypass;  M4 = mb + mbp;
     ULt = h4.pipes{1}.UperM*h4.pipes{1}.L;  ULb = h4.bypassPipe.UperM*h4.bypassPipe.L;
@@ -220,6 +237,8 @@ function V = validate_hydraulic_network(plotMode)
     C(12) = mk('J  closing the building valve sends the flow to the bypass', 1, double(okJ), 0, 'abs');
     C(13) = mk('K  bypass temperatures vs hand calculation  [K]',          0, eK1, 1e-9, 'abs');
     C(14) = mk('K  plant heat = delivered + pipe losses (rel)',            0, eK2, 1e-9, 'abs');
+    C(15) = mk('L  bypass valve at 0.5: flow vs sqrt(dp/K) (rel)',         0, eL, 1e-6, 'abs');
+    C(16) = mk('L  a half-open bypass valve carries less flow',            1, double(okL), 0, 'abs');
     C(6) = mk('E  one pipe: outlet temperature and heat loss vs analytic', 0, eE, 1e-9, 'abs');
     C(7) = mk('F  supply walk: each pipe loses heat once, own flow',       0, eF, 1e-9, 'abs');
     C(8) = mk('G  return walk: enthalpy mixing vs hand calculation  [K]',  0, eG1, 1e-9, 'abs');

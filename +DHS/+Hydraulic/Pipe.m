@@ -21,6 +21,8 @@ classdef Pipe < handle
 %     D       [m]     inner diameter
 %     eps     [m]     wall roughness            (4.6e-5, commercial steel)
 %     UperM   [W/m/K] buried-pipe heat-loss coefficient   (0.30)
+%     Input   the node the pipe starts at (read only; Input.p, Input.T)
+%     Output  the node the pipe ends at   (read only; Output.p, Output.T)
 %     teeSide char    '' | 'run' | 'branch' -- set automatically when this pipe
 %                     leaves a DHS.Hydraulic.TJunction; adds that fitting's own
 %                     minor loss to resistance() (see TJunction).
@@ -60,6 +62,10 @@ classdef Pipe < handle
         decorative double = false
         downBuildings double = []   % indices of the buildings in this pipe's subtree
     end
+    properties (Dependent, SetAccess = private)
+        Input
+        Output
+    end
 
     methods
         function obj = Pipe(name, varargin)
@@ -80,19 +86,25 @@ classdef Pipe < handle
             for i = 1:2:numel(rest), obj.(rest{i}) = rest{i+1}; end
         end
 
+        function n = get.Input(obj),  n = obj.nodeA; end
+        function n = get.Output(obj), n = obj.nodeB; end
+
         function p = connectOutput(obj, port)
             % CONNECTOUTPUT  Port-wiring: finish this pipe by attaching its
             %   downstream end to PORT, and register it with the hydraulic
-            %   network that its upstream end already belongs to -- the same
-            %   registration hn.addPipe performs, so the return-side mirror pipe
-            %   is created automatically and the network solve is unaffected by
-            %   which style built the topology.
+            %   network that either end already belongs to -- the same
+            %   registration hn.addPipe performs, so the network solve is
+            %   unaffected by which style built the topology. A pipe between two
+            %   supply nodes joins the supply tree, between two return nodes the
+            %   return tree (flowing toward the plant).
+            if isa(port, 'DHS.Hydraulic.Port'), port = port.node; end
             obj.nodeB = port;
             net = [];
             if ~isempty(obj.nodeA) && isprop(obj.nodeA, 'network'), net = obj.nodeA.network; end
+            if isempty(net) && isprop(obj.nodeB, 'network'), net = obj.nodeB.network; end
             assert(~isempty(net), 'DHS:Pipe:connectOutput', ...
-                ['Pipe "%s" has no upstream hydraulic network yet -- connect its ', ...
-                 'input to a wired port first (nodeA.connectToPipe(pipe)).'], obj.name);
+                ['Pipe "%s" is not attached to a hydraulic network yet -- start it at a wired ', ...
+                 'node (nodeA.connectToPipe(pipe)) or end it at one.'], obj.name);
             net.registerPipe(obj);
             p = obj;
         end
@@ -101,8 +113,8 @@ classdef Pipe < handle
             % ADDTJUNCTION  Insert a T-junction at this pipe's downstream end.
             %   tee = pipe1.addTjunction('T1', 0.05)
             %   The tee's main diameter is this pipe's own D; finish the branch
-            %   and run legs with tee.connectToPipe('portB',pipeRun) /
-            %   ('portC',pipeBranch), each followed by .connectOutput(...).
+            %   and run legs with tee.portB.connectToPipe(pipeRun) /
+            %   tee.portC.connectToPipe(pipeBranch), each followed by .connectOutput(...).
             tee = DHS.Hydraulic.TJunction(name, 'mainDiameter', obj.D, 'sideDiameter', sideDiameter);
             obj.connectOutput(tee);
         end

@@ -41,12 +41,12 @@ function V = validate_pid(plotMode)
     Kp = tau/(K*lambda);  Ti = tau;  Ki = Kp/Ti;
 
     % ---- A + B: step-reference tracking ----
-    c = DHS.controllers.PID(Kp, Ki, 0, 0);           % Tf = 0: no derivative filter, Kd = 0
+    c = wire(DHS.controllers.PID(Kp, Ki, 0, 0));      % Tf = 0: no derivative filter, Kd = 0
     c.uMin = -1e9;  c.uMax = 1e9;  c.reset();
     y = 0;  r = 1;  N = round(8*lambda/dt);
     t = (0:N-1)*dt;  Y = zeros(1,N);
     for k = 1:N
-        u = c.update(y, r, dt);
+        u = c.update(struct('y',y,'r',r), dt);
         y = y + dt*(-y + K*u)/tau;                    % explicit Euler on the plant
         Y(k) = y;
     end
@@ -57,22 +57,22 @@ function V = validate_pid(plotMode)
     % ---- C: constant output disturbance rejection ----
     %   load-disturbance rejection settles with the plant time constant tau
     %   (not lambda), so run for many tau
-    c2 = DHS.controllers.PID(Kp, Ki, 0, 0);  c2.uMin=-1e9; c2.uMax=1e9; c2.reset();
+    c2 = wire(DHS.controllers.PID(Kp, Ki, 0, 0));  c2.uMin=-1e9; c2.uMax=1e9; c2.reset();
     y = 0;  d = 0.3;  Nc = round(20*tau/dt);  Yd = zeros(1,Nc);
     for k = 1:Nc
-        u = c2.update(y, 0, dt);
+        u = c2.update(struct('y',y,'r',0), dt);
         y = y + dt*(-y + K*u)/tau + dt*d/tau;        % load disturbance added to the state
         Yd(k) = y;
     end
     eC = abs(y - 0);
 
     % ---- D: anti-windup ----
-    c3 = DHS.controllers.PID(1.0, 0.5, 0, 0);  c3.uMin = 0;  c3.uMax = 1;  c3.reset();
-    for k = 1:400, u = c3.update(0, 10, 1); end       % huge error -> saturate high for a long time
+    c3 = wire(DHS.controllers.PID(1.0, 0.5, 0, 0));  c3.uMin = 0;  c3.uMax = 1;  c3.reset();
+    for k = 1:400, u = c3.update(struct('y',0,'r',10), 1); end       % huge error -> saturate high for a long time
     assert(abs(u - 1) < 1e-9, 'expected saturation');
     kOff = NaN;
     for k = 1:200
-        u = c3.update(11, 10, 1);                     % meas now ABOVE ref -> error sign flips
+        u = c3.update(struct('y',11,'r',10), 1);                     % meas now ABOVE ref -> error sign flips
         if u < 1 - 1e-6, kOff = k; break; end
     end
     okD = ~isnan(kOff) && kOff <= 5;
@@ -98,4 +98,9 @@ end
 
 function s = mk(label, expected, actual, tol, kind)
     s = struct('label',label,'expected',expected,'actual',actual,'tol',tol,'kind',kind);
+end
+
+function c = wire(c)
+    % the loop's "simulation" is a struct holding the plant output y and the setpoint r
+    c.measure = @(s) s.y;  c.reference = @(s) s.r;
 end

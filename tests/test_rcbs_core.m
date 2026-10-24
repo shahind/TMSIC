@@ -76,6 +76,31 @@ function test_wall_Tnetwork_vs_ode45(tc)
     verifyLessThan(tc, max(abs(Tm - Tref)), 0.05);
 end
 
+function test_window_with_capacity_is_a_2R1C_element(tc)
+    % addWindow(R) is a bare resistor; addWindow(R, C) is the same 2R1C element as a wall
+    R = 0.4;  C = 3e6;  Cm = 2e6;  Rw = 2.5;  Cw = 2e7;
+    bW = buildZone(true, R, C, Cm, Rw, Cw);  bA = buildZone(false, R, C, Cm, Rw, Cw);
+    z = bW.S.Z;
+    verifyEqual(tc, z.Glass.R, R, 'RelTol', 1e-12);  verifyEqual(tc, z.Glass.C, C);
+    z.Glass.R = 2*R;  verifyEqual(tc, z.Glass.R, 2*R, 'RelTol', 1e-12);  z.Glass.R = R;
+    bW.simulate(hours(12));  bA.simulate(hours(12));      % window(R,C) == wall(R,C) with the same name
+    verifyEqual(tc, bW.simulation.results.S.Z.T, bA.simulation.results.S.Z.T, 'AbsTol', 1e-9);
+    bB = RCBS.Building();  bB.addStorey('S');  bB.S.addZone('Z');  bB.S.Z.addWindow(R);
+    verifyEqual(tc, numel(bB.S.Z.nodes), 1);                 % no state by default
+    verifyEqual(tc, numel(bB.S.Z.resistors), 1);
+    verifyError(tc, @() bB.S.Z.Window1.C, 'RCBS:Part:noNode');
+    bB.S.Z.addWindow(R, C);                                  % second window, with a capacity
+    verifyEqual(tc, numel(bB.S.Z.nodes), 2);  verifyTrue(tc, isprop(bB.S.Z, 'Window2'));
+end
+
+function b = buildZone(withWindow, R, C, Cm, Rw, Cw)
+    b = RCBS.Building();  b.addStorey('S');  b.S.addZone('Z', 'C_main', Cm);
+    b.S.Z.addWall(Rw, Cw, 20, 'Wall');
+    if withWindow, b.S.Z.addWindow(R, C, 20, 'Glass'); else, b.S.Z.addWall(R, C, 20, 'Glass'); end
+    b.outdoorTempFunc = @(t) 5 + 5*sin(2*pi*hour(t)/24);
+    b.simulation.startDate = datetime(2025,1,1);  b.simulation.timeStep = seconds(60);
+end
+
 function test_energy_balance(tc)
     C = 2e6; R = 0.5;
     b = RCBS.Building(); b.addStorey('S'); b.S.addZone('Z','C_main',C);

@@ -1,13 +1,13 @@
 # DHS.Building: a building on the district loop
 
 `DHS.Building` connects an `RCBS.Building` thermal model to the district network. It adds
-the substation (a `DHS.HeatExchanger` with its valve and pump), a solar model, an
+the substation (a `DHS.HeatExchanger` with its valve and an optional booster pump), a solar model, an
 occupancy schedule, and the ventilation and free-cooling terms, and it computes every heat
 flow that enters the RC nodes at each step. RCBS itself stays a pure RC library. The heat
 is calculated here and injected into the right RCBS node with `RCBS.Simulation.stepOnce`.
 
 A building is created with `system.addBuilding(name)` and attached to the network with
-`hn.connectBuilding(junction, building)`. It exposes an `inlet` and an `outlet`, the
+`hn.connectBuilding(supplyJunction, building, returnJunction)`. It exposes an `inlet` and an `outlet`, the
 supply and return ports of its branch.
 
 ## One zone
@@ -75,7 +75,7 @@ place to look when writing a custom co-simulation.
 | Call | Inputs | Output or effect |
 |---|---|---|
 | `prepare(t, wx)` | time, weather sample | Samples the schedule and solar model (per zone if there are several). |
-| `control(dt, wx)` | step (s), weather sample | Runs the valve and pump controllers and returns the command in [0, 1]. |
+| `control(sys, dt)` | the `DHS.System`, step (s) | Runs the valve controller (and the booster pump's, if it has one) and returns the valve command in [0, 1]. |
 | `exchange(mdot, Tsup_hx)` | primary flow (kg/s), supply temperature at the exchanger (degC) | `[Qdel, Tret]`: delivered heat (W) and primary return temperature (degC). |
 | `advance(dt, tNext, wx)` | step, next time, weather sample | Builds the node-heat vector and steps the RC model one interval. |
 

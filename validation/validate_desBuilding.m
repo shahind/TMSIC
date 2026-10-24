@@ -72,16 +72,20 @@ function V = validate_desBuilding(plotMode)
     hn  = sys.addHydraulicNetwork();
     t1  = hn.addJunction('T1');
     hn.addPipe(chp.supplyPort, t1, 'L',8, 'D',0.10);                % short fat main: negligible trunk loss
+    r1  = hn.addJunction('R1', 'side','return');
+    hn.addPipe(r1, chp.returnPort, 'L',8, 'D',0.10);
 
     b = sys.addBuilding('Test');
     b.useRCModel(B);
     b.GventOcc = Gvent;  b.freeCool = false;  b.connLength = 15;  b.connD = 0.03;  b.Kminor = 8;
     hx = b.addHeatExchanger('HX','UA',8e3,'Qcap',2e5,'mdotSecNom',1.2,'secApproach',15);
     hx.valve.Kvs = 4;  hx.pump.dp0 = 2e4;  hx.pump.mdotMax = 1.5;  hx.pump.minSpeed = 0.1;
-    hx.valve.attachController( DHS.controllers.PID(0.15, 1.6e-4, 0, 40) );
+    pid = DHS.controllers.PID(0.15, 1.6e-4, 0, 40);
+    pid.measure = @(sys) b.Tzone;  pid.reference = @(sys) b.setpoint;
+    hx.valve.attachController(pid);
     b.attachSolar( DHS.Solar() );                                   % no glazing -> zero solar
     b.attachSchedule( fixedSchedule(sp, Qint) );
-    hn.connectBuilding(t1, b);
+    hn.connectBuilding(t1, b, r1);
 
     res = sys.run(days(2));                                         % 48 h ~ 10 time constants -> steady
 
@@ -106,7 +110,7 @@ function V = validate_desBuilding(plotMode)
     for k = 1:400
         t = sys2.startDate + seconds(dt*(k-1));
         bm.prepare(t, wx2);
-        bm.control(dt, wx2);
+        bm.control(sys2, dt);
         bm.exchange(6, 70);
         Qtot = bm.Qdel;
         A   = [bm.zones.area];

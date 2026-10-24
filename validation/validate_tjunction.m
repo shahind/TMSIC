@@ -43,7 +43,7 @@ function V = validate_tjunction(plotMode)
 %        the same closed form validate_hydraulic_network uses).
 %     F  BOTH WIRING STYLES AGREE: the declarative bridge
 %        (hn.addJunction(name,'type','tee',...)) and the port-wiring style
-%        (tee.connectToPipe('portB'/'portC', pipe)) produce numerically
+%        (tee.portB.connectToPipe(pipe) / tee.portC.connectToPipe(pipe)) produce numerically
 %        identical tee losses for the same geometry.
 %     G  FIXED MODE IS FLOW-INDEPENDENT: with the default frictionModel='fixed',
 %        K_run and K_branch do not change between a representative turbulent
@@ -123,14 +123,14 @@ function V = validate_tjunction(plotMode)
 
     % ---- D: pipe integration, both ports, and a no-op control ----
     pRun = DHS.Hydraulic.Pipe('run',  'D',tee.mainDiameter, 'L',10);
-    tee.connectToPipe('portB', pRun);
+    tee.portB.connectToPipe(pRun);
     KrunTotal = pRun.resistance(mdotTest, rho, mu);
     Kpipe_run_only = DHS.Hydraulic.Pipe('run2', 'D',tee.mainDiameter, 'L',10);   % identical pipe, no tee
     KrunBase = Kpipe_run_only.resistance(mdotTest, rho, mu);
     eD1 = abs(KrunTotal - (KrunBase + Krun)) / KrunTotal;
 
     pBranch = DHS.Hydraulic.Pipe('side', 'D',tee.sideDiameter, 'L',6);
-    tee.connectToPipe('portC', pBranch);
+    tee.portC.connectToPipe(pBranch);
     KbranchTotal = pBranch.resistance(mdotTest, rho, mu);
     Kpipe_branch_only = DHS.Hydraulic.Pipe('side2', 'D',tee.sideDiameter, 'L',6);  % identical pipe, no tee
     Kbase = Kpipe_branch_only.resistance(mdotTest, rho, mu);
@@ -216,12 +216,13 @@ function [Mtot, Kt] = singleBranchNetwork(dp0, Mmax, Lm, Dm, junctionType, Dside
         node = hn.addJunction('T');
     end
     hn.addPipe(c.supplyPort, node, 'L',Lm, 'D',Dm);
+    rj = hn.addJunction('R', 'side','return');  hn.addPipe(rj, c.returnPort, 'L',Lm, 'D',Dm);
     b = sys.addBuilding('S');  b.useRCModel(trivialRC());
     hx = b.addHeatExchanger('HX', 'UA',1e5, 'Qcap',5e5, 'dpNomPrimary',1e-6);
     hx.valve.Kvs = 1e6;  hx.pump.dp0 = 0;  hx.pump.mdotMax = 1e6;  hx.pump.minSpeed = 0;
     b.connLength = 15;  b.connD = 0.05;  b.Kminor = 0;
     b.attachSolar(DHS.Solar());  b.attachSchedule(DHS.Schedule());
-    hn.connectBuilding(node, b);
+    hn.connectBuilding(node, b, rj);
     sys.compile();  hx.valve.pos = 1;  hx.pump.speed = 0;
     for it = 1:6, s = hn.solve(1); end
     rho = hn.rho;  mu = hn.mu;
@@ -229,7 +230,7 @@ function [Mtot, Kt] = singleBranchNetwork(dp0, Mmax, Lm, Dm, junctionType, Dside
     Kret = b.connPipeRet.resistance(s.mdot, rho, mu);
     Kmain = 0;
     for k = 1:numel(hn.pipes)
-        Kmain = Kmain + hn.pipes{k}.resistance(s.Mtot, rho, mu) + hn.retPipes{k}.resistance(s.Mtot, rho, mu);
+        Kmain = Kmain + hn.pipes{k}.resistance(s.Mtot, rho, mu) + hn.returnPipes{k}.resistance(s.Mtot, rho, mu);
     end
     Kt = Kmain + Ksup + Kret + hx.primaryResistance(rho);
     Mtot = s.Mtot;

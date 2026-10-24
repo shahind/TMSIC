@@ -1,136 +1,100 @@
 function V = validate_lqr(plotMode)
-%VALIDATE_LQR  Integral-augmented discrete LQR: gain vs an independent dlqr,
-%              closed-loop stability, and offset-free tracking / disturbance
-%              rejection.
+%VALIDATE_LQR  Discrete LQR regulator: gain vs an independent dlqr and the analytic
+%              Riccati solution, closed-loop stability, and regulation to zero.
 %
-%   COMPONENT      DHS.controllers.LQR(sysc, opts)
-%                  -- augments the continuous plant with an integral of the
-%                  tracking error, discretises at Ts, solves the discrete LQR
-%                  (dlqr), and applies  u = -Kx (x - r) - Ki xi.
+%   COMPONENT      DHS.controllers.LQR(A, B, Q, R, Ts)
+%                  -- discretises the continuous model at Ts (zero-order hold),
+%                  solves the discrete LQR (dlqr) and applies  u = -K x.
 %
 %   TEST CASE + REFERENCE
-%     (1) GAIN.  Three checks:
-%       (1a) the class's [Kx Ki] equals an INDEPENDENT reproduction of its own
-%            construction (augment error integral -> c2d at Ts -> dlqr);
-%       (1b) with the integral weight -> 0 the class's state-feedback part Kx
-%            equals a plain (non-augmented) discrete dlqr on the same plant with
-%            the same Q, R  (the integral state decouples cleanly);
-%       (1c) for the continuous double integrator  A = [0 1; 0 0], B = [0; 1]
+%     (1) GAIN.  Two checks:
+%       (1a) the class's K equals an INDEPENDENT reproduction of its own
+%            construction (c2d at Ts -> dlqr);
+%       (1b) for the continuous double integrator  A = [0 1; 0 0], B = [0; 1]
 %            (a mass with force input) with Q = diag(q, 0), R = r, the
 %            infinite-horizon LQR gain has the CLOSED FORM:
 %                K = [ sqrt(q/r) ,  sqrt( 2 sqrt(q/r) ) ]
 %            A continuous-cost-consistent discrete design (Qd = Q*Ts, Rd = R*Ts)
 %            at small Ts must converge to this K -- this confirms dlqr/c2d
 %            actually return the CARE solution the class relies on.
-%     (2) STABILITY.  All poles of the closed-loop augmented discrete system are
+%     (2) STABILITY.  All poles of the closed-loop discrete system Ad - Bd K are
 %         strictly inside the unit circle.
-%     (3) OFFSET-FREE.  Simulating the augmented closed loop on a 2-state RC zone:
-%         a step setpoint is tracked to zero steady-state error (integral state
-%         removes the offset a pure -K(x-r) law would leave on the non-controlled
-%         nodes), and a constant load disturbance is rejected to zero error.
+%     (3) REGULATION.  Closing the class around the exact discrete model of a
+%         2-state RC zone reproduces the closed-form recursion
+%         x_{k+1} = (Ad - Bd K) x_k to rounding, and the state decays to zero.
 %
 %   WHY THIS TEST IS GOOD
 %     (1) proves the Riccati / dlqr call and the c2d discretisation are wired
 %     correctly (a wrong sign, wrong Q/R placement, or a transpose slip changes
 %     the gain); (2) proves the design is actually stabilising; (3) proves the
-%     integral augmentation delivers the offset-free property it is there for.
+%     update law applies that gain to the state it is given, with the right sign.
 %
 %   EXPECTED OUTPUT
-%     class [Kx Ki] == independent dlqr to 1e-10;  |Kx - analytic K| < 2 % (small
-%     Ts, tiny qInt);  max |closed-loop pole| < 1;  tracking & disturbance
-%     steady-state errors < 5e-3 degC.
+%     class K == independent dlqr to 1e-10;  |K - analytic K| < 2 % (small Ts);
+%     max |closed-loop pole| < 1;  closed-loop trajectory == recursion to 1e-9;
+%     final state below 1e-3 of the initial one.
 %
 %   Run:  >> V = validate_lqr
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));
 
     % ---- (1) double-integrator gain ----
-    %   DHS.controllers.LQR expects B = [T_outdoor | Q_node_1 ... Q_node_N], so
-    %   column 1 is a (here unused) disturbance input and the manipulated input
-    %   is column uCol = 2.
     A = [0 1; 0 0];  B = [0; 1];  q = 1;  r = 1e-2;
     Kan = [sqrt(q/r), sqrt(2*sqrt(q/r))];
-
-    sysc = ss(A, [zeros(2,1), B], eye(2), 0);
-    io = struct('zoneMainRows', 1);
-    Ts = 0.02;  qInt = 1e-8;
-    c = DHS.controllers.LQR(sysc, struct('io',io,'Ts',Ts,'uMaxW',1, ...
-        'qZone',q,'qOther',q,'qInt',qInt,'R',r,'yRow',1,'uCol',2));
+    Ts = 0.02;
+    c = DHS.controllers.LQR(A, B, diag([q q]), r, Ts);
 
     % (1a) independent reproduction of the class's own construction
-    nx = 2;  Cy = [1 0];
-    Aa = [A, zeros(nx,1); -Cy, 0];  Ba = [B; 0];
-    sysd = c2d(ss(Aa,Ba,eye(nx+1),0), Ts, 'zoh');
-    Qd = diag([q, q, qInt]);  Qd(1,1) = q;
-    Kd = dlqr(sysd.A, sysd.B, Qd, r);
-    eGain = max(abs([c.Kx, c.Ki] - Kd));
+    sd = c2d(ss(A, B, eye(2), 0), Ts, 'zoh');
+    Kd = dlqr(sd.A, sd.B, diag([q q]), r);
+    eGain = max(abs(c.K - Kd));
 
-    % (1b) with qInt -> 0, Kx == plain (non-augmented) discrete dlqr
-    cN = DHS.controllers.LQR(sysc, struct('io',io,'Ts',Ts,'uMaxW',1, ...
-        'qZone',q,'qOther',q,'qInt',1e-12,'R',r,'yRow',1,'uCol',2));
-    sd2 = c2d(ss(A, B, eye(2), 0), Ts, 'zoh');
-    Kplain = dlqr(sd2.A, sd2.B, diag([q q]), r);
-    eDecouple = max(abs(cN.Kx - Kplain));
-
-    % (1c) continuous-cost-consistent discrete LQR -> analytic CARE gain as Ts->0
+    % (1b) continuous-cost-consistent discrete LQR -> analytic CARE gain as Ts->0
     Tsc = 1e-3;
-    sdc = c2d(ss(A, B, eye(2), 0), Tsc, 'zoh');
-    Kc  = dlqr(sdc.A, sdc.B, diag([q 0])*Tsc, r*Tsc);
-    eKan = max(abs(Kc - Kan) ./ abs(Kan));
+    cc  = DHS.controllers.LQR(A, B, diag([q 0])*Tsc, r*Tsc, Tsc);
+    eKan = max(abs(cc.K - Kan) ./ abs(Kan));
 
-    % ---- (2) closed-loop stability of the augmented discrete system ----
-    Kfull = [c.Kx, c.Ki];
-    Acl = sysd.A - sysd.B*Kfull;
+    % ---- (2) closed-loop stability of the discrete system ----
+    Acl = sd.A - sd.B*c.K;
     specR = max(abs(eig(Acl)));
 
-    % ---- (3) offset-free tracking + disturbance rejection on a 2-state RC zone ----
+    % ---- (3) regulation on a 2-state RC zone (deviation coordinates) ----
     Cair = 2e6; Cw = 1.5e7; Rw = 3.0; Rwin = 0.6;
     gh = 1/(Rw/2); gwin = 1/Rwin;
     Az = [ -(gh+gwin)/Cair,  gh/Cair ;  gh/Cw, -(2*gh)/Cw ];
     Bz = [ 1/Cair ; 0 ];                 % heat into the air node
-    Bd = [ gwin/Cair ; gh/Cw ];          % outdoor-temp coupling
-    io2 = struct('zoneMainRows', 1);
-    cz = DHS.controllers.LQR(ss(Az, [Bd Bz], eye(2), 0), struct('io',io2,'Ts',60, ...
-        'uMaxW',5e4,'qZone',5e3,'qOther',1,'qInt',5e-2,'R',1e-9,'yRow',1,'uCol',2));
-    x = [18; 18];  ref = 21;  Tout = -2;  dt = 60;  Xtr = zeros(1,4000);
-    for k = 1:4000
-        u = cz.update(x(1), ref, dt, struct('x', x));       % u in [0,1]
-        Qh = u * 5e4;                                       % W
-        xdot = Az*x + Bz*Qh + Bd*Tout;
-        x = x + dt*xdot;
+    dt = 60;
+    cz = DHS.controllers.LQR(Az, Bz, [5e3 1], 1e-9, dt);
+    cz.uMin = -Inf;  cz.uMax = Inf;      % unsaturated, so the recursion is exact
+    cz.state = @(s) s.x;                 % here the "simulation" is a struct holding the state
+    sdz = c2d(ss(Az, Bz, eye(2), 0), dt, 'zoh');
+    Aclz = sdz.A - sdz.B*cz.K;
+    N = 600;  x = [-3; 0];  xr = x;  Xtr = zeros(1,N);  eRec = 0;
+    for k = 1:N
+        u  = cz.update(struct('x', x), dt);
+        x  = sdz.A*x + sdz.B*u;                      % the exact discrete plant
+        xr = Aclz*xr;                                % the closed-form recursion
+        eRec = max(eRec, norm(x - xr)/norm([-3; 0]));
         Xtr(k) = x(1);
     end
-    eTrack = abs(x(1) - ref);
-
-    x = [21; 21];  dstep = 6;  Xds = zeros(1,4000);         % a +6 K "outdoor" step disturbance
-    cz.reset();
-    for k = 1:4000
-        u = cz.update(x(1), ref, dt, struct('x', x));
-        Qh = u * 5e4;
-        xdot = Az*x + Bz*Qh + Bd*(Tout + dstep);
-        x = x + dt*xdot;
-        Xds(k) = x(1);
-    end
-    eDist = abs(x(1) - ref);
+    eReg = norm(x)/norm([-3; 0]);
 
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
-    C(1) = mk('(1a) class [Kx Ki] == independent augmented dlqr',  0, eGain, 1e-9, 'abs');
-    C(2) = mk('(1b) qInt->0: Kx == plain discrete dlqr  (gains ~10)', 0, eDecouple, 5e-4, 'abs');
-    C(3) = mk('(1c) discrete LQR -> analytic CARE gain as Ts->0',   0, eKan, 0.02, 'abs');
-    C(4) = mk('(2)  max |closed-loop discrete pole| < 1',          0, max(0, specR - 1 + 1e-6), 1e-6, 'abs');
-    C(5) = mk('(3)  offset-free step tracking  error [degC]',      0, eTrack, 5e-3, 'abs');
-    C(6) = mk('(3)  constant-disturbance rejection [degC]',        0, eDist,  5e-3, 'abs');
-    V.name = 'Integral-augmented LQR: gain vs dlqr/CARE, stability, offset-free';
+    C(1) = mk('(1a) class K == independent c2d + dlqr',               0, eGain, 1e-9, 'abs');
+    C(2) = mk('(1b) discrete LQR -> analytic CARE gain as Ts->0',     0, eKan, 0.02, 'abs');
+    C(3) = mk('(2)  max |closed-loop discrete pole| < 1',             0, max(0, specR - 1 + 1e-6), 1e-6, 'abs');
+    C(4) = mk('(3)  closed loop == recursion (Ad - Bd K)^k x0',       0, eRec, 1e-9, 'abs');
+    C(5) = mk('(3)  regulation: final |x| / initial |x|',             0, eReg, 1e-3, 'abs');
+    V.name = 'LQR regulator: gain vs dlqr/CARE, stability, regulation to zero';
     V.passed = vtable(V.name, C);
-    V.cases = C;  V.detail = struct('eGain',eGain,'eDecouple',eDecouple,'eKan',eKan,'specR',specR,'eTrack',eTrack,'eDist',eDist,'Kx',c.Kx,'Kan',Kan);
+    V.cases = C;  V.detail = struct('eGain',eGain,'eKan',eKan,'specR',specR,'eRec',eRec,'eReg',eReg,'K',c.K,'Kan',Kan);
 
-    th = (1:4000)*dt/3600;  ev = eig(Acl);  ph = linspace(0,2*pi,200);
+    th = (1:N)*dt/3600;
     vplot(mfilename, { ...
-        struct('title','LQR tracking and disturbance rejection', 'xlabel','time  [h]', 'ylabel','zone temperature  [\circC]', ...
+        struct('title','LQR regulation of a two-state RC zone', 'xlabel','time  [h]', 'ylabel','air-node deviation  [K]', ...
             'legendLoc','southeast', ...
-            'series',{{ struct('x',th,'y',ref+0*th,'name','setpoint','style','ref'), ...
-                        struct('x',th,'y',Xtr,'name','step tracking','style','sim'), ...
-                        struct('x',th,'y',Xds,'name','with a +6 K disturbance','style','sim') }}) }, plotMode);
+            'series',{{ struct('x',th,'y',0*th,'name','target','style','ref'), ...
+                        struct('x',th,'y',Xtr,'name','LQR','style','sim') }}) }, plotMode);
 end
 
 function s = mk(label, expected, actual, tol, kind)

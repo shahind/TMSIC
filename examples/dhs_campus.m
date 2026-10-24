@@ -2,7 +2,7 @@
 %  Assemble and run a small district heating campus with the DHS library:
 %  one central gas heat plant feeding five campus buildings through a
 %  trunk-and-branch pipe network.  Every building wraps a single-zone RCBS
-%  thermal model plus a substation (heat exchanger + control valve + pump +
+%  thermal model plus a substation (heat exchanger + control valve +
 %  PID controller).
 %
 %  The full part-by-part assembly lives in  +DHS/+examples/campus.m  -- open it

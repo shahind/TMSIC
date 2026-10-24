@@ -1,6 +1,8 @@
-classdef CentralHeatPlant < handle
+classdef CentralHeatPlant < dynamicprops
 % DHS.CENTRALHEATPLANT  Central gas heat plant: boiler(s) + primary pump + the
 %                       plant-side water thermal dynamics.
+%
+%   Its boilers and pump are reachable by name: chp.B1.QMax, chp.P0.dp0.
 %
 %   BUILD IT  (two equivalent styles; see DHS.HydraulicNetwork)
 %     chp    = sys.addCentralHeatPlant('CHP');
@@ -8,7 +10,7 @@ classdef CentralHeatPlant < handle
 %     pump   = chp.addPump('P0', 'dp0',3.0e5, 'mdotMax',14);     % a CentrifugalPump
 %     boiler.connectTo(pump);
 %     chp.setSupplySetpoint(70);                        % fixed scalar
-%     chp.attachFiringController( DHS.controllers.PID(0.045, 3e-5, 1.5, 150) );  % optional
+%     boiler.attachController( c );                     % optional: replace the firing controller
 %
 %   or, naming the pump type and wiring it port-by-port:
 %     pump = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',3.0e5, 'mdotMax',14);
@@ -26,9 +28,9 @@ classdef CentralHeatPlant < handle
 %   and a supply-sensor lag. With these, a FIXED supply setpoint is held to
 %   ~+-0.5-2 K as the load and return temperature swing.
 %
-%   The supply-temperature loop drives the burner firing fraction u in [0,1];
-%   Q_gas = u * QgasMax  (QgasMax = sum of boiler QMax). Swap firingController
-%   for any DHS.controllers.Controller.
+%   Each boiler's controller drives its burner firing fraction u in [0,1];
+%   Q_gas = sum(u_i * QMax_i). addBoiler gives every boiler a PID on the supply
+%   temperature; swap it with boiler.attachController(c).
 %
 %   Units SI: degC, W, kg/s, J/K, Pa, s.
 
@@ -48,7 +50,6 @@ classdef CentralHeatPlant < handle
         TsupSet          (1,1) double = 70     % FIXED setpoint [degC]
         sensorTau        (1,1) double = 20     % supply-sensor lag [s]
         firingSlewPerMin (1,1) double = 0.15   % max change in firing fraction per minute
-        firingController                       % DHS.controllers.Controller (default PID)
 
         boilers     cell = {}                  % 1xN DHS.Boiler
         supplyPump                             % a DHS.Hydraulic.Pump: the central pump
@@ -71,19 +72,24 @@ classdef CentralHeatPlant < handle
     end
 
     methods
-        function obj = CentralHeatPlant(name)
+        function obj = CentralHeatPlant(name, varargin)
             if nargin >= 1, obj.name = name; end
             obj.supplyPort = DHS.Hydraulic.Junction([obj.name '.supply'], 'supply');
             obj.returnPort = DHS.Hydraulic.Junction([obj.name '.return'], 'return');
-            obj.firingController = DHS.controllers.PID(0.045, 3e-5, 1.5, 150);
-            obj.firingController.name = [obj.name '-firingPID'];
+            for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
         end
 
         % ---- assembly API --------------------------------------------------
         function b = addBoiler(obj, name, varargin)
             b = DHS.Boiler(name, varargin{:});
             b.parentPlant = obj;
+            c = DHS.controllers.PID(0.045, 3e-5, 1.5, 150);
+            c.name = [b.name '-firingPID'];
+            c.measure   = @(sys) obj.TsupplyMeas;
+            c.reference = @(sys) obj.TsupSet;
+            b.controller = c;
             obj.boilers{end+1} = b;
+            DHS.registerName(obj, b);                          % chp.B1.QMax
         end
         function p = addPump(obj, name, varargin)
             % ADDPUMP  Quick path: builds a centrifugal pump (today's default
@@ -100,12 +106,7 @@ classdef CentralHeatPlant < handle
                 'Expected a DHS.Hydraulic.Pump.');
             p.hostPort = obj.supplyPort;
             obj.supplyPump = p;
-        end
-        function attachFiringController(obj, c)
-            % ATTACHFIRINGCONTROLLER  Swap the burner-firing control law.
-            assert(isa(c,'DHS.controllers.Controller'), 'DHS:CentralHeatPlant:ctrl', ...
-                'Controller must be a DHS.controllers.Controller.');
-            obj.firingController = c;
+            DHS.registerName(obj, p);                          % chp.P0.dp0
         end
         function setSupplySetpoint(obj, T)
             obj.TsupSet = T;
@@ -123,34 +124,45 @@ classdef CentralHeatPlant < handle
             if nargin > 2 && ~isempty(Tsupply0), obj.Tsupply = Tsupply0; end
             obj.TsupplyMeas = obj.Tsupply;
             obj.TretHdr     = max(20, obj.Tsupply - 20);
-            obj.firingController.reset();
+            for i = 1:numel(obj.boilers)
+                bi = obj.boilers{i};
+                if ~isempty(bi.controller), bi.controller.reset(); end
+                bi.firing = 0;  bi.firingPrev = 0;
+            end
             obj.Qgas = 0; obj.Qboiler = 0; obj.firing = 0; obj.firingPrev = 0;
             obj.hiLimitCut = false;
             obj.eta = obj.etaOf(obj.TretHdr);
         end
 
-        function stepControl(obj, dt, aux)
-            if nargin < 3, aux = struct(); end
+        function stepControl(obj, sys, dt)
+            % STEPCONTROL  Supply-sensor lag, then every boiler's controller sets its firing.
             if obj.sensorTau > 0
                 a = dt / (obj.sensorTau + dt);
                 obj.TsupplyMeas = obj.TsupplyMeas + a*(obj.Tsupply - obj.TsupplyMeas);
             else
                 obj.TsupplyMeas = obj.Tsupply;
             end
-            u = min(1, max(0, obj.firingController.update(obj.TsupplyMeas, obj.TsupSet, dt, aux)));
-            obj.firing = u;
-            if obj.firingSlewPerMin > 0
-                df = obj.firingSlewPerMin * (dt/60);
-                obj.firing = min(obj.firingPrev + df, max(obj.firingPrev - df, obj.firing));
-            end
-            obj.firingPrev = obj.firing;
             if obj.Tboiler >= obj.TboilerMax
                 obj.hiLimitCut = true;
             elseif obj.Tboiler <= obj.TboilerMax - 3
                 obj.hiLimitCut = false;
             end
-            if obj.hiLimitCut, obj.firing = 0; end
-            obj.Qgas = obj.firing * obj.QgasMax();
+            Qg = 0;
+            for i = 1:numel(obj.boilers)
+                bi = obj.boilers{i};
+                f  = min(1, max(0, bi.controller.update(sys, dt)));
+                if obj.firingSlewPerMin > 0
+                    df = obj.firingSlewPerMin * (dt/60);
+                    f  = min(bi.firingPrev + df, max(bi.firingPrev - df, f));
+                end
+                bi.firingPrev = f;
+                if obj.hiLimitCut, f = 0; end
+                bi.firing = f;
+                Qg = Qg + f * bi.QMax;
+            end
+            obj.Qgas = Qg;
+            obj.firing = Qg / obj.QgasMax();
+            obj.firingPrev = obj.firing;
         end
 
         function [Ts, Tb, Trh, Qloop, e] = evalBoiler(obj, mdotPrimary, TretNet, dt, Qbase)

@@ -10,6 +10,9 @@ classdef Valve < handle
 %
 %   Its position can be held fixed or driven by a controller:
 %       valve.attachController( DHS.controllers.PID(...) )
+%   The controller decides what to measure (DHS.controllers.Controller): a
+%   building's valve usually follows its zone temperature, the end-of-line bypass
+%   valve any signal or a constant, e.g. DHS.controllers.Callback(@(sys,dt) 0.5).
 %
 %   PROPERTIES (SI)
 %     name          char

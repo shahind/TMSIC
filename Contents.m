@@ -26,7 +26,7 @@
 % Controllers (+DHS/+controllers)
 %   DHS.controllers.Controller - abstract interface (reset, update)
 %   DHS.controllers.PID        - discrete PID, filtered derivative, anti-windup
-%   DHS.controllers.LQR        - integral-augmented discrete LQR
+%   DHS.controllers.LQR        - discrete LQR regulator (dlqr)
 %   DHS.controllers.Relay      - on/off
 %   DHS.controllers.Callback   - a custom law given as a function handle
 %

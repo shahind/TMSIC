@@ -49,6 +49,9 @@ classdef FixedDisplacementPump < DHS.Hydraulic.Pump
             % SOLVEBRANCH  Forces the commanded flow unless the branch resistance
             %   would need more head than the relief valve allows.
             if nargin < 4 || isempty(frac), frac = obj.speed; end
+            if frac <= 0                          % stopped: no head, no extra resistance
+                m = sqrt(max(0, dpAvailable) / max(Kbranch, eps));  h = 0;  return
+            end
             s = min(1, max(obj.minSpeed, frac));
             mCmd = s * obj.mdotRated;
             mCap = sqrt(max(0, (obj.dpMax + dpAvailable) / max(Kbranch, eps)));

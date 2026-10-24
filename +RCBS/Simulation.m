@@ -86,6 +86,8 @@ classdef Simulation < handle
         liveNodeIdx = []        % 1 x N node index within its Zone
         hsList      = struct('gidx',{},'hf',{},'isMain',{},'zoneKey',{},'zcol',{})  % flat heat-source list
         T0cap       = []        % captured initial temperatures (restart reference)
+        zoneHandles = {}        % every zone of the building (to detect parameter changes)
+        versionBuilt = 0        % sum of the zones' versions the linear system was built for
     end
 
     methods
@@ -188,6 +190,12 @@ classdef Simulation < handle
                 end
             end
             obj.builtFor  = obj.networkSignature();
+            obj.zoneHandles = {};
+            for s = 1:numel(obj.building.storeyList)
+                st = obj.building.(obj.building.storeyList{s});
+                for z = 1:numel(st.zoneList), obj.zoneHandles{end+1} = st.(st.zoneList{z}); end
+            end
+            obj.versionBuilt = obj.modelVersion();
         end
 
         function factor(obj, dt)
@@ -222,6 +230,11 @@ classdef Simulation < handle
             %                 nodes get 0 W.
             dt = seconds(obj.timeStep);
             if isempty(obj.Cvec), obj.buildLinear(); end
+            if obj.modelVersion() ~= obj.versionBuilt          % a resistance or capacitance was changed
+                w = obj.warmStart;  obj.warmStart = true;      % rebuild, keeping the temperatures
+                obj.buildLinear();
+                obj.warmStart = w;
+            end
             if isempty(obj.decompM) || obj.dtFactored ~= dt, obj.factor(dt); end
             N = numel(obj.Cvec);
             q = obj.resolveQ(Qsrc, N);
@@ -499,6 +512,12 @@ classdef Simulation < handle
     %  Private helpers
     % ====================================================================
     methods (Access = private)
+        function v = modelVersion(obj)
+            % Sum of the zones' parameter versions (changes when any R or C is written).
+            v = 0;
+            for i = 1:numel(obj.zoneHandles), v = v + obj.zoneHandles{i}.version; end
+        end
+
         function sig = networkSignature(obj)
             % Cheap structural signature so a rebuilt building invalidates caches.
             n = 0; nres = 0;

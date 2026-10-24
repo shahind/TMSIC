@@ -10,7 +10,7 @@ classdef Junction < handle
 %
 %   PROPERTIES
 %     name        char        label, e.g. 'T1'
-%     side        char        'supply' | 'return' (set by the network)
+%     side        char        'supply' | 'return': which tree the node belongs to
 %   LIVE STATE (filled by HydraulicNetwork.solve each step)
 %     p           [Pa]        gauge pressure at this node
 %     mdotThrough [kg/s]      total flow passing this node toward the leaves
@@ -28,10 +28,9 @@ classdef Junction < handle
     end
     % topology (managed by DHS.HydraulicNetwork)
     properties
-        parentPipe   = []        % DHS.Hydraulic.Pipe toward the root (plant); [] at the root
-        childPipes   = {}        % DHS.Hydraulic.Pipe cell toward the leaves
-        fedBuildings = {}        % DHS.Building cell fed directly from this junction
-        mirror       = []        % the matching junction on the other side
+        parentPipe   = []        % the pipe leaving this node toward the plant; [] at the plant
+        childPipes   = {}        % the pipes arriving at this node from the leaves' side
+        fedBuildings = {}        % DHS.Building cell attached at this junction (fed from it, or draining into it)
         network      = []        % the DHS.HydraulicNetwork this node belongs to
         xy           = [NaN NaN] % layout position for visualize()
     end
@@ -40,14 +39,6 @@ classdef Junction < handle
         function obj = Junction(name, side)
             if nargin >= 1, obj.name = name; end
             if nargin >= 2, obj.side = side; end
-            % every supply-side node gets its own return-side counterpart
-            % automatically, whether it is built through hn.addJunction or
-            % directly (DHS.Hydraulic.Junction(...), or a subclass such as
-            % DHS.Hydraulic.TJunction)
-            if strcmp(obj.side, 'supply')
-                obj.mirror = DHS.Hydraulic.Junction([obj.name '_ret'], 'return');
-                obj.mirror.mirror = obj;
-            end
         end
 
         function p = connectToPipe(obj, varargin)

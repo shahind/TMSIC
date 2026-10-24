@@ -1,100 +1,106 @@
 classdef LQR < DHS.controllers.Controller
-% DHS.CONTROLLERS.LQR  Integral-augmented discrete LQR for zone-temperature tracking.
+% DHS.CONTROLLERS.LQR  Discrete linear-quadratic regulator  u = -K x.
 %
-%   A model-based drop-in replacement for DHS.controllers.PID on a building's
-%   valve/pump loop. It uses that building's own linearised state-space model
-%   (RCBS.Simulation.getStateSpace) with full-state feedback plus an integral
-%   state for offset-free setpoint tracking.
+%   The standard regulator. Given a continuous model  dx/dt = A x + B u  with one
+%   input, weights Q (states) and R (input), and the sample time Ts, the gain is
 %
-%   PLANT (continuous, from getStateSpace):
-%       dx/dt = A x + Bu*Qh + Bd*d ,   y = Cy x        (y = zone air temp [degC])
+%       K = dlqr(Ad, Bd, Q, R)       (Ad, Bd: zero-order-hold discretisation at Ts)
 %
-%   AUGMENTED DESIGN:
-%       xi_{k+1} = xi_k + Ts*(r - y)
-%       K = dlqr(Ad_aug, Bd_aug, Q, R)  at sample time Ts
-%       Qh = -Kx*(x - r) - Ki*xi                       (Watts)
-%       u  = clamp( Qh / uMaxW , 0, 1 )
-%   with conditional anti-windup on xi when u saturates.
+%   and each step the law returns  u = clamp( -K x / uScale ).
 %
-%   USAGE
+%   CONSTRUCTION
+%     c = DHS.controllers.LQR(A, B, Q, R, Ts)
+%       A, B    continuous model, B a single column (n x 1)
+%       Q       state weight, n x n (a vector is taken as its diagonal)
+%       R       input weight, scalar
+%       Ts      sample time [s] (default 60)
+%
+%   PROPERTIES  (set them like the gains of a PID; K is redesigned when any change)
+%     A B Q R Ts   the design data above
+%     K            gain 1 x n (read-only, from dlqr)
+%     state        @(sys) -> x, the state vector the regulator drives to zero
+%     uScale       input value that corresponds to u = 1 (default 1), for example
+%                  the heat [W] at full valve opening
+%
+%   There is no reference and no integral state: the regulator takes x to zero.
+%   To hold a setpoint, return the error from state, x = x_real - x_ref; for
+%   offset-free tracking against constant disturbances, augment A, B, Q with an
+%   integral state and return it in x as well.
+%
+%   EXAMPLE
 %     [sysc, io] = building.rcBuilding.simulation.getStateSpace();
-%     c = DHS.controllers.LQR(sysc, struct('io',io,'Ts',60,'uMaxW',8e5, ...
-%                             'qZone',6e3,'qInt',8e-2,'R',1e-9));
-%     u = c.update(T_zone, T_setpoint, 60, struct('x', building.rcBuilding.simulation.Tnow));
+%     r  = io.zoneMainRows(1);
+%     c  = DHS.controllers.LQR(sysc.A, sysc.B(:, r+1), diag(q), 1e-9, 60);
+%     c.uScale = hx.Qcap;
+%     c.state  = @(sys) building.rcBuilding.simulation.Tnow - building.setpoint;
+%     hx.valve.attachController(c);
 %
-%   aux.x (full node-temperature vector) is REQUIRED.
+%   Needs the Control System Toolbox (c2d, dlqr).
 
     properties
-        Kx    (1,:) double = []
-        Ki    (1,1) double = 0
-        uMaxW (1,1) double = 1e5
-        Ts    (1,1) double = 60
-        yRow  (1,1) double = 1
+        A  (:,:) double = []
+        B  (:,1) double = []
+        Q  (:,:) double = []
+        R  (1,1) double = 1
+        Ts (1,1) double = 60
+        state            = []
+        uScale (1,1) double = 1
+    end
+    properties (Dependent, SetAccess = private)
+        K
     end
     properties (Access = private)
-        xi (1,1) double = 0
-        nx (1,1) double = 0
+        Kcache = []
     end
 
     methods
-        function obj = LQR(sysc, opts)
-            if nargin < 2, opts = struct(); end
-            g = @(f,d) DHS.controllers.LQR.getf(opts, f, d);
-
-            Ts_    = g('Ts',    60);
-            uMaxW_ = g('uMaxW', 1e5);
-            qZone  = g('qZone', 4e3);
-            qOther = g('qOther',1e0);
-            qInt   = g('qInt',  5e-2);
-            Rw     = g('R',     1e-9);
-
-            A = sysc.A; B = sysc.B; nx = size(A,1);
-            if isfield(opts,'yRow')
-                yR = opts.yRow;
-            elseif isfield(opts,'io') && isfield(opts.io,'zoneMainRows')
-                yR = opts.io.zoneMainRows(1);
-            else
-                yR = 1;
-            end
-            if isfield(opts,'uCol'), uC = opts.uCol; else, uC = yR + 1; end
-
-            Bu = B(:, uC);
-            Cy = zeros(1, nx); Cy(yR) = 1;
-            Aa = [A, zeros(nx,1); -Cy, 0];
-            Ba = [Bu; 0];
-            sysd = c2d(ss(Aa, Ba, eye(nx+1), 0), Ts_, 'zoh');
-            Qd = diag([repmat(qOther,1,nx), qInt]);
-            Qd(yR,yR) = qZone;
-            Kd = dlqr(sysd.A, sysd.B, Qd, Rw);
-
-            obj.Kx = Kd(1:nx);  obj.Ki = Kd(nx+1);
-            obj.uMaxW = uMaxW_;  obj.Ts = Ts_;  obj.yRow = yR;  obj.nx = nx;
-            obj.reset();
+        function obj = LQR(A, B, Q, R, Ts)
+            if nargin >= 1, obj.A = A; end
+            if nargin >= 2, obj.B = B; end
+            if nargin >= 3, obj.Q = Q; end
+            if nargin >= 4, obj.R = R; end
+            if nargin >= 5, obj.Ts = Ts; end
         end
 
-        function reset(obj), obj.xi = 0; end
+        function set.A(obj, v),  obj.A  = v;  obj.Kcache = []; end
+        function set.B(obj, v),  obj.B  = v;  obj.Kcache = []; end
+        function set.Q(obj, v)
+            if isvector(v), v = diag(v); end
+            obj.Q = v;  obj.Kcache = [];
+        end
+        function set.R(obj, v),  obj.R  = v;  obj.Kcache = []; end
+        function set.Ts(obj, v), obj.Ts = v;  obj.Kcache = []; end
 
-        function u = update(obj, meas, ref, dt, aux)
-            if nargin < 5 || ~isstruct(aux) || ~isfield(aux,'x')
+        function k = get.K(obj)
+            if isempty(obj.Kcache), obj.Kcache = obj.design(); end
+            k = obj.Kcache;
+        end
+
+        function reset(~)
+            % memoryless: nothing to clear
+        end
+
+        function u = update(obj, sys, ~)
+            if ~isa(obj.state, 'function_handle')
                 error('DHS:controllers:LQR:noState', ...
-                    'LQR.update requires aux.x (full node-temperature vector).');
+                    'LQR "%s" has no state; set c.state = @(sys) x', obj.name);
             end
-            x = aux.x(:);
-            if numel(x) ~= obj.nx
+            x = obj.state(sys);  x = x(:);
+            if numel(x) ~= size(obj.A, 1)
                 error('DHS:controllers:LQR:stateSize', ...
-                    'aux.x has %d entries, model has %d states.', numel(x), obj.nx);
+                    'state returned %d entries, the model has %d states.', numel(x), size(obj.A, 1));
             end
-            xiTrial = obj.xi + (ref - meas) * dt;
-            Qh   = -obj.Kx * (x - ref) - obj.Ki * xiTrial;
-            uRaw = Qh / obj.uMaxW;
-            u    = obj.clamp(uRaw);
-            if u == uRaw, obj.xi = xiTrial; end
+            u = obj.clamp(-obj.K * x / obj.uScale);
         end
     end
 
-    methods (Static, Access = private)
-        function v = getf(s, f, d)
-            if isfield(s, f), v = s.(f); else, v = d; end
+    methods (Access = private)
+        function k = design(obj)
+            n = size(obj.A, 1);
+            assert(n > 0 && isequal(size(obj.Q), [n n]) && numel(obj.B) == n, 'DHS:controllers:LQR:model', ...
+                'LQR needs A (n x n), B (n x 1) and Q (n x n).');
+            sd = c2d(ss(obj.A, obj.B, eye(n), 0), obj.Ts, 'zoh');
+            k  = dlqr(sd.A, sd.B, obj.Q, obj.R);
         end
     end
 end

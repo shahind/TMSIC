@@ -7,7 +7,7 @@ function sys = campus(varargin)
 %   Builds, through the +DHS assembly API, a campus with one central gas heat
 %   plant, a branching supply/return main, and five buildings (Administration,
 %   Arts, Science, Engineering, Library) each with an RCBS thermal model, a
-%   plate heat exchanger + control valve + primary pump, a solar model and a
+%   plate heat exchanger + control valve, a solar model and a
 %   weekly occupancy schedule.
 %
 %   The plant and the supply main are wired PORT BY PORT here -- a pipe is
@@ -42,11 +42,16 @@ function sys = campus(varargin)
 
     boiler1 = chp.addBoiler('B1', 'QMax', 1.5e6, ...
         'etaRef', 0.92, 'etaSlope', 0.0025, 'TetaRef', 50, 'etaMin', 0.80, 'etaMax', 0.98);
-    pump0 = DHS.Hydraulic.CentrifugalPump('P0', 'dp0', 3.0e5, 'mdotMax', 14);
+    pump0 = DHS.Hydraulic.CentrifugalPump('P0', 'dp0', 6.0e5, 'mdotMax', 20);
     chp.attachPump(pump0);
     boiler1.connectTo(pump0);
-    chp.attachFiringController( DHS.controllers.PID(0.045, 3e-5, 1.5, 150) );
-    chp.firingController.name = 'CHP-firingPID';
+
+    % the boiler's controller holds the supply temperature at its setpoint
+    firing = DHS.controllers.PID(0.045, 3e-5, 1.5, 150);
+    firing.name = 'CHP-firingPID';
+    firing.measure   = @(sys) sys.plant.TsupplyMeas;
+    firing.reference = @(sys) sys.plant.TsupSet;
+    boiler1.attachController(firing);
 
     % ---------- distribution network ----------
     hn = sys.addHydraulicNetwork();
@@ -65,8 +70,6 @@ function sys = campus(varargin)
     Kvs           = [ 14    18    20    26    8  ];
     dpNomPrimary  = [30e3  35e3  35e3  40e3  25e3];   % HX-body design pressure drop [Pa]
     mdotNomPrimary= [ 3.5   4.5   5.0   6.0   2.0 ];  % ... at this primary design flow [kg/s]
-    pDp0          = [0.8e5 0.9e5 0.9e5 1.1e5 0.6e5];
-    pMdot         = [ 3.5   4.5   5.0   6.0   2.0 ];
 
     % supply main: one T-junction per building, ordered by distance from the
     % plant, wired one pipe at a time -- build it, connect its input, connect
@@ -85,12 +88,29 @@ function sys = campus(varargin)
         outlet.connectToPipe(trunkPipe);
         tee{bi} = DHS.Hydraulic.TJunction(['T_' B{bi,1}], 'mainDiameter',Dmain, 'sideDiameter',connD(bi));
         trunkPipe.connectOutput(tee{bi});
-        outlet = tee{bi};
+        outlet = tee{bi}.portB;
     end
 
-    % end of the trunk: a bypass (pipe + fixed valve) from the last supply tee to its return,
-    % so supply water the buildings do not draw still circulates and joins the return
-    hn.addBypass(tee{bi}, 'L',10, 'D',0.05, 'Kvs',1.5);
+    % return main: defined separately from the supply main -- its own junctions and pipes,
+    % here the same lengths and diameter as the supply, each flowing toward the plant
+    retJ = cell(1,5);
+    for bi = 1:5
+        retJ{bi} = DHS.Hydraulic.Junction(['R_' B{bi,1}], 'return');
+    end
+    for kk = 1:5                                 % built from the plant outward, like the supply main
+        bi = order(kk);
+        if kk == 1, dest = chp.returnPort; else, dest = retJ{order(kk-1)}; end
+        retPipe = DHS.Hydraulic.Pipe(sprintf('return%d', kk), 'L',segLen(kk), 'D',Dmain, 'UperM',0.30);
+        retJ{bi}.connectToPipe(retPipe);
+        retPipe.connectOutput(dest);
+    end
+
+    % central pump speed holds the supply-return differential pressure at the last tee at 3 bar
+    dpPID = DHS.controllers.PID('Kp',2.5e-7, 'Ki',2.1e-9, 'uMin',0.3);
+    dpPID.name = 'P0-dpPID';
+    dpPID.measure   = @(sys) tee{bi}.p - retJ{bi}.p;
+    dpPID.reference = 3.0e5;
+    pump0.attachController(dpPID);
 
     Tinit = 20;
     for i = 1:size(B,1)
@@ -106,16 +126,16 @@ function sys = campus(varargin)
         b.GventOcc = geom.rc.Gvent_occ;
         b.connD = connD(i);  b.connLength = 20;  b.Kminor = 8;
 
-        hx = b.addHeatExchanger([name '.HX'], ...
+        hx = b.addHeatExchanger('HX', ...
             'UA', 1.6*Qpk/22, 'Qcap', 1.5*Qpk, ...
             'mdotSecNom', max(1.5, Qpk/(4186*22)), 'secApproach', 28, ...
             'dpNomPrimary', dpNomPrimary(i), 'mdotNomPrimary', mdotNomPrimary(i));
         hx.valve.Kvs = Kvs(i);  hx.valve.char = 'eqpct';  hx.valve.rangeability = 50;
-        pump = DHS.Hydraulic.CentrifugalPump([name '.pump'], ...
-            'dp0', pDp0(i), 'mdotMax', pMdot(i), 'minSpeed', 0.25);
-        hx.attachPump(pump);
-        hx.valve.attachController( DHS.controllers.PID(0.14, 1.6e-4, 0, 40) );
-        hx.valve.controller.name = [name '-valvePID'];
+        valvePID = DHS.controllers.PID(0.14, 1.6e-4, 0, 40);
+        valvePID.name = [name '-valvePID'];
+        valvePID.measure   = @(sys) b.Tzone;           % the zone temperature ...
+        valvePID.reference = @(sys) b.setpoint;        % ... held at the schedule's setpoint
+        hx.valve.attachController(valvePID);
 
         % solar: glazing spread over 4 orientations from the real facade lengths
         fN = Ln/(Ln+Le)/2;  fE = Le/(Ln+Le)/2;
@@ -130,7 +150,7 @@ function sys = campus(varargin)
             'weekendOccupied',logical(occ(3)),'weekendStartHour',10,'weekendEndHour',18, ...
             'Tocc',21,'Tsetback',18,'gainOccW', gW*Af*ns,'gainMassFraction',0.30) );
 
-        hn.connectBuilding(tee{i}, b);
+        hn.connectBuilding(tee{i}, b, retJ{i});
     end
 end
 

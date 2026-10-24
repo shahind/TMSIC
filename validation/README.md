@@ -213,11 +213,13 @@ and on a substation branch.
 run-out flow. At speed $s$ the curve obeys $H(sQ, s) = s^2 H(Q, 1)$. Against a quadratic
 system curve the pump settles at the analytic intersection. On a branch of given
 resistance, the flow follows the closed-form expression, and the pump's own head at that
-flow equals the pressure the branch needs.
+flow equals the pressure the branch needs. A stopped pump (speed 0) adds no head and no
+resistance, so the branch flow is $\sqrt{\Delta p/K}$, for both pump types.
 
 **Component output.** The shut-off head (300 kPa) and the run-out flow (14 kg/s) are exact.
 Affinity scaling holds to 2e-16, and the operating point (8.909 kg/s) matches the analytic
-intersection to 2e-16. Branch flow and head balance agree to 6e-16.
+intersection to 2e-16. Branch flow and head balance agree to 6e-16, and a stopped pump
+matches $\sqrt{\Delta p/K}$ exactly.
 
 **Cross-check.** This quadratic curve is the special case of MathWorks' Simscape
 Centrifugal Pump (TL) general affinity-law model [54](../docs/references.md#r54) for a
@@ -362,11 +364,13 @@ On the three-building tree, the temperature at each heat-exchanger inlet and the
 loss equal a hand calculation in which every pipe loses heat once, with the flow it carries.
 In the return tree the temperature reaching the plant equals a hand calculation with enthalpy
 mixing at each junction, and the enthalpy flowing in minus out equals the heat lost.
-An end-of-line bypass, a pipe and a fixed valve from the last supply junction to the return, is
+An end-of-line bypass, a pipe and a valve from the last supply junction to the return, is
 one more branch: with a building and the bypass in parallel the total flow equals the closed form
 for the pump curve against the trunk plus the two branches in parallel, the bypass-to-building
 flow ratio equals $\sqrt{K_\text{building}/K_\text{bypass}}$, and closing the building's valve cuts
-its flow and sends more through the bypass. The bypass water joins the return by enthalpy mixing,
+its flow and sends more through the bypass. With the bypass valve at a fixed half-open position the
+bypass flow equals $\sqrt{\Delta p/(K_\text{pipe}+K_\text{valve}(\text{pos}))}$ with $\Delta p$ the
+differential pressure at its junction. The bypass water joins the return by enthalpy mixing,
 and the plant heat equals the delivered heat plus the pipe losses.
 
 **Component output.** Mass balance closes exactly at every junction and pipe segment. Two
@@ -375,7 +379,8 @@ analytic 8.003 kg/s (4e-11 relative). Opening one valve reduces the flow in ever
 branch. The pipe, supply-walk and return-walk temperatures agree with the hand calculations
 to 1e-9 K or better, and the return-side enthalpy balance closes to 9e-14. With the bypass,
 the total flow matches the closed form to 9e-13 (relative), the flow ratio to 3e-14, closing the
-valve moves the flow to the bypass as expected, and the bypass temperatures agree with the hand
+valve moves the flow to the bypass as expected, the half-open bypass valve carries the closed-form flow
+to 1e-13 (relative), and the bypass temperatures agree with the hand
 calculation to 1e-9 K with the heat balance closing to 4e-17.
 
 ---
@@ -404,22 +409,23 @@ leaves the limit within one sample, which shows that the anti-windup works.
 
 `validate_lqr`
 
-![LQR tracking and disturbance rejection](figures/validate_lqr.png)
+![LQR regulation of a two-state RC zone](figures/validate_lqr.png)
 
-**What it validates.** The integral-augmented linear–quadratic regulator: its gain, the
-stability of the closed loop, and its offset-free tracking.
+**What it validates.** The discrete linear–quadratic regulator $u = -Kx$: its gain, the
+stability of the closed loop, and its regulation of the state to zero.
 
 **Reference.** Franklin, Powell and Emami-Naeini [41](../docs/references.md#r41), and
 Anderson and Moore [42](../docs/references.md#r42).
 
-**Expected output.** The gain equals the one an independent `dlqr` call gives for the same
-weights. With the integral weight reduced to zero, it approaches the gain of a plain LQR.
-As the sample time shrinks, it approaches the analytic continuous-time gain of a double
-integrator. All closed-loop poles lie inside the unit circle. The loop tracks a setpoint and
-rejects a constant disturbance without offset.
+**Expected output.** The gain equals the one an independent `c2d` and `dlqr` calculation gives
+for the same weights. As the sample time shrinks, it approaches the analytic continuous-time gain
+of a double integrator. All closed-loop poles lie inside the unit circle. Closing the loop around
+the exact discrete model of a two-state RC zone reproduces the closed-form recursion
+$x_{k+1} = (A_d - B_d K)\,x_k$, and the state decays to zero.
 
-**Component output.** The gain equals the independent calculation exactly. Distance to the plain-LQR gain is 9.8e-6, and to the continuous-time gain 2.2e-3. All poles are stable.
-Tracking and disturbance errors are 3e-13.
+**Component output.** The gain equals the independent calculation exactly, and its distance to
+the continuous-time gain is 2.2e-3. All poles are stable. The simulated trajectory matches the
+recursion to 4e-20, and the final state is 1.3e-6 of the initial one.
 
 ---
 

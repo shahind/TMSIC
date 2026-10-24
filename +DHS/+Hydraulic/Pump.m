@@ -8,8 +8,16 @@ classdef (Abstract) Pump < handle
 %
 %   One sits at the plant (the central pump, chp.supplyPump) and one on the
 %   primary side of each building's heat exchanger (hx.pump). Its speed can be
-%   held fixed or driven by a controller:
-%       pump.attachController( DHS.controllers.PID(...) )
+%   held fixed or driven by a controller, which decides what to measure
+%   (DHS.controllers.Controller):
+%       c = DHS.controllers.PID(...);
+%       c.measure = @(sys) supplyJunction.p - returnJunction.p;   c.reference = 3e5;
+%       pump.attachController(c)
+%   The central pump's controller is sampled once per step on the previous step's
+%   pressures. With no controller the pump holds its speed (the central pump
+%   starts at System.pumpFrac). A building's pump is stopped (speed 0) unless it
+%   is switched on or controlled; a stopped substation pump adds no head and no
+%   resistance.
 %
 %   HOW THE NETWORK USES A PUMP
 %     curveHead(mdot, frac)         central-pump role: the head this pump adds

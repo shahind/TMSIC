@@ -1,4 +1,4 @@
-classdef HeatExchanger < handle
+classdef HeatExchanger < dynamicprops
 % DHS.HEATEXCHANGER  Substation plate heat exchanger + its primary valve & pump.
 %
 %   Transfers heat from the district PRIMARY water to a building's SECONDARY
@@ -24,12 +24,15 @@ classdef HeatExchanger < handle
 %   each unit's own rating rather than one constant every instance shares (matching
 %   Simscape's own "Pressure loss coefficient" option for this component).
 %
-%   Owns a pump and a valve on the primary side (obj.pump, obj.valve; a
-%   DHS.Hydraulic.CentrifugalPump by default). Attach controllers to either:
+%   Owns a valve and a pump on the primary side (obj.valve, obj.pump; a
+%   DHS.Hydraulic.CentrifugalPump). The valve sets the building's flow. The pump
+%   is a booster in series with the valve and is stopped (speed 0) by default;
+%   set hx.pump.speed or attach a controller to use it. Attach controllers to either:
 %       hx.valve.attachController(c) ,  hx.pump.attachController(c)
 %   or swap the pump type entirely:
 %       hx.attachPump( DHS.Hydraulic.FixedDisplacementPump('P','mdotRated',4,'dpMax',2e5) )
-%   Create with  building.addHeatExchanger('HX', 'UA',..,'Qcap',..).
+%   Create with  building.addHeatExchanger('HX', 'UA',..,'Qcap',..). A valve or pump you attach is
+%   reachable by its own name: hx.attachValve(DHS.Hydraulic.Valve('V1','Kvs',12)) gives hx.V1.Kvs.
 %
 %   PROPERTIES (SI)
 %     name          char
@@ -42,7 +45,7 @@ classdef HeatExchanger < handle
 %     mdotNomPrimary [kg/s] primary flow the dpNomPrimary rating is quoted at;
 %                           defaults from Qcap/(cp*20 K) if left empty
 %     valve         DHS.Hydraulic.Valve  (primary control valve)
-%     pump          DHS.Hydraulic.Pump   (primary variable-speed pump)
+%     pump          DHS.Hydraulic.Pump   (primary booster pump, stopped by default)
 %   LIVE STATE
 %     Qdel        [W]     delivered heat this step
 %     TretPrimary [degC]  primary return temperature this step
@@ -71,7 +74,7 @@ classdef HeatExchanger < handle
         function obj = HeatExchanger(name, varargin)
             if nargin >= 1, obj.name = name; end
             obj.valve = DHS.Hydraulic.Valve([name '.valve']);
-            obj.pump  = DHS.Hydraulic.CentrifugalPump([name '.pump']);
+            obj.pump  = DHS.Hydraulic.CentrifugalPump([name '.pump'], 'speed', 0);
             for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
         end
 
@@ -82,6 +85,7 @@ classdef HeatExchanger < handle
                 'Expected a DHS.Hydraulic.Pump.');
             if ~isempty(obj.hostBuilding), p.hostPort = obj.hostBuilding.inlet; end
             obj.pump = p;
+            DHS.registerName(obj, p);                          % hx.Booster.dp0
         end
 
         function attachValve(obj, v)
@@ -89,6 +93,7 @@ classdef HeatExchanger < handle
             assert(isa(v,'DHS.Hydraulic.Valve'), 'DHS:HeatExchanger:valve', ...
                 'Expected a DHS.Hydraulic.Valve.');
             obj.valve = v;
+            DHS.registerName(obj, v);                          % hx.V1.Kvs
         end
 
         function j = inlet(obj)

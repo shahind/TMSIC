@@ -1,55 +1,68 @@
-classdef HydraulicNetwork < handle
-% DHS.HYDRAULICNETWORK  The district pipe network: a tree of junctions and pipes
-%                       rooted at the central heat plant, with buildings hanging
-%                       off junctions. Distributed pumping (one central pump +
-%                       one pump per building).
+classdef HydraulicNetwork < dynamicprops
+% DHS.HYDRAULICNETWORK  The district pipe network: a supply tree and a return tree, both
+%                       rooted at the central heat plant, with buildings joining them.
+%                       One central pump; each building's flow is set by its control
+%                       valve (a booster pump per building is optional).
+%
+%   You define the supply side and the return side separately. They need not look alike:
+%   the return branch may be longer or shorter, with other diameters, roughness or heat
+%   loss than the supply branch. Each side is a tree of junctions and pipes:
+%     supply  plant supply port -> junctions -> buildings        (pipes flow away from the plant)
+%     return  buildings -> junctions -> plant return port        (pipes flow toward the plant)
 %
 %   Two equivalent ways to build the same network -- both end up compiled into
-%   the same integer-indexed tree, so solve() cannot tell which one you used.
+%   the same integer-indexed trees, so solve() cannot tell which one you used.
 %
 %   DECLARATIVE
 %     hn = sys.addHydraulicNetwork();
-%     t1 = hn.addJunction('T1');
-%     hn.addPipe(hn.plantSupply, t1, 'L',40, 'D',0.11);   % supply; return auto-mirrored
-%     t2 = hn.addJunction('T2', 'type','tee', 'mainDiameter',0.11, 'sideDiameter',0.05);
-%     hn.addPipe(t1, t2, 'L',50, 'D',0.11);                % a continuing trunk pipe = the run
-%     hn.connectBuilding(t2, bldgArts);                    % a building is always the branch
+%     t1 = hn.addJunction('T1');                                  % a supply junction
+%     hn.addPipe(chp.supplyPort, t1, 'name','sup1', 'L',40, 'D',0.11);
+%     r1 = hn.addJunction('R1', 'side','return');                 % a return junction
+%     hn.addPipe(r1, chp.returnPort, 'name','ret1', 'L',45, 'D',0.13);   % flows from r1 to the plant
+%     hn.connectBuilding(t1, bldgArts, r1);                       % supply junction, building, return junction
+%   A tee on the supply side:  hn.addJunction('T2', 'type','tee', 'mainDiameter',0.11, 'sideDiameter',0.05)
+%     the first pipe leaving a tee is its run, the next its branch; a building is always the branch.
 %
 %   PORT-WIRING  (reads like RCBS.Zone.addWall / connectToZone; see
 %   DHS.Hydraulic.Junction/Pipe/TJunction)
-%     hn = sys.addHydraulicNetwork();
-%     pipe1 = DHS.Hydraulic.Pipe('CHP->T1', 'L',40, 'D',0.11);
-%     chp.supplyPort.connectToPipe(pipe1);
-%     tee1  = pipe1.addTjunction('T1', 0.05);              % mainDiameter = pipe1.D
-%     pipe2 = DHS.Hydraulic.Pipe('T1->T2', 'L',50, 'D',0.11);
-%     tee1.connectToPipe('portB', pipe2);  pipe2.connectOutput(t2);   % run
-%     hn.connectBuilding(tee1, bldgAdmin);                            % always the branch
+%     pipe1 = DHS.Hydraulic.Pipe('sup1', 'L',40, 'D',0.11);
+%     chp.supplyPort.connectToPipe(pipe1);                        % plant supply -> pipe1
+%     tee1  = pipe1.addTjunction('T1', 0.05);                     % pipe1 -> tee T1 (mainDiameter = pipe1.D)
+%     pipe2 = DHS.Hydraulic.Pipe('sup2', 'L',50, 'D',0.11);
+%     tee1.portB.connectToPipe(pipe2);  pipe2.connectOutput(t2);  % the run of T1
+%     r1    = DHS.Hydraulic.Junction('R1', 'return');
+%     ret1  = DHS.Hydraulic.Pipe('ret1', 'L',45, 'D',0.13);
+%     r1.connectToPipe(ret1);   ret1.connectOutput(chp.returnPort);   % return pipe from R1 to the plant
+%     hn.connectBuilding(tee1, bldgAdmin, r1);
 %
-%   Each supply junction has a matching RETURN junction (its .mirror); every
-%   supply pipe has a matching return pipe of the same L and D. You build the
-%   SUPPLY tree; DHS mirrors it for the return. A building's own service
-%   connection is sized by its connLength/connD rather than a separately-wired
-%   pipe object, so the last hop to a building is hn.connectBuilding(tee,
-%   building) in both styles.
+%   NAMED PARTS  Every junction and pipe is reachable by its name once it is in the network:
+%     hn.sup1.L = 60;   hn.ret1.D = 0.15;   hn.tee2.portC.D = 0.06;   hn.R1.p
+%   A name that is not a valid MATLAB identifier is not registered. The service connection of
+%   a building is sized by its connLength/connD (building.connPipeSup and connPipeRet are
+%   its two pipes and may be edited separately after hn.connectBuilding).
 %
 %   SOLVE  (each co-simulation step, given the central pump speed pumpFrac):
-%     * segment flow  Q_seg  = sum of the branch flows in the subtree below a pipe
+%     * segment flow  Q_seg  = sum of the branch flows in the subtree behind a pipe
 %     * central pump head  dpC = plantPump.curveHead(Mtot, pumpFrac)
-%     * pressure walk from the plant out to every junction, losing  K*Q_seg^2
-%       on each supply pipe (plus a T-junction's own run/branch loss where one
-%       sits, see DHS.Hydraulic.TJunction) and gaining it back on each return pipe
-%     * each building branch (connection pipe + valve + HX body), given the
-%       differential pressure left at its tee, closes through its own pump's
-%       solveBranch -- the one nonlinear equation a centrifugal and a
-%       fixed-displacement pump answer differently, see DHS.Hydraulic.Pump
-%     * damped fixed-point on Mtot (segment flows and dpC depend on it)
+%     * pressure walk from the plant out along the supply tree, losing  K*Q_seg^2
+%       on each pipe (plus a T-junction's own run/branch loss where one sits, see
+%       DHS.Hydraulic.TJunction), and from the plant return port out along the return tree,
+%       where the pressure rises by K*Q_seg^2 on each pipe
+%     * each building branch (connection pipes + valve + HX body), given the
+%       differential pressure between its supply and its return junction, closes through
+%       its own pump's solveBranch (a stopped pump adds nothing: m = sqrt(dp/K)) -- the
+%       one nonlinear equation a centrifugal and a fixed-displacement pump answer
+%       differently, see DHS.Hydraulic.Pump
+%     * damped fixed-point on Mtot (segment flows and dpC depend on it); the damping starts at
+%       0.5 and is halved whenever the iteration stops improving, so a strongly coupled
+%       network (a narrow return main, say) still converges
 %
 %   TEMPERATURES  (supplyTemperatures / returnTemperatures, called by DHS.System each step
 %   with the flows from solve): the supply walk takes the plant supply temperature out
 %   through every pipe, each losing heat to the ground with its own flow
 %   (DHS.Hydraulic.Pipe.outletTemperature); the return walk takes each heat-exchanger
-%   outlet temperature back, loses heat in every return pipe and mixes the streams at
-%   each junction by enthalpy flow. Junctions themselves lose no heat.
+%   outlet temperature back through the return tree, loses heat in every return pipe and
+%   mixes the streams at each junction by enthalpy flow. Junctions themselves lose no heat.
 %
 %   The buildings are COUPLED: opening one valve/pump raises Mtot, raises the
 %   shared-trunk friction and pulls the central pump down its curve, so every
@@ -64,26 +77,21 @@ classdef HydraulicNetwork < handle
         maxIter    (1,1) double = 40
     end
     properties (SetAccess = private)
-        junctions cell = {}
-        pipes     cell = {}
-        retPipes  cell = {}
-        buildings cell = {}
-        pipeOrder double = []
+        junctions       cell = {}      % supply junctions
+        returnJunctions cell = {}      % return junctions
+        pipes           cell = {}      % supply pipes
+        returnPipes     cell = {}      % return pipes
+        buildings       cell = {}
         compiled  (1,1) logical = false
-        % --- compiled integer-indexed topology (filled by compile(), no strings
-        %     touched per step -- this is what keeps solve() fast) ---
-        nS       (1,1) double = 0     % number of supply pressure nodes (junctions + plant)
-        idxPlantS (1,1) double = 0
-        pipeA double = []             % 1 x nPipes  supply node index of nodeA (toward plant)
-        pipeB double = []             % 1 x nPipes  supply node index of nodeB (toward leaves)
-        branchNode double = []        % 1 x nB(+1)  supply node index feeding each building (+ the bypass)
-        downB   cell = {}             % 1 x nPipes  branch indices (buildings, then the bypass) in each pipe's subtree
-        bypassNode (1,1) double = 0   % supply node index of the bypass junction (0 = no bypass)
     end
     properties (SetAccess = private)
-        bypassPipe     = []           % DHS.Hydraulic.Pipe joining the end junction to its return mirror
+        bypassPipe     = []           % DHS.Hydraulic.Pipe from a supply junction to a return junction
         bypassValve    = []           % DHS.Hydraulic.Valve in series with it (sets the minimum flow)
-        bypassJunction = []           % supply junction the bypass leaves (default: the last one)
+        bypassJunction = []           % supply junction the bypass leaves
+        bypassReturnJunction = []     % return junction the bypass joins
+    end
+    properties (Access = private)
+        solverData_ = struct()        % integer-indexed copy of the topology, filled by compile()
     end
     properties
         plantSupply DHS.Hydraulic.Junction
@@ -94,27 +102,36 @@ classdef HydraulicNetwork < handle
     methods
         % ---- assembly API (declarative) -----------------------------------
         function j = addJunction(obj, name, varargin)
-            % ADDJUNCTION  hn.addJunction('T1')  for a plain tee, or
+            % ADDJUNCTION  hn.addJunction('T1')  for a plain supply junction,
+            %   hn.addJunction('R1', 'side','return')  for a return junction, or
             %   hn.addJunction('T1','type','tee','mainDiameter',Dm,'sideDiameter',Ds)
-            %   for one with its own minor-loss physics (see DHS.Hydraulic.TJunction).
-            p = inputParser;  p.KeepUnmatched = true;
-            p.addParameter('type', 'plain');
-            p.addParameter('mainDiameter', 0.10);
-            p.addParameter('sideDiameter', 0.05);
-            p.parse(varargin{:});
-            r = p.Results;
-            if strcmpi(r.type, 'tee')
-                js = DHS.Hydraulic.TJunction(name, 'mainDiameter',r.mainDiameter, 'sideDiameter',r.sideDiameter);
+            %   for a supply tee with its own minor-loss physics (see DHS.Hydraulic.TJunction).
+            %   Any property of the part can be given as a name-value pair
+            %   ('roughness', 'frictionModel', ...) and changed later, e.g. hn.T1.sideDiameter = 0.06.
+            type = 'plain';  side = 'supply';
+            k = find(strcmpi(varargin(1:2:end), 'type'), 1);
+            if ~isempty(k), type = varargin{2*k}; varargin(2*k-1:2*k) = []; end
+            k = find(strcmpi(varargin(1:2:end), 'side'), 1);
+            if ~isempty(k), side = varargin{2*k}; varargin(2*k-1:2*k) = []; end
+            if strcmpi(type, 'tee')
+                assert(strcmpi(side, 'supply'), 'DHS:HydraulicNetwork:returnTee', ...
+                    'A tee is available on the supply side only.');
+                js = DHS.Hydraulic.TJunction(name, varargin{:});
             else
-                js = DHS.Hydraulic.Junction(name, 'supply');
+                js = DHS.Hydraulic.Junction(name, lower(side));
+                for i = 1:2:numel(varargin), js.(varargin{i}) = varargin{i+1}; end
             end
-            js.network = obj;   % js.mirror is created automatically by the constructor
-            obj.junctions{end+1} = js;
+            js.network = obj;
+            obj.addToList(js);
             j = js;
             obj.compiled = false;
         end
 
         function p = addPipe(obj, nodeA, nodeB, varargin)
+            % ADDPIPE  hn.addPipe(nodeA, nodeB, 'name','pipe1', 'L',40, 'D',0.11, ...)
+            %   A supply pipe runs from nodeA toward nodeB, away from the plant; a return pipe
+            %   (both nodes on the return side) runs from nodeA toward nodeB, toward the plant.
+            %   Any pipe property can be given as a name-value pair.
             ps = DHS.Hydraulic.Pipe([nodeA.name '->' nodeB.name], nodeA, nodeB, varargin{:});
             if isa(nodeA, 'DHS.Hydraulic.TJunction')
                 if nodeA.attachedCount() == 0, ps.teeSide = 'run'; else, ps.teeSide = 'branch'; end
@@ -125,9 +142,8 @@ classdef HydraulicNetwork < handle
 
         function p = registerPipe(obj, pipe)
             % REGISTERPIPE  Shared endpoint for both assembly styles: given a
-            %   DHS.Hydraulic.Pipe whose nodeA/nodeB are already set, builds and
-            %   registers its return-side mirror exactly as addPipe always has.
-            %   Used directly by DHS.Hydraulic.Pipe.connectOutput (port-wiring).
+            %   DHS.Hydraulic.Pipe whose nodeA/nodeB are already set, adds it to the supply
+            %   or the return tree. Used directly by DHS.Hydraulic.Pipe.connectOutput.
             nodeA = pipe.nodeA;  nodeB = pipe.nodeB;
             assert(~isempty(nodeA) && ~isempty(nodeB), 'DHS:HydraulicNetwork:registerPipe', ...
                 'Pipe "%s" needs both ends wired before it can be used.', pipe.name);
@@ -135,60 +151,91 @@ classdef HydraulicNetwork < handle
                 pipe.decorative = true;   % a same-node round trip inside a lumped
                 p = pipe;  return          % component (e.g. boiler->pump); not solved
             end
-            pr = DHS.Hydraulic.Pipe([nodeB.mirror.name '->' nodeA.mirror.name], nodeB.mirror, nodeA.mirror, ...
-                'L',pipe.L, 'D',pipe.D, 'eps',pipe.eps, 'UperM',pipe.UperM);
-            nodeB.parentPipe = pipe;
-            nodeA.childPipes{end+1} = pipe;
-            nodeB.network = obj;
-            obj.pipes{end+1}    = pipe;
-            obj.retPipes{end+1} = pr;
+            assert(strcmp(nodeA.side, nodeB.side), 'DHS:HydraulicNetwork:sides', ...
+                'Pipe "%s" joins a supply node to a return node; use the building or the bypass for that.', pipe.name);
+            nodeA.network = obj;  nodeB.network = obj;
+            if strcmp(nodeA.side, 'supply')
+                nodeB.parentPipe = pipe;                 % toward the plant
+                nodeA.childPipes{end+1} = pipe;
+                obj.pipes{end+1} = pipe;
+            else
+                nodeA.parentPipe = pipe;                 % toward the plant: the pipe leaving this node
+                nodeB.childPipes{end+1} = pipe;          % pipes arriving from the buildings' side
+                obj.returnPipes{end+1} = pipe;
+            end
+            obj.registerJunctionIfNew(nodeA);
             obj.registerJunctionIfNew(nodeB);
+            DHS.registerName(obj, pipe);
             obj.compiled = false;
             p = pipe;
         end
 
-        function connectBuilding(obj, junction, building)
-            assert(isa(junction,'DHS.Hydraulic.Junction') && strcmp(junction.side,'supply'), ...
+        function connectBuilding(obj, supplyJunction, building, returnJunction)
+            % CONNECTBUILDING  hn.connectBuilding(supplyJunction, building, returnJunction)
+            %   The building is fed from a supply junction and drains into a return junction
+            %   (the plant's own returnPort is allowed). Its two service pipes,
+            %   building.connPipeSup and building.connPipeRet, start from building.connLength
+            %   and building.connD and can be edited separately afterwards.
+            assert(isa(supplyJunction,'DHS.Hydraulic.Junction') && strcmp(supplyJunction.side,'supply'), ...
                 'DHS:HydraulicNetwork:conn', 'First argument must be a supply junction.');
             assert(isa(building,'DHS.Building'), 'DHS:HydraulicNetwork:conn', ...
                 'Second argument must be a DHS.Building.');
-            building.inlet.parentPipe  = junction;
-            building.outlet.parentPipe = junction.mirror;
-            building.connPipeSup.nodeA = junction;
+            assert(nargin >= 4 && isa(returnJunction,'DHS.Hydraulic.Junction') && strcmp(returnJunction.side,'return'), ...
+                'DHS:HydraulicNetwork:conn', ...
+                'Third argument must be a return junction: hn.connectBuilding(supplyJunction, building, returnJunction).');
+            building.connPipeSup.nodeA = supplyJunction;
+            building.connPipeRet.nodeB = returnJunction;
             building.connPipeSup.L = building.connLength;  building.connPipeSup.D = building.connD;
             building.connPipeRet.L = building.connLength;  building.connPipeRet.D = building.connD;
-            if isa(junction, 'DHS.Hydraulic.TJunction')
+            if isa(supplyJunction, 'DHS.Hydraulic.TJunction')
                 % a building's service connection is always a side tap off the
                 % trunk, never a straight-through continuation -- so it always
                 % picks up the tee's own branch loss (see TJunction.teeLossK),
                 % regardless of how many other pipes already left this tee.
                 building.connPipeSup.teeSide = 'branch';
-                junction.markPipeAttached();
+                supplyJunction.markPipeAttached();
             end
-            junction.fedBuildings{end+1} = building;
+            supplyJunction.fedBuildings{end+1} = building;
+            returnJunction.fedBuildings{end+1} = building;
+            obj.registerJunctionIfNew(supplyJunction);
+            obj.registerJunctionIfNew(returnJunction);
             obj.buildings{end+1} = building;
             obj.compiled = false;
         end
 
-        function addBypass(obj, varargin)
-            % ADDBYPASS  An end-of-line bypass from the last supply junction to its return.
-            %   hn.addBypass('L',20, 'D',0.05, 'Kvs',1.5)
-            %   hn.addBypass(junction, 'L',20, 'D',0.05, 'Kvs',1.5)
-            %   A pipe plus a fixed valve joins the end of the supply tree straight to the
+        function addBypass(obj, supplyJunction, returnJunction, varargin)
+            % ADDBYPASS  An end-of-line bypass from a supply junction to a return junction.
+            %   hn.addBypass(supplyJunction, returnJunction, 'L',20, 'D',0.05, 'Kvs',1.5)
+            %   hn.addBypass(t4, r4, 'name','bp1', 'L',20, 'D',0.05, 'Kvs',1.5, 'pos',1)
+            %   A pipe plus a valve joins the end of the supply tree straight to the
             %   return side. Water the buildings do not draw (their valves are partly closed)
             %   passes through it and joins the return; its flow follows from the
-            %   differential pressure at that junction, sqrt(dp/K) with K the pipe's
-            %   resistance plus the valve's. 'Kvs' [m3/h/sqrt(bar)] sets the minimum flow.
-            %   Without a junction argument it is the last junction in the tree.
-            if ~isempty(varargin) && isa(varargin{1}, 'DHS.Hydraulic.Junction')
-                obj.bypassJunction = varargin{1};  varargin(1) = [];
+            %   differential pressure between the two junctions, sqrt(dp/K) with K the pipe's
+            %   resistance plus the valve's.
+            %   Name-value pairs set the pipe ('name' (default 'bypass'), 'L', 'D', 'eps',
+            %   'UperM') and the valve ('Kvs', 'pos' (default 1, fixed), 'char', 'rangeability',
+            %   'KvMinFrac'). The pipe is hn.<name> and hn.bypassPipe, the valve hn.bypassValve;
+            %   attach a controller to the valve to move it (DHS.controllers.Controller).
+            assert(nargin >= 3 && isa(supplyJunction,'DHS.Hydraulic.Junction') && strcmp(supplyJunction.side,'supply') ...
+                && isa(returnJunction,'DHS.Hydraulic.Junction') && strcmp(returnJunction.side,'return'), ...
+                'DHS:HydraulicNetwork:bypass', 'addBypass needs a supply junction and a return junction.');
+            pipe  = DHS.Hydraulic.Pipe('bypass', 'L',20, 'D',0.05);
+            valve = DHS.Hydraulic.Valve('bypass.valve', 'Kvs',1.5, 'char','linear', 'pos',1);
+            for i = 1:2:numel(varargin)
+                key = varargin{i};  val = varargin{i+1};
+                if isprop(pipe, key)
+                    pipe.(key) = val;
+                elseif isprop(valve, key)
+                    valve.(key) = val;
+                else
+                    error('DHS:HydraulicNetwork:bypass', '"%s" is not a pipe or valve property.', key);
+                end
             end
-            p = inputParser;
-            p.addParameter('L', 20);  p.addParameter('D', 0.05);  p.addParameter('Kvs', 1.5);
-            p.addParameter('UperM', 0.30);
-            p.parse(varargin{:});  r = p.Results;
-            obj.bypassPipe  = DHS.Hydraulic.Pipe('bypass', 'L',r.L, 'D',r.D, 'UperM',r.UperM);
-            obj.bypassValve = DHS.Hydraulic.Valve('bypass.valve', 'Kvs',r.Kvs, 'char','linear', 'pos',1);
+            pipe.nodeA = supplyJunction;  pipe.nodeB = returnJunction;
+            if isa(supplyJunction, 'DHS.Hydraulic.TJunction'), pipe.teeSide = 'run'; end
+            obj.bypassPipe = pipe;  obj.bypassValve = valve;
+            obj.bypassJunction = supplyJunction;  obj.bypassReturnJunction = returnJunction;
+            DHS.registerName(obj, pipe);
             obj.compiled = false;
         end
 
@@ -198,77 +245,101 @@ classdef HydraulicNetwork < handle
 
         % ---- compile / solve ------------------------------------------------
         function compile(obj)
-            % COMPILE  Freeze the tree into integer-indexed arrays so solve()
+            % COMPILE  Freeze the two trees into integer-indexed arrays so solve()
             %   never touches a string or a containers.Map per step.
-            assert(~isempty(obj.plantSupply), 'DHS:HydraulicNetwork:noPlant', ...
+            assert(~isempty(obj.plantSupply) && ~isempty(obj.plantReturn), 'DHS:HydraulicNetwork:noPlant', ...
                 'Connect the plant to the network first.');
+            c = struct();
 
-            % node index map: 1 = plant supply, 2..nS = junctions (supply side)
+            % ---- supply tree: node 1 = plant supply port, 2.. = supply junctions
             nJ = numel(obj.junctions);
-            obj.nS = nJ + 1;
-            obj.idxPlantS = 1;
-            nodeIdx = containers.Map('KeyType','char','ValueType','double');
-            nodeIdx(obj.plantSupply.name) = 1;
-            for k = 1:nJ, nodeIdx(obj.junctions{k}.name) = k + 1; end
-
-            % BFS from the plant -> parent-before-child pipe order
+            c.nS = nJ + 1;
+            idxS = containers.Map('KeyType','char','ValueType','double');
+            idxS(obj.plantSupply.name) = 1;
+            for k = 1:nJ, idxS(obj.junctions{k}.name) = k + 1; end
             order = []; queue = obj.plantSupply.childPipes;
             while ~isempty(queue)
                 ps = queue{1}; queue(1) = [];
-                idx = find(cellfun(@(x) x == ps, obj.pipes), 1);
-                order(end+1) = idx; %#ok<AGROW>
+                order(end+1) = find(cellfun(@(x) x == ps, obj.pipes), 1); %#ok<AGROW>
                 queue = [queue, ps.nodeB.childPipes]; %#ok<AGROW>
             end
-            obj.pipeOrder = order;
-
+            c.orderS = order;
             nP = numel(obj.pipes);
-            obj.pipeA = zeros(1,nP);  obj.pipeB = zeros(1,nP);
+            c.sA = zeros(1,nP);  c.sB = zeros(1,nP);          % nodes at the plant side and the far side
             for k = 1:nP
-                obj.pipeA(k) = nodeIdx(obj.pipes{k}.nodeA.name);
-                obj.pipeB(k) = nodeIdx(obj.pipes{k}.nodeB.name);
+                c.sA(k) = idxS(obj.pipes{k}.nodeA.name);
+                c.sB(k) = idxS(obj.pipes{k}.nodeB.name);
             end
 
+            % ---- return tree: node 1 = plant return port, 2.. = return junctions
+            nR1 = numel(obj.returnJunctions);
+            c.nR = nR1 + 1;
+            idxR = containers.Map('KeyType','char','ValueType','double');
+            idxR(obj.plantReturn.name) = 1;
+            for k = 1:nR1, idxR(obj.returnJunctions{k}.name) = k + 1; end
+            orderR = []; queue = obj.plantReturn.childPipes;   % pipes arriving at the plant
+            while ~isempty(queue)
+                pr = queue{1}; queue(1) = [];
+                orderR(end+1) = find(cellfun(@(x) x == pr, obj.returnPipes), 1); %#ok<AGROW>
+                queue = [queue, pr.nodeA.childPipes]; %#ok<AGROW>
+            end
+            c.orderR = orderR;
+            nPR = numel(obj.returnPipes);
+            c.rA = zeros(1,nPR);  c.rB = zeros(1,nPR);        % rA: far end (flow starts), rB: toward the plant
+            for k = 1:nPR
+                c.rA(k) = idxR(obj.returnPipes{k}.nodeA.name);
+                c.rB(k) = idxR(obj.returnPipes{k}.nodeB.name);
+            end
+
+            % ---- branches: each building (and the bypass) joins a supply node and a return node
             nB = numel(obj.buildings);
-            obj.branchNode = zeros(1,nB);
-            fedAt = cell(1, obj.nS);
+            c.sNode = zeros(1,nB);  c.rNode = zeros(1,nB);
+            fedS = cell(1, c.nS);  fedR = cell(1, c.nR);
             for b = 1:nB
-                ni = nodeIdx(obj.buildings{b}.inlet.parentPipe.name);
-                obj.branchNode(b) = ni;
-                fedAt{ni} = [fedAt{ni}, b];
+                bd = obj.buildings{b};
+                c.sNode(b) = idxS(bd.connPipeSup.nodeA.name);
+                c.rNode(b) = idxR(bd.connPipeRet.nodeB.name);
+                fedS{c.sNode(b)} = [fedS{c.sNode(b)}, b];
+                fedR{c.rNode(b)} = [fedR{c.rNode(b)}, b];
             end
-            obj.bypassNode = 0;
+            c.bypassS = 0;  c.bypassR = 0;
             if obj.hasBypass()
-                if isempty(obj.bypassJunction)
-                    jb = obj.pipes{order(end)}.nodeB;           % last junction in the tree
-                else
-                    jb = obj.bypassJunction;
-                end
-                obj.bypassNode = nodeIdx(jb.name);
-                obj.branchNode(nB+1) = obj.bypassNode;           % the bypass is branch nB+1
-                fedAt{obj.bypassNode} = [fedAt{obj.bypassNode}, nB+1];
-                obj.bypassPipe.nodeA = jb;  obj.bypassPipe.nodeB = jb.mirror;
-                if isa(jb, 'DHS.Hydraulic.TJunction'), obj.bypassPipe.teeSide = 'run'; end
+                c.sNode(nB+1) = idxS(obj.bypassJunction.name);
+                c.rNode(nB+1) = idxR(obj.bypassReturnJunction.name);
+                fedS{c.sNode(nB+1)} = [fedS{c.sNode(nB+1)}, nB+1];
+                fedR{c.rNode(nB+1)} = [fedR{c.rNode(nB+1)}, nB+1];
+                c.bypassS = c.sNode(nB+1);  c.bypassR = c.rNode(nB+1);
             end
 
-            % subtree building sets, post-order (leaf pipes are last in `order`)
-            obj.downB = cell(1, nP);
+            % ---- branches behind every pipe, leaves first
+            c.downS = cell(1, nP);
             for kk = numel(order):-1:1
-                k  = order(kk);
-                ps = obj.pipes{k};
-                down = fedAt{obj.pipeB(k)};
-                for c = 1:numel(ps.nodeB.childPipes)
-                    ci = find(cellfun(@(x) x == ps.nodeB.childPipes{c}, obj.pipes), 1);
-                    down = [down, obj.downB{ci}]; %#ok<AGROW>
+                k = order(kk);  ps = obj.pipes{k};
+                down = fedS{c.sB(k)};
+                for q = 1:numel(ps.nodeB.childPipes)
+                    down = [down, c.downS{find(cellfun(@(x) x == ps.nodeB.childPipes{q}, obj.pipes), 1)}]; %#ok<AGROW>
                 end
-                obj.downB{k} = unique(down);
-                ps.downBuildings = obj.downB{k}(obj.downB{k} <= nB);   % buildings only
+                c.downS{k} = unique(down);
+                ps.downBuildings = c.downS{k}(c.downS{k} <= nB);
             end
+            c.downR = cell(1, nPR);
+            for kk = numel(orderR):-1:1
+                k = orderR(kk);  pr = obj.returnPipes{k};
+                down = fedR{c.rA(k)};
+                for q = 1:numel(pr.nodeA.childPipes)
+                    down = [down, c.downR{find(cellfun(@(x) x == pr.nodeA.childPipes{q}, obj.returnPipes), 1)}]; %#ok<AGROW>
+                end
+                c.downR{k} = unique(down);
+                pr.downBuildings = c.downR{k}(c.downR{k} <= nB);
+            end
+            obj.solverData_ = c;
             obj.compiled = true;
         end
 
         function s = solve(obj, pumpFrac)
             if nargin < 1 || isempty(pumpFrac), pumpFrac = 1; end
             if ~obj.compiled, obj.compile(); end
+            c = obj.solverData_;
             nB = numel(obj.buildings);
             r = obj.rho;  mu_ = obj.mu;
 
@@ -287,10 +358,9 @@ classdef HydraulicNetwork < handle
             for b = 1:nB
                 m(b) = max(obj.buildings{b}.connPipeSup.mdot, pumps{b}.solveBranch(Kbr(b), 0, pumps{b}.speed));
             end
-            bn = obj.branchNode;
 
             % end-of-line bypass: one more branch (index nB+1) with no pump, whose flow
-            % follows from the differential pressure at its junction, m = sqrt(dp/K)
+            % follows from the differential pressure across it, m = sqrt(dp/K)
             hasBp = obj.hasBypass();  Kbp = 0;
             if hasBp
                 Kbp = obj.bypassPipe.resistance(max(obj.bypassPipe.mdot, 0.2), r, mu_) ...
@@ -299,14 +369,18 @@ classdef HydraulicNetwork < handle
             end
             nT = numel(m);
 
+            w = 0.5;  errPrev = Inf;                   % damping, halved whenever the iteration stops improving
             for it = 1:obj.maxIter %#ok<NASGU>
                 [pS, pR] = obj.pressureWalk(m, pumpFrac);
-                dpAvail = pS(bn) - pR(bn);
+                dpAvail = pS(c.sNode) - pR(c.rNode);
                 mNew = zeros(1,nT);
                 for b = 1:nB, mNew(b) = pumps{b}.solveBranch(Kbr(b), dpAvail(b), pumps{b}.speed); end
                 if hasBp, mNew(nT) = sqrt(max(0, dpAvail(nT)) / Kbp); end
-                if max(abs(mNew - m)) < 1e-9, m = mNew; break; end
-                m = 0.5*m + 0.5*mNew;
+                err = max(abs(mNew - m));
+                if err < 1e-9, m = mNew; break; end
+                if err > errPrev, w = max(0.02, 0.5*w); end
+                errPrev = err;
+                m = (1 - w)*m + w*mNew;
             end
 
             Mtot = sum(m);
@@ -319,6 +393,7 @@ classdef HydraulicNetwork < handle
             end
             [pS, pR] = obj.pressureWalk(m, pumpFrac);
             dpC = obj.plantPump.curveHead(Mtot, pumpFrac);
+            obj.plantPump.head = dpC;  obj.plantPump.mdot = Mtot;
 
             pSupBranch = zeros(1,nB); pRetBranch = zeros(1,nB); vel = zeros(1,nB);
             for b = 1:nB
@@ -327,18 +402,17 @@ classdef HydraulicNetwork < handle
                 bd.connPipeSup.mdot = m(b);  bd.connPipeRet.mdot = m(b);
                 vel(b) = m(b)/(r*A);
                 bd.connPipeSup.vel = vel(b);  bd.connPipeRet.vel = vel(b);
-                [~, dpBP] = pumps{b}.solveBranch(Kbr(b), pS(bn(b)) - pR(bn(b)), pumps{b}.speed);
+                [~, dpBP] = pumps{b}.solveBranch(Kbr(b), pS(c.sNode(b)) - pR(c.rNode(b)), pumps{b}.speed);
                 hx.pump.mdot = m(b);  hx.pump.head = dpBP;
                 hx.valve.dp  = hx.valve.resistance(r) * m(b)^2;
-                pSupBranch(b) = pS(bn(b)) + dpBP;
-                pRetBranch(b) = pR(bn(b));
+                pSupBranch(b) = pS(c.sNode(b)) + dpBP;
+                pRetBranch(b) = pR(c.rNode(b));
                 bd.inlet.p  = pSupBranch(b);
                 bd.outlet.p = pRetBranch(b);
             end
-            for k = 1:numel(obj.junctions)
-                obj.junctions{k}.p        = pS(k+1);
-                obj.junctions{k}.mirror.p = pR(k+1);
-            end
+            obj.plantSupply.p = pS(1);  obj.plantReturn.p = pR(1);
+            for k = 1:numel(obj.junctions),       obj.junctions{k}.p       = pS(k+1); end
+            for k = 1:numel(obj.returnJunctions), obj.returnJunctions{k}.p = pR(k+1); end
 
             s = struct('Mtot',Mtot, 'dpPump',dpC, 'pSupHeader',obj.pReturnRef + dpC, ...
                        'mdot',m(1:nB), 'mdotBypass',mBp, 'vel',vel, ...
@@ -356,22 +430,23 @@ classdef HydraulicNetwork < handle
             %   the total supply-side heat loss [W]. Pipe and junction temperatures
             %   are stored (pipe.Tin/Tout, junction.T).
             if ~obj.compiled, obj.compile(); end
-            Tn = zeros(1, obj.nS);  Tn(obj.idxPlantS) = Tplant;  Qloss = 0;
+            c = obj.solverData_;
+            Tn = zeros(1, c.nS);  Tn(1) = Tplant;  Qloss = 0;
             m = obj.withBypassFlow(m);                      % append the bypass flow (if any)
-            for kk = 1:numel(obj.pipeOrder)
-                k = obj.pipeOrder(kk);
-                Q = sum(m(obj.downB{k}));
-                [To, ql] = obj.pipes{k}.outletTemperature(Tn(obj.pipeA(k)), Tground, Q, cp);
-                Tn(obj.pipeB(k)) = To;  Qloss = Qloss + ql;
+            for kk = 1:numel(c.orderS)
+                k = c.orderS(kk);
+                Q = sum(m(c.downS{k}));
+                [To, ql] = obj.pipes{k}.outletTemperature(Tn(c.sA(k)), Tground, Q, cp);
+                Tn(c.sB(k)) = To;  Qloss = Qloss + ql;
             end
             nB = numel(obj.buildings);  TsupHx = zeros(1, nB);
             for b = 1:nB
                 [TsupHx(b), ql] = obj.buildings{b}.connPipeSup.outletTemperature( ...
-                    Tn(obj.branchNode(b)), Tground, m(b), cp);
+                    Tn(c.sNode(b)), Tground, m(b), cp);
                 Qloss = Qloss + ql;
             end
             if obj.hasBypass()                             % supply water that no building takes
-                [~, ql] = obj.bypassPipe.outletTemperature(Tn(obj.bypassNode), Tground, m(nB+1), cp);
+                [~, ql] = obj.bypassPipe.outletTemperature(Tn(c.bypassS), Tground, m(nB+1), cp);
                 Qloss = Qloss + ql;
             end
             obj.plantSupply.T = Tplant;
@@ -386,35 +461,36 @@ classdef HydraulicNetwork < handle
             %   the incoming streams mix with their enthalpy flows (m*cp*T). Returns the
             %   temperature arriving at the plant and the total return-side heat loss [W].
             if ~obj.compiled, obj.compile(); end
+            c = obj.solverData_;
             nB = numel(obj.buildings);  Qloss = 0;
             m = obj.withBypassFlow(m);
-            sumM = zeros(1, obj.nS);  sumMT = zeros(1, obj.nS);
+            sumM = zeros(1, c.nR);  sumMT = zeros(1, c.nR);
             for b = 1:nB
                 [To, ql] = obj.buildings{b}.connPipeRet.outletTemperature(Thx(b), Tground, m(b), cp);
                 Qloss = Qloss + ql;
-                n = obj.branchNode(b);
+                n = c.rNode(b);
                 sumM(n) = sumM(n) + m(b);  sumMT(n) = sumMT(n) + m(b)*To;
             end
-            if obj.hasBypass()      % bypass water enters the return at the end junction, at the temperature it left the bypass
-                n = obj.bypassNode;
+            if obj.hasBypass()      % bypass water enters the return at its return junction, at the temperature it left the bypass
+                n = c.bypassR;
                 sumM(n) = sumM(n) + m(nB+1);  sumMT(n) = sumMT(n) + m(nB+1)*obj.bypassPipe.Tout;
             end
-            Tn = repmat(Tground, 1, obj.nS);
-            for kk = numel(obj.pipeOrder):-1:1          % leaves first
-                k = obj.pipeOrder(kk);  a = obj.pipeA(k);  b = obj.pipeB(k);
-                Q = sum(m(obj.downB{k}));
-                if sumM(b) > 0, Tmix = sumMT(b)/sumM(b); else, Tmix = Tground; end
-                Tn(b) = Tmix;
-                [To, ql] = obj.retPipes{k}.outletTemperature(Tmix, Tground, Q, cp);
+            Tn = repmat(Tground, 1, c.nR);
+            for kk = numel(c.orderR):-1:1                  % far ends first
+                k = c.orderR(kk);  a = c.rA(k);  b = c.rB(k);
+                Q = sum(m(c.downR{k}));
+                if sumM(a) > 0, Tmix = sumMT(a)/sumM(a); else, Tmix = Tground; end
+                Tn(a) = Tmix;
+                [To, ql] = obj.returnPipes{k}.outletTemperature(Tmix, Tground, Q, cp);
                 Qloss = Qloss + ql;
-                sumM(a) = sumM(a) + Q;  sumMT(a) = sumMT(a) + Q*To;
+                sumM(b) = sumM(b) + Q;  sumMT(b) = sumMT(b) + Q*To;
             end
-            if sumM(obj.idxPlantS) > 0, Tret = sumMT(obj.idxPlantS)/sumM(obj.idxPlantS);
-            else,                       Tret = mean(Thx);
+            if sumM(1) > 0, Tret = sumMT(1)/sumM(1);
+            else,           Tret = mean(Thx);
             end
-            Tn(obj.idxPlantS) = Tret;
+            Tn(1) = Tret;
             obj.plantReturn.T = Tret;
-            for k = 1:numel(obj.junctions), obj.junctions{k}.mirror.T = Tn(k+1); end
+            for k = 1:numel(obj.returnJunctions), obj.returnJunctions{k}.T = Tn(k+1); end
         end
     end
 
@@ -426,33 +502,48 @@ classdef HydraulicNetwork < handle
             end
         end
 
+        function addToList(obj, node)
+            if strcmp(node.side, 'supply'), obj.junctions{end+1} = node;
+            else,                           obj.returnJunctions{end+1} = node;
+            end
+            DHS.registerName(obj, node);
+        end
+
         function registerJunctionIfNew(obj, node)
             % REGISTERJUNCTIONIFNEW  A junction or T-junction built directly
             %   (DHS.Hydraulic.Junction(...) / TJunction(...), the port-wiring
             %   style) rather than through hn.addJunction still needs to be in
-            %   obj.junctions for compile()'s node-index map.
-            if node == obj.plantSupply, return; end
-            if any(cellfun(@(j) j == node, obj.junctions)), return; end
-            obj.junctions{end+1} = node;
+            %   the network's lists for compile()'s node-index map.
+            if ~isempty(obj.plantSupply) && node == obj.plantSupply, return; end
+            if ~isempty(obj.plantReturn) && node == obj.plantReturn, return; end
+            if strcmp(node.side, 'supply'), list = obj.junctions; else, list = obj.returnJunctions; end
+            if any(cellfun(@(j) j == node, list)), return; end
+            node.network = obj;
+            obj.addToList(node);
         end
 
         function [pS, pR] = pressureWalk(obj, m, pumpFrac)
-            % integer-indexed walk: node 1 = plant, nodes 2..nS = junctions
+            % integer-indexed walk: node 1 = plant port, then the junctions of each side
+            c = obj.solverData_;
             r = obj.rho;  mu_ = obj.mu;
             dpC = obj.plantPump.curveHead(sum(m), pumpFrac);
-            pS = zeros(1, obj.nS);  pR = zeros(1, obj.nS);
-            pS(obj.idxPlantS) = obj.pReturnRef + dpC;
-            pR(obj.idxPlantS) = obj.pReturnRef;
-            for kk = 1:numel(obj.pipeOrder)
-                k  = obj.pipeOrder(kk);
-                Q  = sum(m(obj.downB{k}));
-                ps = obj.pipes{k};  pr = obj.retPipes{k};
+            pS = zeros(1, c.nS);  pR = zeros(1, c.nR);
+            pS(1) = obj.pReturnRef + dpC;
+            pR(1) = obj.pReturnRef;
+            for kk = 1:numel(c.orderS)
+                k  = c.orderS(kk);
+                Q  = sum(m(c.downS{k}));
+                ps = obj.pipes{k};
                 Ks = ps.resistance(Q, r, mu_);
-                Kr = pr.resistance(Q, r, mu_);
-                a  = obj.pipeA(k);  b = obj.pipeB(k);
-                pS(b) = pS(a) - Ks*Q^2;      % supply: drops away from the plant
-                pR(b) = pR(a) + Kr*Q^2;      % return: rises away from the plant
+                pS(c.sB(k)) = pS(c.sA(k)) - Ks*Q^2;      % supply: drops away from the plant
                 ps.mdot = Q; ps.dp = Ks*Q^2; ps.vel = Q/(r*pi*ps.D^2/4);
+            end
+            for kk = 1:numel(c.orderR)
+                k  = c.orderR(kk);
+                Q  = sum(m(c.downR{k}));
+                pr = obj.returnPipes{k};
+                Kr = pr.resistance(Q, r, mu_);
+                pR(c.rA(k)) = pR(c.rB(k)) + Kr*Q^2;      % return: rises away from the plant
                 pr.mdot = Q; pr.dp = Kr*Q^2; pr.vel = Q/(r*pi*pr.D^2/4);
             end
         end

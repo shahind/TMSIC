@@ -54,7 +54,7 @@ function V = validate_plant_dynamics(plotMode)
 
     dt = 30;  N = round(20*tau/dt);  t = (0:N)*dt;  Tb = zeros(1,N+1);  Tb(1) = Tb0;
     for k = 1:N
-        p.stepControl(dt, struct('Mtot',mdotB,'Tout',0));
+        p.stepControl([], dt);
         [Ts, Tbn, Trh, Qloop, e] = p.evalBoiler(mdotB, Tret, dt, Qbase); %#ok<ASGLU>
         p.commit(Tbn, Trh, Ts, Qloop, e);
         Tb(k+1) = p.Tboiler;
@@ -71,7 +71,7 @@ function V = validate_plant_dynamics(plotMode)
     p2.addBoiler('B','QMax',2e6,'etaRef',0.95,'etaSlope',0,'TetaRef',50);
     p2.TsupSet = 1e4;  p2.reset(70,70);
     for k = 1:5000
-        p2.stepControl(60, struct('Mtot',1,'Tout',0));
+        p2.stepControl([], 60);
         [Ts,Tbn,Trh,Ql,e2] = p2.evalBoiler(1, 60, 60, 0);
         p2.commit(Tbn,Trh,Ts,Ql,e2);
     end

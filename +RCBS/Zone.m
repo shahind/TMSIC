@@ -1,4 +1,6 @@
-classdef Zone < handle
+classdef Zone < dynamicprops & handle
+    % Every wall, roof, window and internal mass added to a zone is reachable by its name,
+    % and the air node as Air: zone.Wall.R, zone.Wall.C, zone.Wall.T (see RCBS.Part).
     properties
         name
         building % parent building
@@ -17,6 +19,9 @@ classdef Zone < handle
         C_main = 1e5; % J/K default main capacitance
         R_default = 5e-3; % K/W default resistor
     end
+    properties (SetAccess = private)
+        version = 0   % raised whenever a resistance or capacitance changes (a running simulation rebuilds)
+    end
     
     methods
         function obj = Zone(name, building, storey)
@@ -29,6 +34,12 @@ classdef Zone < handle
             obj.nodes(1).C = obj.C_main;
             obj.nodes(1).T = 20; % default initial temp
             obj.nodes(1).isMain = true;
+            obj.addPart('Air', 'T_main');
+        end
+
+        function touch(obj)
+            % TOUCH  Record that a parameter of this zone changed (used by RCBS.Part).
+            obj.version = obj.version + 1;
         end
         
         function set.C_main(obj, val)
@@ -40,7 +51,18 @@ classdef Zone < handle
             obj.C_main = val;
             if ~isempty(obj.nodes)
                 obj.nodes(1).C = val;
+                obj.version = obj.version + 1;
             end
+        end
+
+        function addPart(obj, name, key)
+            % ADDPART  Make the element reachable as zone.<name> (skipped if the name is not a
+            %   valid identifier or is already taken).
+            if nargin < 3, key = name; end
+            if ~isvarname(name) || isprop(obj, name), return, end
+            p = addprop(obj, name);
+            obj.(name) = RCBS.Part(obj, key);
+            p.SetAccess = 'private';
         end
 
         function setAir(obj, C_air, T0)
@@ -49,6 +71,7 @@ classdef Zone < handle
             %   setAir(C_air, T0)     T0    [degC] initial air temperature
             obj.nodes(1).C = C_air;
             obj.C_main     = C_air;
+            obj.version    = obj.version + 1;
             if nargin > 2 && ~isempty(T0)
                 obj.nodes(1).T = T0;
             end
@@ -94,6 +117,7 @@ classdef Zone < handle
             obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_wall/2, 'name', [name '_m']);
             % resistor wall <-> outdoor (uses R/2)
             obj.resistors(end+1) = struct('n1', idx, 'n2', 'outdoor', 'R', R_wall/2, 'name', [name '_o']);
+            obj.addPart(name);
         end
         
         function addRoof(obj, R_roof, C_roof, T0, name)
@@ -102,18 +126,45 @@ classdef Zone < handle
             idx = obj.addNode(name, C_roof, T0);
             obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_roof/2, 'name', [name '_m']);
             obj.resistors(end+1) = struct('n1', idx, 'n2', 'outdoor', 'R', R_roof/2, 'name', [name '_o']);
+            obj.addPart(name);
         end
         
-        function addWindow(obj, R_window, name)
-            if nargin<3, name = sprintf('Window%d', sum(strncmp({obj.resistors.name},'Window',6))+1); end
-            % model as direct resistor from main node to outdoor
-            obj.resistors(end+1) = struct('n1', 1, 'n2', 'outdoor', 'R', R_window, 'name', name);
+        function addWindow(obj, R_window, varargin)
+            % ADDWINDOW  A window or vent: by default a single resistance from the zone air to
+            %   the outdoor boundary, with no state.
+            %     addWindow(R)  addWindow(R, name)
+            %   Give a heat capacity as well and it becomes a 2R1C element like a wall or a roof:
+            %   one node joined to the air and to the outdoor by R/2 each, R the total.
+            %     addWindow(R, C)  addWindow(R, C, T0)  addWindow(R, C, T0, name)
+            %   R [K/W], C [J/K], T0 [degC] initial temperature ([] for the air value).
+            C = [];  T0 = [];  name = '';
+            if ~isempty(varargin) && (ischar(varargin{1}) || isstring(varargin{1}))
+                name = char(varargin{1});
+            elseif ~isempty(varargin)
+                C = varargin{1};
+                if numel(varargin) >= 2, T0 = varargin{2}; end
+                if numel(varargin) >= 3, name = char(varargin{3}); end
+            end
+            if isempty(name)
+                base = unique(regexprep({obj.resistors.name}, '_[mo]$', ''));
+                name = sprintf('Window%d', sum(strncmp(base, 'Window', 6)) + 1);
+            end
+            if isempty(C)
+                % a direct resistor from the main node to the outdoor
+                obj.resistors(end+1) = struct('n1', 1, 'n2', 'outdoor', 'R', R_window, 'name', name);
+            else
+                idx = obj.addNode(name, C, T0);
+                obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_window/2, 'name', [name '_m']);
+                obj.resistors(end+1) = struct('n1', idx, 'n2', 'outdoor', 'R', R_window/2, 'name', [name '_o']);
+            end
+            obj.addPart(name);
         end
-        
+
         function addInternalMass(obj, R_int, C_int, T0, name)
             if nargin<5, name = sprintf('IntMass%d', sum(strncmp({obj.nodes.name},'Int',3))+1); end
             idx = obj.addNode(name, C_int, T0);
             obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_int, 'name', [name '_m']);
+            obj.addPart(name);
         end
         
         function connectToZone(obj, otherZone, R_between, name, C_mid, T0, kind)

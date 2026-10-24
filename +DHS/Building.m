@@ -1,4 +1,4 @@
-classdef Building < handle
+classdef Building < dynamicprops
 % DHS.BUILDING  One building connected to the district loop.
 %
 %   Wraps an RCBS thermal model (any RCBS.Building) and adds the district-side
@@ -16,7 +16,9 @@ classdef Building < handle
 %     b = sys.addBuilding('Engineering');
 %     b.useRCModel( makeEngineeringRC() );                 % 1-zone RCBS.Building
 %     hx = b.addHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5);
-%     hx.valve.attachController( DHS.controllers.PID(0.14, 1.6e-4, 0) );
+%     c = DHS.controllers.PID(0.14, 1.6e-4, 0);
+%     c.measure = @(sys) b.Tzone;  c.reference = @(sys) b.setpoint;
+%     hx.valve.attachController(c);
 %     b.attachSolar( DHS.Solar(...) );
 %     b.attachSchedule( DHS.Schedule(...) );
 %
@@ -36,7 +38,7 @@ classdef Building < handle
 %
 %   PER-STEP PROTOCOL  (driven by DHS.System)
 %     prepare(t, wx)          sample schedule + solar (per zone if multi-zone)
-%     u = control(dt, wx)     run the valve/pump controller -> command in [0,1]
+%     u = control(sys, dt)    run the valve/pump controllers -> valve command in [0,1]
 %     [Qd,Tr] = exchange(mdot, Tsup_hx)   eps-NTU HX for the resolved primary flow
 %     advance(dt, tNext, wx)  assemble the node-heat vector and step the RC model
 
@@ -101,8 +103,9 @@ classdef Building < handle
     end
 
     methods
-        function obj = Building(name)
+        function obj = Building(name, varargin)
             if nargin >= 1, obj.name = name; end
+            for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
             obj.inlet       = DHS.Hydraulic.Junction([obj.name '.inlet'],  'supply');
             obj.outlet      = DHS.Hydraulic.Junction([obj.name '.outlet'], 'return');
             obj.connPipeSup = DHS.Hydraulic.Pipe([obj.name '.connSup']);
@@ -115,6 +118,9 @@ classdef Building < handle
             assert(isa(B,'RCBS.Building'), 'DHS:Building:rc', 'Expected an RCBS.Building.');
             obj.rcBuilding = B;
             obj.sim = B.simulation;
+            for i = 1:numel(B.storeyList)                      % building.Storey1.Zone2.Wall.R
+                DHS.registerName(obj, B.(B.storeyList{i}), B.storeyList{i});
+            end
         end
 
         function hx = addHeatExchanger(obj, name, varargin)
@@ -130,6 +136,7 @@ classdef Building < handle
             hx.hostBuilding  = obj;
             hx.pump.hostPort = obj.inlet;
             obj.heatExchanger = hx;
+            DHS.registerName(obj, hx);                         % sys.Library.HX.UA
         end
 
         function obj = attachSolar(obj, s)
@@ -248,21 +255,16 @@ classdef Building < handle
             end
         end
 
-        function u = control(obj, dt, wx)
-            aux = struct('x', obj.sim.Tnow, 'wx', wx, 'Tout', wx.Tout);
+        function u = control(obj, sys, dt)
+            % CONTROL  Ask the valve's (and the booster pump's) controller for a command.
             v = obj.heatExchanger.valve;  p = obj.heatExchanger.pump;
-            meas = obj.Tzone;  ref = obj.setpoint;
             if ~isempty(v.controller)
-                u = min(1, max(0, v.controller.update(meas, ref, dt, aux)));
-                v.pos = u;
-            else
-                u = v.pos;
+                v.pos = min(1, max(0, v.controller.update(sys, dt)));
             end
             if ~isempty(p.controller)
-                p.speed = min(1, max(0, p.controller.update(meas, ref, dt, aux)));
-            else
-                p.speed = v.pos;                 % sequenced with the valve
+                p.speed = min(1, max(0, p.controller.update(sys, dt)));
             end
+            u = v.pos;
             obj.command = v.pos;
         end
 

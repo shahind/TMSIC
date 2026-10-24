@@ -16,6 +16,10 @@ classdef PID < DHS.controllers.Controller
 %     PID('Kp',..,'Ki',..,'Kd',..,'Tf',..,'Tt',..,'dir',..,'uMin',..,'uMax',..,'name',..)
 %
 %   Example:  c = DHS.controllers.PID(0.14, 1.6e-4, 0);
+%             c.measure   = @(sys) building.Tzone;
+%             c.reference = @(sys) building.setpoint;       % or a number
+%             hx.valve.attachController(c);
+%   Each step:  u = c.update(sys, dt)  with  e = dir*(reference - measure).
 
     properties
         Kp  (1,1) double = 1
@@ -24,6 +28,8 @@ classdef PID < DHS.controllers.Controller
         Tf  (1,1) double = 20      % derivative filter time constant [s]
         Tt  (1,1) double = NaN     % anti-windup tracking time [s]; NaN => auto
         dir (1,1) double = 1       % +1 direct acting, -1 reverse acting
+        measure   = []             % @(sys) -> the measured value
+        reference = []             % a number, or @(sys) -> the setpoint
     end
     properties (Access = private)
         Iterm (1,1) double = 0
@@ -53,9 +59,9 @@ classdef PID < DHS.controllers.Controller
             obj.Iterm = 0; obj.ePrev = 0; obj.dFilt = 0; obj.started = false;
         end
 
-        function u = update(obj, meas, ref, dt, ~)
+        function u = update(obj, sys, dt)
             if dt <= 0, error('DHS:controllers:PID:dt', 'dt must be > 0.'); end
-            e = obj.dir * (ref - meas);
+            e = obj.dir * (obj.readReference(sys) - obj.readMeasure(sys));
             if ~obj.started, obj.ePrev = e; obj.started = true; end
 
             dterm = 0;
@@ -88,6 +94,25 @@ classdef PID < DHS.controllers.Controller
                 obj.Iterm = Iprov;
             end
             obj.ePrev = e;
+        end
+    end
+
+    methods (Access = private)
+        function y = readMeasure(obj, sys)
+            if ~isa(obj.measure, 'function_handle')
+                error('DHS:controllers:noMeasure', ...
+                    'Controller "%s" has no measure; set c.measure = @(sys) ...', obj.name);
+            end
+            y = obj.measure(sys);
+        end
+
+        function r = readReference(obj, sys)
+            r = obj.reference;
+            if isa(r, 'function_handle'), r = r(sys); end
+            if isempty(r)
+                error('DHS:controllers:noReference', ...
+                    'Controller "%s" has no reference; set c.reference = number or @(sys) ...', obj.name);
+            end
         end
     end
 end
