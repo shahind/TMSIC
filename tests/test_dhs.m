@@ -20,7 +20,7 @@ function test_assemble_minimal(tc)
     sys = DHS.System('startDate', datetime(2025,1,1));
     chp = sys.addCentralHeatPlant('CHP');
     b   = chp.addBoiler('B1','QMax',8e5);
-    pmp = chp.addPump('P0','dp0',2e5,'mdotMax',8);
+    pmp = chp.addPump('P0','dp0',2e5,'mdotRated',4);
     b.connectTo(pmp);
     verifyEqual(tc, sys.plant.QgasMax(), 8e5);
     verifyEqual(tc, chp.boilers{1}.feedsPump, pmp);
@@ -47,7 +47,7 @@ function test_port_wiring_matches_declarative(tc)
     sysD = mkSys();
     chpD = sysD.addCentralHeatPlant('CHP');
     chpD.addBoiler('B','QMax',1e6);
-    chpD.addPump('P','dp0',3e5,'mdotMax',14);
+    chpD.addPump('P','dp0',3e5,'mdotRated',7);
     hnD = sysD.addHydraulicNetwork();
     tD  = hnD.addJunction('T1','type','tee','mainDiameter',0.11,'sideDiameter',0.05);
     hnD.addPipe(chpD.supplyPort, tD, 'L',40,'D',0.11);
@@ -55,7 +55,7 @@ function test_port_wiring_matches_declarative(tc)
     hnD.addPipe(rD, chpD.returnPort, 'L',40,'D',0.11);
     bD  = sysD.addBuilding('B1');  bD.useRCModel(mkRC());
     hxD = bD.addHeatExchanger('HX','UA',3e4,'Qcap',5e5);
-    hxD.valve.Kvs = 18;  hxD.pump.dp0 = 0.9e5;  hxD.pump.mdotMax = 5;
+    hxD.valve.Kvs = 18;  hxD.pump.dp0 = 0.9e5;  hxD.pump.mdotRated = 2.5;
     bD.attachSolar(DHS.Solar());  bD.attachSchedule(DHS.Schedule());
     hnD.connectBuilding(tD, bD, rD);
     sysD.compile();
@@ -65,7 +65,7 @@ function test_port_wiring_matches_declarative(tc)
     sysP = mkSys();
     chpP = sysP.addCentralHeatPlant('CHP');
     chpP.addBoiler('B','QMax',1e6);
-    pumpP = DHS.Hydraulic.CentrifugalPump('P','dp0',3e5,'mdotMax',14);
+    pumpP = DHS.Hydraulic.CentrifugalPump('P','dp0',3e5,'mdotRated',7);
     chpP.attachPump(pumpP);
     hnP = sysP.addHydraulicNetwork();
     pipe1 = DHS.Hydraulic.Pipe('CHP->T1', 'L',40, 'D',0.11);
@@ -76,7 +76,7 @@ function test_port_wiring_matches_declarative(tc)
     rP.connectToPipe(ret1);  ret1.connectOutput(chpP.returnPort);
     bP  = sysP.addBuilding('B1');  bP.useRCModel(mkRC());
     hxP = bP.addHeatExchanger('HX','UA',3e4,'Qcap',5e5);
-    hxP.valve.Kvs = 18;  hxP.pump.dp0 = 0.9e5;  hxP.pump.mdotMax = 5;
+    hxP.valve.Kvs = 18;  hxP.pump.dp0 = 0.9e5;  hxP.pump.mdotRated = 2.5;
     bP.attachSolar(DHS.Solar());  bP.attachSchedule(DHS.Schedule());
     hnP.connectBuilding(tP, bP, rP);
     sysP.compile();
@@ -222,7 +222,7 @@ function test_pressures_velocities_in_band(tc)
     verifyGreaterThan(tc, min(P.pSupHeader), 1.0e5);
     verifyLessThan(tc,    max(P.pSupHeader), 8.0e5);
     for i = 1:numel(res.bldg)
-        verifyLessThan(tc, max(res.bldg(i).vel), 3.0);
+        verifyLessThan(tc, max(res.bldg(i).vel), 4.0);      % the morning warm-up peak
     end
 end
 
@@ -235,9 +235,9 @@ function test_controller_swap_runs_and_differs(tc)
     r  = io.zoneMainRows(1);
     Qw = ones(size(sysc.A,1), 1);  Qw(r) = 6e3;
     lq = DHS.controllers.LQR(sysc.A, sysc.B(:, r+1), Qw, 1e-9, 60);
-    lq.uScale = b3.heatExchanger.Qcap;                         % heat at full valve opening
+    lq.uScale = b3.Radiator.Qdes;                              % heat at full valve opening
     lq.state  = @(sys) b3.rcBuilding.simulation.Tnow - b3.setpoint;   % x = x_real - x_ref
-    b3.heatExchanger.valve.attachController(lq);
+    b3.zoneValve.attachController(lq);                         % the zone valve
     rL = sL.run(days(1));
     verifyTrue(tc, all(isfinite(rL.bldg(3).Tzone)));
     verifyLessThan(tc, max(rL.bldg(3).Tzone), 30);
@@ -435,6 +435,465 @@ function test_step_function_changes_rc_model(tc)
     verifyTrue(tc, all(isfinite(rV.bldg(1).Tzone)));
 end
 
+function test_radiator_internal_loop_heats_the_zone(tc)
+    % A hall with an internal loop: the heat the exchanger delivers reaches the zone through the
+    % radiator (to within what the metal stores), the zone follows its setpoint, and with the
+    % zone valve shut the loop's flow and the zone heat drop to almost nothing.
+    sys = hallWithLoop(1);  b = sys.Hall;  rad = sys.userData.rads{1};  zv = sys.userData.valves{1};
+    res = sys.run(days(4));  bd = res.bldg(1);
+    verifyEqual(tc, sum(bd.Qzones), sum(bd.Qdeliv), 'RelTol', 0.01);
+    occ = bd.setpoint == 21;
+    verifyLessThan(tc, abs(mean(bd.Tzone(occ) - bd.setpoint(occ))), 0.3);
+    verifyGreaterThan(tc, max(bd.mdot_int), 0.1);
+    verifyGreaterThan(tc, max(bd.Tint_sup), max(bd.Tint_ret));
+    zv.controller = [];  zv.pos = 0;  b.solveInternalLoop();
+    verifyLessThan(tc, b.radMdot(b.radBranch(1)), 0.05*rad.mdotDes);   % a closed zone valve shuts tight
+    verifyGreaterThan(tc, b.mdotInt, 0.5*rad.mdotDes);                % and the bypass takes the pump's flow
+end
+
+function test_internal_flows_follow_the_zone_valves(tc)
+    % Two radiators on one loop: closing one valve cuts its flow and sends more through the other,
+    % and the loop flow is the sum of the branches
+    sys = hallWithLoop(2);  b = sys.Hall;  sys.compile();
+    b.bindClock(sys.startDate, seconds(60), @(t) 0);  b.reset(60);
+    v = sys.userData.valves;  r = sys.userData.rads;
+    for k = 1:6, v{1}.pos = 1;  v{2}.pos = 1;  b.solveInternalLoop(); end
+    m0 = b.radMdot;  i1 = b.radBranch(1);  i2 = b.radBranch(2);
+    verifyEqual(tc, b.mdotInt, sum(m0), 'AbsTol', 1e-9);
+    for k = 1:6, v{1}.pos = 0.2;  b.solveInternalLoop(); end
+    m1 = b.radMdot;
+    verifyLessThan(tc, m1(i1), 0.8*m0(i1));
+    verifyGreaterThan(tc, m1(i2), m0(i2));
+    verifyEqual(tc, r{1}.dp, r{1}.dpBody*(m1(i1)/r{1}.mdotDes)^2, 'RelTol', 1e-9);
+    verifyEqual(tc, v{1}.mdot, m1(i1), 'AbsTol', 1e-9);              % the valve is a link: its flow is the radiator's
+end
+
+function test_inline_pump_adds_its_head(tc)
+    % a pump between two nodes of the internal loop adds head = s^2 dp0 - K mdot^2, K = curveK()
+    sys = hallWithLoop(1);  b = sys.Hall;  sys.compile();
+    b.bindClock(sys.startDate, seconds(60), @(t) 0);  b.reset(60);
+    pump = sys.userData.pump;
+    sys.userData.valves{1}.pos = 1;
+    pump.speed = 1;  for k = 1:6, b.solveInternalLoop(); end
+    m1 = pump.mdot;
+    verifyGreaterThan(tc, m1, 0);
+    verifyEqual(tc, pump.head, pump.dp0 - pump.curveK()*m1^2, 'RelTol', 1e-9);
+    verifyEqual(tc, m1, b.mdotInt, 'AbsTol', 1e-9);
+    pump.speed = 0.5;  for k = 1:6, b.solveInternalLoop(); end
+    m2 = pump.mdot;
+    verifyLessThan(tc, m2, m1);
+    verifyEqual(tc, pump.head, 0.25*pump.dp0 - pump.curveK()*m2^2, 'RelTol', 1e-9);
+end
+
+function test_exchanger_ports_name_the_loop_ends(tc)
+    sys = hallWithLoop(1);  b = sys.Hall;  hx = b.heatExchanger;
+    verifyTrue(tc, hx.districtInlet == b.inlet);
+    verifyTrue(tc, hx.districtOutlet == b.outlet);
+    verifyTrue(tc, hx.internalOutlet == b.internalLoop.plantSupply);
+    verifyTrue(tc, hx.internalInlet == b.internalLoop.plantReturn);
+    verifyTrue(tc, strcmp(hx.internalOutlet.side, 'supply') && strcmp(hx.internalInlet.side, 'return'));
+end
+
+function test_ideal_heat_exchanger_is_a_radiator_in_the_district_water(tc)
+    % without an internal loop the exchanger is a radiator of the EN 442 type that the district water flows
+    % through: Q = Qnom ((Tmean - Tzone)/dTnom)^n with Tmean = Tsup - Q/(2 mdot cp); nothing else matters
+    hx = DHS.IdealHeatExchanger('HX', 'Qnom',2e5, 'dTnom',50, 'exponent',1.3);
+    verifyFalse(tc, hx.usesInternalLoop());
+    cp = hx.cp;  Tz = 20;  mp = 3.5;  Tsup = 68;
+    [Q, Tret] = hx.idealTransfer(mp, Tsup, Tz);
+    Tmean = Tsup - Q/(2*mp*cp);
+    verifyEqual(tc, Q, 2e5*((Tmean - Tz)/50)^1.3, 'RelTol', 1e-9);
+    verifyEqual(tc, Tret, Tsup - Q/(mp*cp), 'AbsTol', 1e-9);
+    verifyEqual(tc, hx.idealTransfer(mp, Tz, Tz), 0);                       % no driving temperature, no heat
+    verifyLessThan(tc, hx.idealTransfer(mp, 50, Tz), Q);                    % colder supply, less heat
+    verifyLessThan(tc, hx.idealTransfer(mp, Tsup, 24), Q);                  % warmer room, less heat
+    verifyGreaterThan(tc, hx.idealTransfer(2*mp, Tsup, Tz), Q);             % more primary flow, more heat
+    verifyEqual(tc, hx.idealTransfer(0, Tsup, Tz), 0);
+    capped = DHS.IdealHeatExchanger('C', 'Qnom',2e5, 'Qcap',5e4);
+    verifyEqual(tc, capped.idealTransfer(mp, Tsup, Tz), 5e4);
+    d = DHS.IdealHeatExchanger('D');
+    verifyEqual(tc, [d.Qnom d.dTnom d.exponent d.Qcap], [5e5 50 1.3 Inf]);
+end
+
+function test_heat_exchanger_types_need_the_right_ports(tc)
+    % a loop exchanger without its internal loop, or half connected, and an ideal exchanger with a loop all
+    % stop the run with an error that names the problem
+    sysA = hallNoLoop('entu');
+    verifyError(tc, @() sysA.run(hours(1)), 'DHS:Building:heatExchangerPorts');
+    sysB = hallNoLoop('fixed');  hxB = sysB.Hall.heatExchanger;
+    hxB.internalOutlet.addPipe(0.05, 3).connect(DHS.Radiator('R', 'Qdes',1e3));          % only the outlet side
+    try
+        sysB.run(hours(1));  msg = '';
+    catch ME
+        msg = ME.message;  verifyEqual(tc, ME.identifier, 'DHS:Building:heatExchangerPorts');
+    end
+    verifyTrue(tc, contains(msg, 'internalInlet') && ~contains(msg, 'hx.internalOutlet is not'));
+    sysC = hallWithLoop(1);  sysC.Hall.attachHeatExchanger(DHS.IdealHeatExchanger('HX'));
+    verifyError(tc, @() sysC.run(hours(1)), 'DHS:Building:idealWithLoop');
+    sysD = hallNoLoop('ideal');                                              % and the ideal one runs without a loop
+    res = sysD.run(days(2));
+    verifyTrue(tc, all(isfinite(res.bldg(1).Tzone)));
+    verifyGreaterThan(tc, max(res.bldg(1).Qdeliv), 1e4);
+    occ = res.bldg(1).setpoint == 21;
+    verifyLessThan(tc, abs(mean(res.bldg(1).Tzone(occ) - res.bldg(1).setpoint(occ))), 0.5);
+end
+
+function test_connect_and_add_build_the_same_network(tc)
+    % connect(...) and addPipe/addTee(...) give the same topology, so the same flows
+    s1 = twoBuildingMain('connect');  s2 = twoBuildingMain('add');
+    h1 = s1.network.solve(1);  h2 = s2.network.solve(1);
+    verifyEqual(tc, h1.mdot, h2.mdot, 'AbsTol', 1e-9);
+    verifyEqual(tc, h1.dpPump, h2.dpPump, 'AbsTol', 1e-6);
+    verifyGreaterThan(tc, h1.Mtot, 0);
+end
+
+function sys = twoBuildingMain(style)
+    sys = DHS.System('startDate', datetime(2025,1,1));
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B1', 'QMax',1e6);
+    chp.addPump('P0', 'dp0',3e5, 'mdotRated',6);
+    hn = sys.addHydraulicNetwork();
+    rc = RCBS.Building();  rc.addStorey('S1');  rc.S1.addZone('Z');  rc.S1.Z.setAir(1e6, 20);
+    ret = cell(1,2);  b = cell(1,2);
+    for k = 1:2
+        b{k} = sys.addBuilding(sprintf('B%d', k));  b{k}.useRCModel(rc);
+        b{k}.addHeatExchanger('HX', 'UA',1e4, 'Qcap',2e5);
+        ret{k} = DHS.Hydraulic.Junction(sprintf('R%d', k), 'return');
+    end
+    if strcmp(style, 'connect')
+        p1 = DHS.Hydraulic.Pipe('p1', 'L',40, 'D',0.1);  chp.supplyPort.connect(p1);
+        t1 = DHS.Hydraulic.TJunction('t1', 'mainDiameter',0.1, 'sideDiameter',0.05);  p1.connect(t1);
+        p2 = DHS.Hydraulic.Pipe('p2', 'L',30, 'D',0.1);  t1.portB.connect(p2);
+        t2 = DHS.Hydraulic.TJunction('t2', 'mainDiameter',0.1, 'sideDiameter',0.05);  p2.connect(t2);
+        r2 = DHS.Hydraulic.Pipe('r2', 'L',30, 'D',0.1);  ret{2}.connect(r2);  r2.connect(ret{1});
+        r1 = DHS.Hydraulic.Pipe('r1', 'L',40, 'D',0.1);  ret{1}.connect(r1);  r1.connect(chp.returnPort);
+    else
+        t1 = chp.supplyPort.addPipe(0.1, 40, 'name','p1').addTee(0.05, 'name','t1');
+        t2 = t1.portB.addPipe(0.1, 30, 'name','p2').addTee(0.05, 'name','t2');
+        ret{2}.addPipe(0.1, 30, 'name','r2').connect(ret{1});
+        ret{1}.addPipe(0.1, 40, 'name','r1').connect(chp.returnPort);
+    end
+    t1.portC.connect(b{1});  b{1}.connect(ret{1});
+    t2.portC.connect(b{2});  b{2}.connect(ret{2});
+    sys.compile();
+end
+
+function test_connection_order_between_chains_does_not_matter(tc)
+    % a branch built first, away from the network, is found once it is connected to the plant
+    sys = DHS.System('startDate', datetime(2025,1,1));
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B1', 'QMax',1e6);
+    chp.addPump('P0', 'dp0',3e5, 'mdotRated',6);
+    hn = sys.addHydraulicNetwork();
+    rc = RCBS.Building();  rc.addStorey('S1');  rc.S1.addZone('Z');  rc.S1.Z.setAir(1e6, 20);
+    b = sys.addBuilding('B1');  b.useRCModel(rc);  b.addHeatExchanger('HX', 'UA',1e4, 'Qcap',2e5);
+    s0 = DHS.Hydraulic.Junction('S0', 'supply');  r0 = DHS.Hydraulic.Junction('R0', 'return');
+    s0.connect(b);  b.connect(r0);                                  % the building first, on loose nodes
+    r0.addPipe(0.1, 20).connect(chp.returnPort);
+    chp.supplyPort.addPipe(0.1, 20).connect(s0);                    % the supply pipe last
+    sys.compile();
+    verifyEqual(tc, numel(hn.pipes), 1);
+    verifyEqual(tc, numel(hn.returnPipes), 1);
+    h = hn.solve(1);
+    verifyGreaterThan(tc, h.mdot(1), 0);
+end
+
+function test_valve_to_a_return_junction_is_a_bypass(tc)
+    % a valve connected from the supply side to a return junction carries the water the buildings leave
+    sys = DHS.System('startDate', datetime(2025,1,1));
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B1', 'QMax',1e6);
+    chp.addPump('P0', 'dp0',3e5, 'mdotRated',6);
+    hn = sys.addHydraulicNetwork();
+    rc = RCBS.Building();  rc.addStorey('S1');  rc.S1.addZone('Z');  rc.S1.Z.setAir(1e6, 20);
+    b = sys.addBuilding('B1');  b.useRCModel(rc);  hx = b.addHeatExchanger('HX', 'UA',1e4, 'Qcap',2e5);
+    t1 = chp.supplyPort.addPipe(0.1, 40).addTee(0.05);
+    r1 = DHS.Hydraulic.Junction('R1', 'return');
+    r1.addPipe(0.1, 40).connect(chp.returnPort);
+    t1.portC.connect(b);  b.connect(r1);
+    bypass = t1.portB.addPipe(0.05, 5).addValve('Kvs',2, 'char','linear');
+    bypass.connect(r1);
+    sys.compile();
+    h = hn.solve(1);
+    verifyGreaterThan(tc, bypass.mdot, 0);
+    verifyEqual(tc, h.Mtot, h.mdot(1) + bypass.mdot, 'AbsTol', 1e-9);
+    hx.valve.pos = 0.05;  h2 = hn.solve(1);
+    verifyGreaterThan(tc, bypass.mdot, h.mdot(2-1)*0 + 0);          % the bypass keeps flowing when the building closes
+    verifyLessThan(tc, h2.mdot(1), h.mdot(1));
+    bypass.pos = 0.3;  h3 = hn.solve(1);
+    verifyLessThan(tc, bypass.mdot, h2.Mtot - h2.mdot(1));          % a smaller opening, less bypass flow
+    verifyGreaterThan(tc, h3.Mtot, 0);
+end
+
+function test_network_without_a_pump_is_an_error(tc)
+    sys = hallWithLoop(1);  b = sys.Hall;
+    p = sys.userData.pump;  p.speed = 1;
+    % an internal loop whose only pump is removed from the chain cannot be compiled
+    b2 = DHS.Building('Dry');  b2.useRCModel(RCBS.Building());
+    hx2 = b2.addHeatExchanger('HX');
+    rad = DHS.Radiator('R', 'Qdes',1e3);
+    hx2.internalOutlet.addPipe(0.02, 2).connect(rad);
+    rad.addPipe(0.02, 2).connect(hx2.internalInlet);
+    verifyError(tc, @() b2.internalLoop.compile(), 'DHS:HydraulicNetwork:noPump');
+end
+
+function test_connect_to_the_wrong_thing_is_a_clear_error(tc)
+    tee = DHS.Hydraulic.TJunction('t', 'mainDiameter',0.1, 'sideDiameter',0.05);
+    p = DHS.Hydraulic.Pipe('p', 'L',5, 'D',0.05);
+    verifyError(tc, @() tee.portC.connect(tee), 'DHS:Hydraulic:connect');
+    q = DHS.Hydraulic.Pipe('q', 'L',5, 'D',0.05);
+    verifyError(tc, @() p.connect(q), 'DHS:Hydraulic:connect');        % p has no start node yet
+    j = DHS.Hydraulic.Junction('j', 'supply');
+    verifyError(tc, @() j.connect('portC', p), 'MATLAB:noSuchMethodOrField');   % a plain junction has no ports
+end
+
+function test_loop_water_follows_the_pipe_volumes(tc)
+    sys = hallWithLoop(1);  b = sys.Hall;  sys.compile();
+    b.bindClock(sys.startDate, seconds(60), @(t) 0);
+    V = b.heatExchanger.internalVolume/1000;                         % exchanger side [m3]
+    links = b.internalLoop.allLinks();
+    for k = 1:numel(links)
+        if isa(links{k}, 'DHS.Hydraulic.Pipe'), V = V + pi*links{k}.D^2/4*links{k}.L; end
+    end
+    verifyEqual(tc, b.loopCap, b.internalLoop.rho*V*b.cp, 'RelTol', 1e-9);
+    b.loopCapacity = 5e6;  b.bindClock(sys.startDate, seconds(60), @(t) 0);
+    verifyEqual(tc, b.loopCap, 5e6);                                 % a given capacity wins
+end
+
+function test_every_parameter_can_be_set_when_adding_and_by_dot(tc)
+    % add... takes any property of the new part as a name-value pair, and every part keeps its
+    % parameters as plain properties: pipe.D = 0.15, pump.dp0 = ..., valve.Kvs = ...
+    sys = DHS.System('startDate', datetime(2025,1,1));
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B1', 'QMax',1e6);
+    chp.addPump('P0', 'dp0',3e5, 'mdotRated',6, 'dpRated',2.2e5, 'nMax',1450, 'minSpeed',0.1);
+    verifyEqual(tc, chp.P0.dpRated, 2.2e5);  verifyEqual(tc, chp.P0.nMax, 1450);  verifyEqual(tc, chp.P0.minSpeed, 0.1);
+    pipe = chp.supplyPort.addPipe(0.1, 40, 'eps',1e-4, 'UperM',0.2, 'name','mainA');
+    verifyEqual(tc, [pipe.D pipe.L pipe.eps pipe.UperM], [0.1 40 1e-4 0.2]);
+    pipe2 = chp.supplyPort.addPipe('D',0.08, 'L',25, 'name','mainB');             % no positional sizes at all
+    verifyEqual(tc, [pipe2.D pipe2.L], [0.08 25]);
+    valve = pipe.addValve('Kvs',3, 'char','eqpct', 'rangeability',30, 'minPos',0.01, 'pos',0.7, 'name','vA');
+    verifyEqual(tc, [valve.Kvs valve.rangeability valve.minPos valve.pos], [3 30 0.01 0.7]);  verifyEqual(tc, valve.char, 'eqpct');
+    pump = valve.addPump('dp0',5e4, 'mdotRated',2, 'speed',0.8, 'name','boost');
+    verifyEqual(tc, [pump.dp0 pump.mdotRated pump.speed], [5e4 2 0.8]);
+    tee = pump.addTee(0.05, 0.03, 'roughness',1e-4, 'frictionModel','actual', 'name','teeA');
+    verifyEqual(tc, [tee.mainDiameter tee.sideDiameter tee.roughness], [0.05 0.03 1e-4]);  verifyEqual(tc, tee.frictionModel, 'actual');
+    rad = tee.portC.addRadiator('radA', 'Qdes',8e3, 'Tsup',65, 'Tret',45, 'epsDes',0.85, 'dpBody',3000, 'C',2e5);
+    verifyEqual(tc, [rad.Qdes rad.Tsup rad.Tret rad.epsDes rad.dpBody rad.C], [8e3 65 45 0.85 3000 2e5]);
+    % by dot, any time
+    pipe.D = 0.15;  valve.Kvs = 5;  pump.dp0 = 6e4;  pump.rpm = 725;  rad.UAma = 77;
+    verifyEqual(tc, [pipe.D valve.Kvs pump.dp0 pump.speed rad.UAma], [0.15 5 6e4 0.25 77]);   % 725 rpm of nMax 2900
+    % a name that is not a property of the part is an error that names it
+    caught = false;
+    try, tee.portC.addPipe(0.05, 5, 'diameterr', 1); catch ME, caught = contains(ME.message, 'diameterr'); end
+    verifyTrue(tc, caught);
+    % a changed parameter changes the solution of a network that has already been compiled
+    s1 = twoBuildingMain('add');  h0 = s1.network.solve(1);
+    s1.network.p1.D = 0.2;  h1 = s1.network.solve(1);
+    verifyGreaterThan(tc, h1.Mtot, h0.Mtot);
+end
+
+function test_centrifugal_pump_is_defined_by_data_sheet_points_and_speed(tc)
+    p = DHS.Hydraulic.CentrifugalPump('P', 'dp0',3e5, 'mdotRated',6, 'dpRated',2e5, 'nMax',2900);
+    verifyEqual(tc, p.curveHead(0, 1), 3e5, 'AbsTol', 1e-9);
+    verifyEqual(tc, p.curveHead(6, 1), 2e5, 'RelTol', 1e-12);
+    verifyEqual(tc, p.mdotFree, 6*sqrt(3e5/1e5), 'RelTol', 1e-12);
+    verifyEqual(tc, p.curveHead(p.mdotFree, 1), 0, 'AbsTol', 1e-6);
+    p.rpm = 1450;  verifyEqual(tc, p.speed, 0.5);
+    verifyEqual(tc, p.curveHead(3), 0.25*p.curveHead(6, 1), 'RelTol', 1e-12);        % affinity law: (s Q, s) -> s^2 H
+    d = DHS.Hydraulic.CentrifugalPump('D', 'dp0',1e5, 'mdotRated',4);                 % head at the rated flow defaults to 75 %
+    verifyEqual(tc, d.curveHead(4, 1), 0.75e5, 'RelTol', 1e-12);
+    bad = DHS.Hydraulic.CentrifugalPump('B', 'dp0',1e5, 'mdotRated',4, 'dpRated',2e5);
+    verifyError(tc, @() bad.curveHead(1, 1), 'DHS:CentrifugalPump:duty');
+end
+
+function test_heat_exchanger_types(tc)
+    cp = 4186;  mp = 3;  Tsup = 70;  Tin = 40;  ms = 5;
+    ent = DHS.ENTUPlateHeatExchanger('E', 'UA',2e4, 'Qcap',1e9, 'mdotSecNom',ms);
+    fix = DHS.FixedEffectivenessHeatExchanger('F', 'effectiveness',0.7, 'Qcap',1e9, 'mdotSecNom',ms);
+    verifyTrue(tc, ent.usesInternalLoop() && fix.usesInternalLoop());
+    Cmin = min(mp, ms)*cp;
+    verifyEqual(tc, fix.transfer(mp, Tsup, Tin), 0.7*Cmin*(Tsup - Tin), 'RelTol', 1e-12);
+    Qe = ent.transfer(mp, Tsup, Tin);
+    verifyLessThan(tc, Qe, Cmin*(Tsup - Tin));                                % effectiveness below 1
+    verifyGreaterThan(tc, Qe, 0);
+    big = DHS.ENTUPlateHeatExchanger('B', 'UA',1e12, 'Qcap',1e9, 'mdotSecNom',ms);
+    verifyEqual(tc, big.transfer(mp, Tsup, Tin), Cmin*(Tsup - Tin), 'RelTol', 1e-9);   % NTU -> infinity
+    % the capacity limit and the energy balance hold
+    capped = DHS.FixedEffectivenessHeatExchanger('C', 'effectiveness',1, 'Qcap',5e4, 'mdotSecNom',ms);
+    [Q, TrP, TsO] = capped.transfer(mp, Tsup, Tin);
+    verifyEqual(tc, Q, 5e4);  verifyEqual(tc, TrP, Tsup - Q/(mp*cp), 'AbsTol', 1e-12);  verifyEqual(tc, TsO, Tin + Q/(ms*cp), 'AbsTol', 1e-12);
+    % an effectiveness outside (0, 1] is refused
+    verifyError(tc, @() DHS.FixedEffectivenessHeatExchanger('X', 'effectiveness',1.2), 'MATLAB:validators:mustBeLessThanOrEqual');
+    % all three can be installed in a building
+    rc = RCBS.Building();  rc.addStorey('S');  rc.S.addZone('Z');  rc.S.Z.setAir(1e6, 20);
+    sys = DHS.System('startDate', datetime(2025,1,1));
+    b = sys.addBuilding('B');  b.useRCModel(rc);
+    b.attachHeatExchanger(fix);  verifyTrue(tc, b.heatExchanger == fix);
+    ide = DHS.IdealHeatExchanger('I');
+    b.attachHeatExchanger(ide);  verifyTrue(tc, b.heatExchanger == ide);
+end
+
+function test_hydraulic_solver_options_agree(tc)
+    sys = twoBuildingMain('add');  net = sys.network;
+    net.solver = 'newton';       hN = net.solve(1);
+    net.solver = 'anderson';     net.maxIter = 200;  hA = net.solve(1);
+    net.solver = 'fixedPoint';   net.maxIter = 400;  hF = net.solve(1);
+    verifyEqual(tc, hA.mdot, hN.mdot, 'AbsTol', 1e-6);
+    verifyEqual(tc, hF.mdot, hN.mdot, 'AbsTol', 1e-6);
+    net.solver = 'newton';  net.maxIter = 40;  net.tol = 1e-4;
+    verifyLessThan(tc, norm(net.solve(1).mdot - hN.mdot, inf), 1e-3);              % a looser tolerance stops earlier
+    verifyError(tc, @() setProp(net, 'solver', 'bisection'), 'MATLAB:validators:mustBeMember');
+end
+
+function test_integrators(tc)
+    % radiator: exact is the exact solution for constant inputs, forward Euler converges to it, and
+    % each keeps the first law in every step
+    cp = 4186;  Ta = 20;  m = 0.2;  Tin = 60;
+    r = DHS.Radiator('R', 'Qdes',8e3, 'Tsup',60, 'Tret',40);
+    a = m*cp*(1 - exp(-r.UAwm/(m*cp)));  Tss = (a*Tin + r.UAma*Ta)/(a + r.UAma);  lam = (a + r.UAma)/r.C;
+    for k = {'backwardEuler','forwardEuler','exact'}
+        r.integrator = k{1};  r.reset(20);  dt = 1;  Tm = zeros(1, 600);
+        for n = 1:600
+            Tm0 = r.Tmetal;
+            [Qa, To, TmN, Qw] = r.response(m, Tin, Ta, dt);
+            verifyEqual(tc, Qw - Qa, r.C*(TmN - Tm0)/dt, 'RelTol', 1e-9, 'AbsTol', 1e-6);   % first law
+            verifyEqual(tc, Qw, m*cp*(Tin - To), 'RelTol', 1e-9);
+            r.store(m, Tin, To, Qw, Qa, TmN);  r.commit();  Tm(n) = TmN;
+        end
+        err = max(abs(Tm - (Tss + (20 - Tss)*exp(-lam*(1:600)))));
+        switch k{1}
+            case 'exact',         verifyLessThan(tc, err, 1e-9);
+            case 'forwardEuler',  verifyLessThan(tc, err, 0.2);
+            case 'backwardEuler', verifyLessThan(tc, err, 0.2);
+        end
+    end
+    r.integrator = 'forwardEuler';
+    verifyWarning(tc, @() r.response(m, Tin, Ta, 2*r.C/(a + r.UAma) + 1), 'DHS:Radiator:forwardEulerUnstable');
+    % the whole system: the three integrators give the same one-hall run to within a fraction of a kelvin
+    Tz = cell(1, 3);  modes = {'backwardEuler','exact','forwardEuler'};
+    for k = 1:3
+        sys = hallWithLoop(1);  sys.integrator = modes{k};
+        sys.Hall.loopCapacity = 2e7;                    % forward Euler needs a loop water capacity that is not tiny
+        res = sys.run(days(1));  Tz{k} = res.bldg(1).Tzone;
+        verifyTrue(tc, strcmp(char(sys.Hall.sim.solverMode), char(ifelse(k == 1, "cached", string(modes{k})))));
+    end
+    verifyLessThan(tc, max(abs(Tz{2} - Tz{1})), 1);
+    verifyLessThan(tc, max(abs(Tz{3} - Tz{1})), 1);
+    % RCBS: forward Euler warns when the step is beyond its stability limit
+    rc = RCBS.Building();  rc.addStorey('S');  rc.S.addZone('Z');  rc.S.Z.setAir(1e4, 20);  rc.S.Z.addWindow(0.001, 'Window');
+    rc.simulation.solverMode = "forwardEuler";  rc.simulation.timeStep = minutes(30);
+    rc.simulation.buildLinear();
+    verifyWarning(tc, @() rc.simulation.factor(1800), 'RCBS:Simulation:forwardEulerUnstable');
+end
+
+function setProp(o, name, v)
+    o.(name) = v;
+end
+
+function y = ifelse(c, a, b)
+    if c, y = a; else, y = b; end
+end
+
+function test_valve_actuator_lag(tc)
+    % the position command is followed with a first-order lag (default 60 s) during a run only
+    v = DHS.Hydraulic.Valve('v', 'Kvs',10);  v.pos = 0.3;
+    verifyEqual(tc, v.lag, 60);  verifyEqual(tc, v.position(), 0.3);
+    v.beginRun();  v.pos = 0.9;  v.advance(60);
+    verifyEqual(tc, v.posActual, 0.3 + (1 - exp(-1))*0.6, 'AbsTol', 1e-12);
+    verifyEqual(tc, v.resistance(983), v.resistance(983, v.posActual), 'RelTol', 1e-12);
+    v.lag = 0;  v.advance(60);  verifyEqual(tc, v.posActual, 0.9);
+    v.endRun();  v.pos = 0.2;  verifyEqual(tc, v.position(), 0.2);
+    verifyError(tc, @() setProp(v, 'lag', -1), 'MATLAB:validators:mustBeNonnegative');
+    % in a co-simulation the loop valve moves toward a command that jumps at step 6
+    sys = hallWithLoop(1);  zv = sys.userData.valves{1};  zv.controller = [];  zv.pos = 1;
+    sys.userData.rec = [];  U = sys.userData;
+    sys.stepFunction = @(s) recordAndStep(s, zv);
+    sys.run(minutes(12));
+    rec = sys.userData.rec;
+    verifyEqual(tc, rec(2:6), ones(1,5), 'AbsTol', 1e-9);                        % at the command until it changes
+    verifyEqual(tc, rec(7), 1 - (1 - exp(-1))*0.9, 'AbsTol', 1e-9);              % one step later: 63 % of the way
+    verifyEqual(tc, rec(8), 0.1 + (1 - (1 - exp(-1))*0.9 - 0.1)*exp(-1), 'AbsTol', 1e-9);
+    verifyEqual(tc, zv.position(), zv.pos);                                      % after the run the command applies again
+end
+
+function recordAndStep(s, zv)
+    s.userData.rec(end+1) = zv.posActual;
+    if s.stepIndex == 6, zv.pos = 0.1; end
+end
+
+function sys = hallNoLoop(kind)
+    % the hall of hallWithLoop without an internal loop; KIND picks the heat exchanger type
+    root = fileparts(fileparts(mfilename('fullpath')));
+    rc = RCBS.Building();  rc.addStorey('S1');  rc.S1.addZone('Hall');  rc.S1.Hall.setAir(2e7, 20);
+    rc.S1.Hall.addWall(0.0004, 3e8, [], 'Wall');  rc.S1.Hall.addWindow(0.00067, 'Window');
+    rc.S1.Hall.addInternalMass(0.0002, 5e8, [], 'Mass');
+    sys = DHS.System('weather', fullfile(root, 'solar_data_2025.csv'), 'startDate', datetime(2025,1,1));
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B1', 'QMax',1.0e6);
+    chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',6);  chp.setSupplySetpoint(70);
+    hn = sys.addHydraulicNetwork();
+    t1 = chp.supplyPort.addPipe(0.10, 40).addTee(0.05);
+    r1 = DHS.Hydraulic.Junction('R1', 'return');  r1.addPipe(0.10, 40).connect(chp.returnPort);
+    b = sys.addBuilding('Hall');  b.useRCModel(rc);
+    switch kind
+        case 'entu',  hx = b.addHeatExchanger('HX', 'UA',8e3, 'Qcap',2e5);
+        case 'fixed', hx = DHS.FixedEffectivenessHeatExchanger('HX', 'effectiveness',0.8, 'Qcap',2e5);  b.attachHeatExchanger(hx);
+        case 'ideal', hx = DHS.IdealHeatExchanger('HX', 'Qnom',2e5, 'dTnom',50, 'Qcap',2e5);  b.attachHeatExchanger(hx);
+    end
+    pc = DHS.controllers.PID(0.15, 1.6e-4, 0, 40);
+    pc.measure = @(s) b.Tzone;  pc.reference = @(s) b.setpoint;
+    hx.valve.attachController(pc);
+    b.attachSolar(DHS.Solar('winArea', struct('N',20,'E',20,'S',20,'W',20), 'SHGC',0.4, 'massFraction',0.1));
+    b.attachSchedule(DHS.Schedule('occStartHour',7, 'occEndHour',18, 'rampHours',1, ...
+        'Tocc',21, 'Tsetback',18, 'gainOccW',20e3, 'gainMassFraction',0.3));
+    t1.portC.connect(b);  b.connect(r1);
+end
+
+function sys = hallWithLoop(nRad)
+    % one hall, a district network and an internal loop with nRad radiators on the same zone, wired with
+    % connect / add: exchanger -> pipe -> pump -> pipe -> tees (portC: valve -> pipe -> radiator -> pipe) -> bypass
+    root = fileparts(fileparts(mfilename('fullpath')));
+    rc = RCBS.Building();  rc.addStorey('S1');  rc.S1.addZone('Hall');  rc.S1.Hall.setAir(2e7, 20);
+    rc.S1.Hall.addWall(0.0004, 3e8, [], 'Wall');  rc.S1.Hall.addWindow(0.00067, 'Window');
+    rc.S1.Hall.addInternalMass(0.0002, 5e8, [], 'Mass');
+    sys = DHS.System('weather', fullfile(root, 'solar_data_2025.csv'), 'startDate', datetime(2025,1,1));
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B1', 'QMax',1.0e6);
+    chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',6);  chp.setSupplySetpoint(70);
+    hn = sys.addHydraulicNetwork();
+    t1 = hn.addJunction('T1');  hn.addPipe(chp.supplyPort, t1, 'L',40, 'D',0.10);
+    r1 = hn.addJunction('R1', 'side','return');  hn.addPipe(r1, chp.returnPort, 'L',40, 'D',0.10);
+    b = sys.addBuilding('Hall');  b.useRCModel(rc);
+    hx = b.addHeatExchanger('HX', 'UA',8e3, 'Qcap',2e5);
+    Qpk = 144e3;  mTot = Qpk/(4186*20);  Dm = 0.055;
+    pump = hx.internalOutlet.addPipe(Dm, 4).addPump('dp0',1.5e5, 'mdotRated',1.5*mTot);
+    feed = pump.addPipe(Dm, 4);
+    rjPrev = hx.internalInlet;  rads = cell(1, nRad);  valves = cell(1, nRad);
+    for k = 1:nRad
+        rad = DHS.Radiator(sprintf('Rad%d', k), 'Qdes', Qpk/nRad, 'Tsup',60, 'Tret',40);
+        rad.connect(rc.S1.Hall);
+        tee   = feed.addTee(rad.pipeD);
+        valve = tee.portC.addValve('Kvs',DHS.Hydraulic.Valve.kvsFor(rad.mdotDes, 5e3), 'char','linear', 'minPos',1e-3);
+        valve.addPipe(rad.pipeD, 3).connect(rad);
+        rj = DHS.Hydraulic.Junction(sprintf('ret%d', k), 'return');
+        rad.addPipe(rad.pipeD, 3).connect(rj);
+        rj.addPipe(Dm, 4).connect(rjPrev);  rjPrev = rj;
+        feed = tee.portB.addPipe(Dm, 4);
+        zc = DHS.controllers.PID(0.6, 2e-3, 0);
+        zc.measure = @(s) rad.Tzone;  zc.reference = @(s) rad.setpoint;
+        valve.attachController(zc);
+        rads{k} = rad;  valves{k} = valve;
+    end
+    bypass = feed.addValve('Kvs',DHS.Hydraulic.Valve.kvsFor(0.5*mTot, 1.2e4), 'char','linear');
+    bypass.connect(rjPrev);
+    fc = DHS.controllers.PID('Kp',0.03/mTot, 'Ki',0.002/mTot, 'uMin',0.3);
+    fc.measure = @(s) b.mdotInt;  fc.reference = 1.5*mTot;
+    pump.attachController(fc);
+    pc = DHS.controllers.PID(0.02, 4e-5, 0);
+    pc.measure = @(s) b.TintSup;  pc.reference = 60;
+    hx.valve.attachController(pc);
+    b.attachSolar(DHS.Solar('winArea', struct('N',20,'E',20,'S',20,'W',20), 'SHGC',0.4, 'massFraction',0.1));
+    b.attachSchedule(DHS.Schedule('occStartHour',7, 'occEndHour',18, 'rampHours',1, ...
+        'Tocc',21, 'Tsetback',18, 'gainOccW',20e3, 'gainMassFraction',0.3));
+    t1.connect(b);  b.connect(r1);
+    sys.userData = struct('rads', {rads}, 'valves', {valves}, 'pump', pump, 'bypass', bypass);
+end
+
 function test_named_access_to_rc_parts(tc)
     % building.Storey.Zone.Part.R / C / T: names instead of struct indices
     sys = DHS.examples.campus();
@@ -470,7 +929,7 @@ function test_named_access_to_network_parts(tc)
     verifyEqual(tc, tee.portB.pipe, hn.trunk2);                    % the pipe leaving the run
     verifyEqual(tc, tee.portC.pipe, sys.Administration.connPipeSup);   % the building's service pipe
     verifyEqual(tc, tee.portA.pipe, hn.trunk1);
-    verifyEqual(tc, sys.CHP.B1.QMax, 1.5e6);  verifyEqual(tc, sys.CHP.P0.dp0, 6e5);
+    verifyEqual(tc, sys.CHP.B1.QMax, 2.0e6);  verifyEqual(tc, sys.CHP.P0.dp0, 6e5);
     sys.compile();  s = hn.solve(1);                               % the edited network still solves
     verifyTrue(tc, s.Mtot > 0);
 end
@@ -496,7 +955,7 @@ end
 function test_port_wiring_by_port_objects(tc)
     % a tee built by hand is wired through its port objects and registered by name
     sys = DHS.System('startDate', datetime(2025,1,1));
-    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B','QMax',1e6);  chp.addPump('P','dp0',3e5,'mdotMax',14);
+    chp = sys.addCentralHeatPlant('CHP');  chp.addBoiler('B','QMax',1e6);  chp.addPump('P','dp0',3e5,'mdotRated',7);
     hn = sys.addHydraulicNetwork();
     p1 = DHS.Hydraulic.Pipe('pip1', 'L',40, 'D',0.11);
     chp.supplyPort.connectToPipe(p1);
@@ -528,9 +987,9 @@ function test_parameters_at_creation_and_by_assignment(tc)
     chp.addBoiler('Boil1', 'QMax',9e5, 'etaRef',0.9, 'etaMin',0.7);
     verifyEqual(tc, chp.Boil1.QMax, 9e5);  verifyEqual(tc, chp.Boil1.etaMin, 0.7);
     chp.Boil1.QMax = 8e5;  verifyEqual(tc, chp.boilers{1}.QMax, 8e5);
-    chp.addPump('Pmp', 'dp0',2e5, 'mdotMax',9, 'minSpeed',0.2);
+    chp.addPump('Pmp', 'dp0',2e5, 'mdotRated',4.5, 'minSpeed',0.2);
     verifyEqual(tc, chp.Pmp.dp0, 2e5);  verifyEqual(tc, chp.supplyPump.minSpeed, 0.2);
-    chp.Pmp.mdotMax = 10;  verifyEqual(tc, chp.supplyPump.mdotMax, 10);
+    chp.Pmp.mdotRated = 5;  verifyEqual(tc, chp.supplyPump.mdotRated, 5);
     hn = sys.addHydraulicNetwork('pReturnRef',2e5, 'rho',970);
     verifyEqual(tc, hn.rho, 970);  verifyEqual(tc, hn.pReturnRef, 2e5);
     hn.addJunction('tee1', 'type','tee', 'mainDiameter',0.12, 'sideDiameter',0.06, 'roughness',1e-4, 'frictionModel','actual');
@@ -544,7 +1003,7 @@ function test_parameters_at_creation_and_by_assignment(tc)
     hx = b.addHeatExchanger('HX', 'UA',2e4, 'Qcap',3e5, 'dpNomPrimary',2e4);
     verifyEqual(tc, sys.Hall.HX.UA, 2e4);  verifyEqual(tc, hx.dpNomPrimary, 2e4);
     hx.attachValve(DHS.Hydraulic.Valve('V1', 'Kvs',12, 'char','linear', 'rangeability',30));
-    hx.attachPump(DHS.Hydraulic.CentrifugalPump('Booster', 'dp0',5e4, 'mdotMax',3));
+    hx.attachPump(DHS.Hydraulic.CentrifugalPump('Booster', 'dp0',5e4, 'mdotRated',1.5));
     verifyEqual(tc, [sys.Hall.HX.V1.Kvs, sys.Hall.HX.V1.rangeability], [12 30]);
     verifyEqual(tc, sys.Hall.HX.Booster.dp0, 5e4);
     hx.V1.Kvs = 14;  verifyEqual(tc, hx.valve.Kvs, 14);

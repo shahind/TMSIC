@@ -25,14 +25,11 @@ b.S1.Lab.addWall(0.02, 2e7, [], 'Wall');
 b.S1.Lab.addWindow(0.01, 'Window');
 b.S1.Lab.connectToZone(b.S1.Corridor, 0.02, 'Partition', 5e6);
 
-% A district network: connect a pipe's output to the next part
-pipe1 = DHS.Hydraulic.Pipe('pipe1', 'L',40, 'D',0.11);
-chp.supplyPort.connectToPipe(pipe1);
-tee1  = pipe1.addTjunction('T1', 0.05);
-ret1  = DHS.Hydraulic.Pipe('ret1', 'L',45, 'D',0.13);      % the return side is wired separately
-r1    = DHS.Hydraulic.Junction('R1', 'return');
-r1.connectToPipe(ret1);  ret1.connectOutput(chp.returnPort);
-hn.connectBuilding(tee1, building, r1);
+% A district network: connect each part to the next, or create and connect it in one call
+tee1 = chp.supplyPort.addPipe(0.11, 40).addTee(0.05);        % pipe from the plant, then a tee
+r1   = DHS.Hydraulic.Junction('R1', 'return');               % the return side is wired separately
+r1.addPipe(0.13, 45).connect(chp.returnPort);
+tee1.portC.connect(building);  building.connect(r1);         % a building hangs on the tee and drains into R1
 
 % A control law: attach it to the actuator it drives
 c = DHS.controllers.PID(0.14, 1.6e-4, 0);
@@ -47,7 +44,7 @@ Four rules follow from this. A part owns its parameters and its live state as pr
 you set and read them directly. A part can be replaced by another of the same kind without
 touching the rest of the model, for example a centrifugal pump by a fixed-displacement pump,
 or a PID by an LQR, in one line. The pipe network can be described in two equivalent styles
-(a declarative one that names the two nodes of each pipe, and a port-wiring one that connects
+(a declarative one that names the two nodes of each pipe, and a connecting one that connects
 outputs to inputs), and both reach the same solver. Finally, `RCBS` never depends on `DHS`,
 so the building models can be used alone.
 
@@ -59,8 +56,9 @@ so the building models can be used alone.
 - **Export a linear model.** `getStateSpace` returns the continuous state-space system for
   controller design or parameter identification.
 - **Assemble a district heating system.** A central plant with boilers and a pump, a pipe
-  network with T-junctions, and buildings with a plate heat exchanger, a control valve and a
-  pump. Pumps are centrifugal or fixed-displacement.
+  network with T-junctions, and buildings with a plate heat exchanger and a control valve.
+  A building can have an internal loop of its own, with a pump and a radiator and valve at
+  every zone. Pumps are centrifugal or fixed-displacement.
 - **Swap the control law.** `PID`, `LQR` and `Relay` share one interface, and a custom law
   needs two methods.
 - **Fit models to data.** Two worked examples identify RC parameters of a single zone and of
@@ -68,8 +66,8 @@ so the building models can be used alone.
 - **Run quickly.** A five-building campus simulated for 14 days at one-minute steps (20,161
   steps) takes about 30 s on the development machine. The 30-zone version takes one to two
   minutes.
-- **Trust the physics.** Eighteen component checks compare each part with a closed-form
-  solution or a published correlation, and 37 unit tests cover the interfaces
+- **Trust the physics.** Twenty component checks compare each part with a closed-form
+  solution or a published correlation, and 40 unit tests cover the interfaces
   ([validation report](validation/README.md)).
 
 ## Examples
@@ -79,16 +77,16 @@ All examples are in `examples/` and run without extra data. Start with `dhs_camp
 | Script | What it shows |
 |---|---|
 | `RCBS_example.m` | A three-storey, seven-zone building built by hand: walls, windows, internal mass, capacitive partitions and slabs, and two heat inputs. It simulates three days and draws the RC schematic. |
-| `dhs_campus.m` | A five-building campus on one gas plant. It builds the network with the port-wiring API, runs 14 days, prints a plausibility summary and plots the plant and building signals. The assembly is in `+DHS/+examples/campus.m`. |
+| `dhs_campus.m` | A five-building campus on one gas plant. It builds the network with connect and add calls, runs 14 days, prints a plausibility summary and plots the plant and building signals. The assembly is in `+DHS/+examples/campus.m`. |
 | `dhs_campus_with_bypass.m` | The same campus with an end-of-line bypass added to the supply main by one `addBypass` call, with the flow through it plotted. Shows how to add a bypass and, in comments, how to control its valve. |
-| `dhs_campus_multizone.m` | The same campus with 30 zones of different room types, all served by one substation per building. It prints the temperature error of every zone and shows where building-level control stops being enough. |
+| `dhs_campus_multizone.m` | The same campus with 30 zones of different room types, each building served by one substation, with a radiator and valve per zone. It prints the temperature error of every zone and shows where building-level control stops being enough. |
 | `system_identification.m` | Fits a 10-parameter single-zone model (topology R5C4) to a temperature record and checks it on held-out data. On the synthetic record supplied, the validation error is 0.15 °C. |
 | `multi_zone_system_identification.m` | The same procedure for an eight-zone building with 75 parameters, fitted against eight measured zone temperatures at once. |
 
 <img src="docs/images/dhs_campus_buildings.png" alt="Zone temperatures, delivered heat and valve positions of the five campus buildings over 14 days" width="720">
 
-In the campus run the plant supply temperature stays between 65.3 and 75.1 °C around a 70 °C
-setpoint, the boiler efficiency ranges from 0.879 to 0.925, and the energy balance closes to
+In the campus run the plant supply temperature stays between 61.8 and 76.4 °C around a 70 °C
+setpoint, the boiler efficiency ranges from 0.858 to 0.974, and the energy balance closes to
 0.00 % over the two weeks.
 
 ## Getting started
@@ -100,8 +98,8 @@ Optimization Toolbox for the two identification examples. The rest runs on base 
 ```matlab
 setup                              % adds the toolbox folders to the path
 run('examples/dhs_campus.m')       % a first district heating simulation
-runtests('tests')                  % 37 unit tests
-run_all_validation                 % 18 accuracy checks and their figures
+runtests('tests')                  % 40 unit tests
+run_all_validation                 % 19 accuracy checks and their figures
 ```
 
 ## Documentation
@@ -113,9 +111,11 @@ inputs and outputs, and a short example that you can run.
 |---|---|
 | [`docs/rcbs-building.md`](docs/rcbs-building.md) | `RCBS.Building`, `Storey`, `Zone` and `Simulation`: the RC network, its equations and the solver. |
 | [`docs/dhs-system.md`](docs/dhs-system.md) | `DHS.System`: assembling and running a district heating system, and its results. |
+| [`docs/dhs-internal-loop.md`](docs/dhs-internal-loop.md) | A building's internal loop: radiators with a valve per zone, the loop water and the pump. |
+| [`docs/dhs-solvers.md`](docs/dhs-solvers.md) | The solvers: the hydraulic solver (Newton, Anderson, fixed point), the time integrators (backward Euler, forward Euler, exact) and the step. |
 | [`docs/dhs-hydraulic.md`](docs/dhs-hydraulic.md) | Pipes, junctions, T-junctions, both pump types and valves, with both ways of wiring a network. |
 | [`docs/dhs-plant.md`](docs/dhs-plant.md) | `CentralHeatPlant` and `Boiler`: plant water dynamics and burner control. |
-| [`docs/dhs-heat-exchanger.md`](docs/dhs-heat-exchanger.md) | `HeatExchanger`: heat transfer and pressure loss of a substation. |
+| [`docs/dhs-heat-exchanger.md`](docs/dhs-heat-exchanger.md) | `HeatExchanger` and its three types (eNTU plate, fixed effectiveness, ideal): heat transfer and pressure loss of a substation. |
 | [`docs/dhs-building.md`](docs/dhs-building.md) | `DHS.Building`: a building on the loop, with one zone or several. |
 | [`docs/dhs-controllers.md`](docs/dhs-controllers.md) | `PID`, `LQR`, `Relay` and how to write your own controller. |
 | [`docs/dhs-weather-solar-schedule.md`](docs/dhs-weather-solar-schedule.md) | Weather data, solar gains and occupancy schedules. |

@@ -3,7 +3,7 @@ function V = validate_heat_exchanger(plotMode)
 %                         effectiveness relations and the limiting cases.
 %
 %   COMPONENT      heatExchanger(mdot_p, Tsup_p, Tsec_in, UA, CdotSec, Qcap, cp)
-%                  (also DHS.HeatExchanger.transfer, same core)
+%                  (also DHS.ENTUPlateHeatExchanger.transfer, same core)
 %
 %   TEST CASE + REFERENCE  (effectiveness-NTU relations, counterflow)
 %
@@ -21,6 +21,15 @@ function V = validate_heat_exchanger(plotMode)
 %     E  first law:  heat gained by the secondary = heat lost by the primary
 %     F  capacity clamp:  Q <= Qcap
 %     G  no reverse transfer:  Tsup_p <= Tsec_in  =>  Q = 0
+%
+%   Sub-cases (the three exchanger types, DHS.HeatExchanger.transfer):
+%     K  ENTUPlateHeatExchanger.transfer equals the independent heatExchanger() function above
+%        at several flows and temperatures (it is the same relation in the toolbox's own class).
+%     L  FixedEffectivenessHeatExchanger:  Q = eps Cmin (Tsup_p - Tsec_in) with the user's eps, whatever the
+%        flows; the capacity clamp and the first law hold.
+%     M  IdealHeatExchanger (a building without an internal loop): the exchanger is a radiator that the
+%        district water flows through, Q = Qnom ((Tsup - Q/(2 Cp) - Tzone)/dTnom)^n, solved here independently
+%        with fzero; the heat depends only on the district temperature, flow and the room temperature.
 %
 %   COMPONENT (hydraulic)  DHS.HeatExchanger.primaryResistance(rho)
 %       K = valve.resistance(rho) + dpNomPrimary/mdotNomPrimary^2
@@ -101,7 +110,7 @@ function V = validate_heat_exchanger(plotMode)
 
     % ---- H: hydraulic additivity at the design point ----
     rho = 978;  Kvs = 30;
-    hx = DHS.HeatExchanger('HX', 'Qcap',5e5, 'dpNomPrimary',3.0e4, 'mdotNomPrimary',4.0);
+    hx = DHS.ENTUPlateHeatExchanger('HX', 'Qcap',5e5, 'dpNomPrimary',3.0e4, 'mdotNomPrimary',4.0);
     hx.valve.Kvs = Kvs;  hx.valve.pos = 1;
     mNom = hx.mdotNomPrimary;
     Ktotal = hx.primaryResistance(rho);
@@ -117,18 +126,42 @@ function V = validate_heat_exchanger(plotMode)
     %   K = valve.resistance + dpNomPrimary/mNom^2  =>  mNom = sqrt(dpNomPrimary/(K - valve.resistance))
     impliedMdotNom = @(hxObj) sqrt(hxObj.dpNomPrimary / (hxObj.primaryResistance(rho) - hxObj.valve.resistance(rho)));
 
-    hxBig = DHS.HeatExchanger('HXbig', 'Qcap',8.0e5, 'cp',cp);   % well above the 0.5 kg/s floor
+    hxBig = DHS.ENTUPlateHeatExchanger('HXbig', 'Qcap',8.0e5, 'cp',cp);   % well above the 0.5 kg/s floor
     hxBig.valve.Kvs = 1e6;  hxBig.valve.pos = 1;
     mBigRef = hxBig.Qcap / (cp*20);
     eI1 = abs(impliedMdotNom(hxBig) - mBigRef) / mBigRef;
 
-    hxSmall = DHS.HeatExchanger('HXsmall', 'Qcap',1.0e3, 'cp',cp);  % tiny Qcap -> hits the 0.5 kg/s floor
+    hxSmall = DHS.ENTUPlateHeatExchanger('HXsmall', 'Qcap',1.0e3, 'cp',cp);  % tiny Qcap -> hits the 0.5 kg/s floor
     hxSmall.valve.Kvs = 1e6;  hxSmall.valve.pos = 1;
     eI2 = abs(impliedMdotNom(hxSmall) - 0.5) / 0.5;
 
     % ---- J: typical-range check (20-60 kPa) ----
-    hxDefault = DHS.HeatExchanger('HXdef');
+    hxDefault = DHS.ENTUPlateHeatExchanger('HXdef');
     okJ = hxDefault.dpNomPrimary >= 20e3 && hxDefault.dpNomPrimary <= 60e3;
+
+    % ---- K, L, M: the three exchanger types ----
+    pts = [3 60 20 10; 1.2 70 35 0.8; 8 55 10 4];            % mdot_p, Tsup, Tsec_in, mdot_s
+    ent = DHS.ENTUPlateHeatExchanger('E', 'UA',2.5e4, 'Qcap',1e9, 'cp',cp);
+    fixed = DHS.FixedEffectivenessHeatExchanger('F', 'effectiveness',0.7, 'Qcap',1e9, 'cp',cp);
+    ideal = DHS.IdealHeatExchanger('I', 'Qnom',2e5, 'dTnom',50, 'exponent',1.3, 'cp',cp);
+    big = DHS.ENTUPlateHeatExchanger('B', 'UA',1e12, 'Qcap',1e9, 'cp',cp);
+    eK = 0;  eL = 0;  eM = 0;  eBig = 0;
+    for k = 1:size(pts,1)
+        m1 = pts(k,1);  Tsp = pts(k,2);  Tsi = pts(k,3);  m2 = pts(k,4);
+        Qk = ent.transfer(m1, Tsp, Tsi, m2);
+        Qr = heatExchanger(m1, Tsp, Tsi, ent.UA, m2*cp, 1e9, cp);
+        eK = max(eK, abs(Qk - Qr)/Qr);
+        Cm = min(m1, m2)*cp;
+        [Ql, Trl, Tsl] = fixed.transfer(m1, Tsp, Tsi, m2);
+        eL = max([eL, abs(Ql - 0.7*Cm*(Tsp - Tsi))/Ql, abs(Ql - m1*cp*(Tsp - Trl))/Ql, abs(Ql - m2*cp*(Tsl - Tsi))/Ql]);
+        [Qm, Trm] = ideal.idealTransfer(m1, Tsp, Tsi);                 % Tsi plays the room temperature here
+        Cp1 = m1*cp;
+        QmRef = fzero(@(Q) 2e5*((Tsp - Q/(2*Cp1) - Tsi)/50)^1.3 - Q, [0 Cp1*(Tsp - Tsi)]);
+        eM = max([eM, abs(Qm - QmRef)/QmRef, abs(Trm - (Tsp - QmRef/Cp1))/Tsp]);
+        eBig = max(eBig, abs(big.transfer(m1, Tsp, Tsi, m2) - Cm*(Tsp - Tsi))/(Cm*(Tsp - Tsi)));   % NTU -> infinity limit
+    end
+    capL = DHS.FixedEffectivenessHeatExchanger('C', 'effectiveness',0.9, 'Qcap',2e4, 'cp',cp);
+    okL = abs(capL.transfer(3, 70, 20, 5) - 2e4) < 1e-9 && fixed.transfer(3, 20, 40, 5) == 0;
 
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
     C(1) = mk('A  general point: eps-NTU counterflow formula',   Qref, Qa,  1e-6, 'rel');
@@ -142,7 +175,12 @@ function V = validate_heat_exchanger(plotMode)
     C(9) = mk('I  default mdotNomPrimary = Qcap/(cp*20K)',           mBigRef, impliedMdotNom(hxBig), 1e-6, 'rel');
     C(10)= mk('I  default mdotNomPrimary floors at 0.5 kg/s',        0.5, impliedMdotNom(hxSmall), 1e-6, 'rel');
     C(11)= mk('J  default dpNomPrimary within typical 20-60 kPa', 1, double(okJ), 0, 'abs');
-    V.name = 'eps-NTU heat exchanger vs closed-form effectiveness, limits, and primary-side pressure loss';
+    C(12)= mk('K  ENTUPlateHeatExchanger = independent eps-NTU function (rel)', 0, eK, 1e-12, 'abs');
+    C(13)= mk('L  fixed effectiveness: Q = eps Cmin dT; first law (rel)',     0, eL, 1e-12, 'abs');
+    C(14)= mk('L  fixed effectiveness: clamp to Qcap and no reverse transfer', 1, double(okL), 0, 'abs');
+    C(15)= mk('M  ideal exchanger: radiator law of the district water (rel)',  0, eM, 1e-9, 'abs');
+    C(16)= mk('K  NTU -> infinity gives Q = Cmin dT (rel)',                    0, eBig, 1e-9, 'abs');
+    V.name = 'Heat exchangers: eps-NTU vs closed-form effectiveness, limits, fixed effectiveness, ideal, and primary-side pressure loss';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eA',eA,'eB',eB,'eC',eC,'eD',eD,'eE',eE,'eH',eH,'eI1',eI1,'eI2',eI2);
 

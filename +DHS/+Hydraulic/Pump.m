@@ -1,4 +1,4 @@
-classdef (Abstract) Pump < handle
+classdef (Abstract) Pump < DHS.Hydraulic.Link
 % DHS.HYDRAULIC.PUMP  Abstract circulating pump: the common interface every pump
 %                     type in +DHS implements.
 %
@@ -19,6 +19,12 @@ classdef (Abstract) Pump < handle
 %   is switched on or controlled; a stopped substation pump adds no head and no
 %   resistance.
 %
+%   IN-LINE PUMP  A pump can also sit anywhere in a network between two nodes, like a pipe: it
+%   adds its head at that point, whatever follows. Wire it like a pipe,
+%       hn.addPump(nodeA, nodeB, 'name','P1', 'dp0',5e4, 'mdotRated',1.5)
+%   or  node.connect(pump);  pump.connect(nextNode)      or  pipe.addPump('dp0',5e4, 'mdotRated',1.5)
+%   Its speed (pump.speed, or a controller attached with pump.attachController) sets the head.
+%
 %   HOW THE NETWORK USES A PUMP
 %     curveHead(mdot, frac)         central-pump role: the head this pump adds
 %                                   at the plant header for a given total network
@@ -37,7 +43,9 @@ classdef (Abstract) Pump < handle
 %
 %   PROPERTIES (SI)
 %     name      char
-%     speed     [-]     0..1 speed fraction (control input; default 1)
+%     speed     [-]     0..1 fraction of the maximum rotational speed nMax (control input; default 1)
+%     nMax      [rpm]   maximum rotational speed                                  (2900)
+%     rpm       [rpm]   rotational speed, speed*nMax (read and write; setting it sets speed)
 %     minSpeed  [-]     floor applied to speed                     (0)
 %     controller        [] or a DHS.controllers.Controller
 %     hostPort          the DHS.Hydraulic.Junction this pump is attached at
@@ -52,21 +60,52 @@ classdef (Abstract) Pump < handle
     properties
         name      (1,:) char = ''
         speed     (1,1) double = 1
+        nMax      (1,1) double = 2900
         minSpeed  (1,1) double = 0
         controller             = []
         hostPort                = []
     end
-    properties (SetAccess = ?DHS.HydraulicNetwork)
+    properties (SetAccess = {?DHS.HydraulicNetwork, ?DHS.Building, ?DHS.Radiator, ?DHS.Hydraulic.Pump})
         head (1,1) double = 0
         mdot (1,1) double = 0
+    end
+    properties (SetAccess = private)
+        Tin  (1,1) double = NaN
+        Tout (1,1) double = NaN
+        Qloss (1,1) double = 0
+        dp   (1,1) double = 0
+    end
+    properties (Dependent)
+        rpm                                  % rotational speed [rpm] = speed * nMax
     end
 
     methods (Abstract)
         h = curveHead(obj, mdot, frac)
         [m, h] = solveBranch(obj, Kbranch, dpAvailable, frac)
+        [K, H] = inlineCurve(obj)
     end
 
     methods
+        function v = get.rpm(obj),  v = obj.speed * obj.nMax; end
+        function set.rpm(obj, v),   obj.speed = v / obj.nMax; end
+
+        function [K, H] = linkLoss(obj, mdot, rho, mu) %#ok<INUSD>
+            % LINKLOSS  The pump as a link: head gain H and internal loss K mdot^2 at its speed.
+            [K, H] = obj.inlineCurve();
+            if obj.speed <= 0, K = 0;  H = 0; end                % stopped: bypassed, no head and no resistance
+        end
+
+        function setFlow(obj, Q, dp, rho) %#ok<INUSD>
+            % SETFLOW  Store the solved flow and the pressure change across the pump.
+            obj.mdot = Q;  obj.dp = dp;  obj.head = -dp;
+        end
+
+        function [Tout, Qloss] = outletTemperature(obj, Tin, Tground, mdot, cp) %#ok<INUSD>
+            % OUTLETTEMPERATURE  The water passes through unchanged (pump heat is ignored).
+            Tout = Tin;  Qloss = 0;
+            obj.Tin = Tin;  obj.Tout = Tout;  obj.Qloss = 0;
+        end
+
         function obj = Pump(name, varargin)
             if nargin >= 1, obj.name = name; end
             for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
@@ -80,7 +119,7 @@ classdef (Abstract) Pump < handle
         end
 
         function j = inlet(obj)
-            % INLET  Port-wiring target for a pipe feeding this pump.
+            % INLET  Wiring target for a pipe feeding this pump.
             %   The plant and each substation are one lumped pressure node in
             %   this model (their internal pump does not add a separate node),
             %   so inlet and outlet both resolve to obj.hostPort -- see

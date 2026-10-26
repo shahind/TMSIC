@@ -36,6 +36,22 @@ classdef Building < dynamicprops
 %   heating demand  area * max(0, setpoint - T_zone). Ventilation and free-cooling
 %   are applied per zone.
 %
+%   INTERNAL LOOP  (optional; without it the substation is ideal: the exchanger's heat goes straight
+%   to the zones, shared by demand). The loop starts at the exchanger's internal outlet and ends at its
+%   internal inlet; you connect its components like the district network, and nothing else is needed:
+%     hx = b.addHeatExchanger('HX', ...);
+%     p1   = hx.internalOutlet.addPipe(0.05, 4);          % pipe from the exchanger
+%     pump = p1.addPump('dp0',3e4, 'mdotRated',1);          % loop pump
+%     tee  = pump.addPipe(0.05, 4).addTee(0.032);         % tee, side port 32 mm
+%     valve = tee.portC.addValve('Kvs',4);                % zone valve
+%     rad  = valve.addRadiator('rad1', 'Qdes',8e3);       % radiator (a DHS.Radiator)
+%     rad.connect(zone1, R);                              % heat to an RCBS zone (R in K/W)
+%     rad.addPipe(0.05, 4).connect(hx.internalInlet);     % return to the exchanger
+%   The loop pump, the zone valves and the district valve (hx.valve) each take a controller; the
+%   exchanger heats the loop water, each radiator (DHS.Radiator) turns it into heat at its zone, and
+%   the zones stay RC models. The water in the loop is a lumped capacity at the supply side, from the
+%   volume of the loop pipes plus hx.internalVolume (b.loopCapacity [J/K] overrides it).
+%
 %   PER-STEP PROTOCOL  (driven by DHS.System)
 %     prepare(t, wx)          sample schedule + solar (per zone if multi-zone)
 %     u = control(sys, dt)    run the valve/pump controllers -> valve command in [0,1]
@@ -45,7 +61,10 @@ classdef Building < dynamicprops
     properties
         name (1,:) char = ''
 
-        heatExchanger DHS.HeatExchanger
+        heatExchanger                     % a DHS.HeatExchanger: ENTUPlate, FixedEffectiveness or Ideal
+        internalLoop                      % DHS.HydraulicNetwork of the building's internal loop ([] = ideal substation)
+        radiators cell = {}               % the DHS.Radiator of each zone
+        loopCapacity (1,1) double = NaN   % [J/K] heat capacity of the loop water; NaN = from the pipe volumes and hx.internalVolume
         solar         DHS.Solar          % single-zone only
         schedule      DHS.Schedule       % single-zone only
 
@@ -64,6 +83,7 @@ classdef Building < dynamicprops
         freeCoolDeadband (1,1) double  = 0.5
 
         cp (1,1) double = 4186
+        integrator (1,:) char {mustBeMember(integrator, {'backwardEuler','forwardEuler','exact'})} = 'backwardEuler'   % for the loop water and the radiators (set by DHS.System)
 
         % --- multi-zone: one descriptor per RC zone (empty => single-zone) ---
         zones struct = struct('key',{},'area',{},'roomType',{},'solar',{},'schedule',{}, ...
@@ -94,6 +114,21 @@ classdef Building < dynamicprops
         Qia (1,1) double = 0
         Qim (1,1) double = 0
         mz  struct = struct()             % multi-zone per-step vectors
+        % internal loop
+        TintSup (1,1) double = NaN        % loop supply temperature leaving the exchanger [degC]
+        TintRet (1,1) double = NaN        % loop return temperature entering the exchanger [degC]
+        mdotInt (1,1) double = 0          % loop flow [kg/s]
+        QlossLoop (1,1) double = 0        % heat the loop pipes lose to the building [W]
+        radZone double = []               % zone index of each radiator
+        radBranch double = []             % branch index of each radiator in the internal loop
+        radMdot double = []               % flow of each branch [kg/s]
+        TintState (1,1) double = NaN      % loop supply temperature at the start of the step
+        loopCap   (1,1) double = 1e6      % heat capacity of the loop water in use [J/K]
+    end
+    properties (Dependent)
+        supplyNode                        % the junction the building is fed from
+        returnNode                        % the junction it drains into
+        teeSide                           % '' | 'run' | 'branch' of the tee it hangs on
     end
     properties
         inlet  DHS.Hydraulic.Junction     % supply-side port
@@ -126,7 +161,7 @@ classdef Building < dynamicprops
         function hx = addHeatExchanger(obj, name, varargin)
             % ADDHEATEXCHANGER  Create the substation HX (+ its valve and pump).
             if nargin < 2, name = [obj.name '.HX']; end
-            hx = DHS.HeatExchanger(name, varargin{:});
+            hx = DHS.ENTUPlateHeatExchanger(name, varargin{:});
             obj.attachHeatExchanger(hx);
         end
 
@@ -137,6 +172,30 @@ classdef Building < dynamicprops
             hx.pump.hostPort = obj.inlet;
             obj.heatExchanger = hx;
             DHS.registerName(obj, hx);                         % sys.Library.HX.UA
+        end
+
+        function dst = connect(obj, dst, varargin)
+            % CONNECT  building.connect(returnJunction): the building drains into the return junction
+            %   (or into the first pipe of a return line). It is fed from a tee port or junction:
+            %   tee.portC.connect(building).
+            DHS.Hydraulic.connectEnds(obj, dst, varargin{:});
+        end
+
+        function x = addPipe(obj, varargin),  x = DHS.Hydraulic.addOn(obj, 'pipe', varargin{:});  end
+        function x = addValve(obj, varargin), x = DHS.Hydraulic.addOn(obj, 'valve', varargin{:}); end
+        function x = addPump(obj, varargin),  x = DHS.Hydraulic.addOn(obj, 'pump', varargin{:});  end
+
+        function n = get.supplyNode(obj),  n = obj.connPipeSup.nodeA; end
+        function set.supplyNode(obj, n),   obj.connPipeSup.nodeA = n; end
+        function n = get.returnNode(obj),  n = obj.connPipeRet.nodeB; end
+        function set.returnNode(obj, n),   obj.connPipeRet.nodeB = n; end
+        function t = get.teeSide(obj),     t = obj.connPipeSup.teeSide; end
+        function set.teeSide(obj, t),      obj.connPipeSup.teeSide = t; end
+
+        function sizeServicePipes(obj)
+            % the two service pipes take their length and diameter from connLength and connD
+            obj.connPipeSup.L = obj.connLength;  obj.connPipeSup.D = obj.connD;
+            obj.connPipeRet.L = obj.connLength;  obj.connPipeRet.D = obj.connD;
         end
 
         function obj = attachSolar(obj, s)
@@ -213,6 +272,8 @@ classdef Building < dynamicprops
                     obj.Ginf = obj.readInfilConductance();
                 end
             end
+            obj.checkHeatExchanger();
+            obj.prepareLoop();
         end
 
         function reset(obj, dt)
@@ -231,6 +292,15 @@ classdef Building < dynamicprops
                 obj.mz.Tz = arrayfun(@(z) obj.sim.Tnow(z.iAir), obj.zones);
             end
             obj.Tzone = obj.aggTzone();
+            if ~isempty(obj.internalLoop)
+                obj.TintSup = obj.Tzone + 20;  obj.TintRet = obj.Tzone + 20;  obj.mdotInt = 0;
+                obj.TintState = obj.TintSup;  obj.QlossLoop = 0;
+                obj.internalLoop.resetLinkControllers();
+                for k = 1:numel(obj.radiators)
+                    if obj.isMultiZone(), Tz = obj.mz.Tz(obj.radZone(k)); else, Tz = obj.Tzone; end
+                    obj.radiators{k}.reset(Tz);
+                end
+            end
         end
 
         function prepare(obj, t, wx)
@@ -246,12 +316,19 @@ classdef Building < dynamicprops
                 obj.setpoint = obj.aggSetpoint();
                 obj.occupied = any(obj.mz.occ);
                 obj.Tzone    = obj.aggTzone();
+                for k = 1:numel(obj.radiators)
+                    obj.radiators{k}.Tzone    = obj.mz.Tz(obj.radZone(k));
+                    obj.radiators{k}.setpoint = obj.mz.Tsp(obj.radZone(k));
+                end
             else
                 obj.setpoint = obj.schedule.setpoint(t);
                 obj.occupied = obj.schedule.isOccupied(t);
                 [obj.Qia, obj.Qim] = obj.schedule.internalGain(t);
                 [obj.Qsa, obj.Qsm, obj.Qsw] = obj.solar.heatGain(wx);
                 obj.Tzone = obj.sim.Tnow(obj.iAir);
+                for k = 1:numel(obj.radiators)
+                    obj.radiators{k}.Tzone = obj.Tzone;  obj.radiators{k}.setpoint = obj.setpoint;
+                end
             end
         end
 
@@ -264,29 +341,111 @@ classdef Building < dynamicprops
             if ~isempty(p.controller)
                 p.speed = min(1, max(0, p.controller.update(sys, dt)));
             end
+            if ~isempty(obj.internalLoop)
+                obj.internalLoop.controlLinks(sys, dt);          % loop pumps, zone valves, bypass valves
+            end
+            obj.advanceValves(dt);                                % the actuators follow their commands
             u = v.pos;
             obj.command = v.pos;
         end
 
+        function beginRun(obj)
+            % BEGINRUN  Start of a run: this building's valves are at their commands and their lags apply.
+            obj.heatExchanger.valve.beginRun();
+            if ~isempty(obj.internalLoop), obj.internalLoop.beginRun(); end
+        end
+
+        function endRun(obj)
+            obj.heatExchanger.valve.endRun();
+            if ~isempty(obj.internalLoop), obj.internalLoop.endRun(); end
+        end
+
+        function advanceValves(obj, dt)
+            obj.heatExchanger.valve.advance(dt);
+            if ~isempty(obj.internalLoop), obj.internalLoop.advanceValves(dt); end
+        end
+
+        function solveInternalLoop(obj)
+            % SOLVEINTERNALLOOP  Flows in the internal loop for the current valve positions and pump speed.
+            if isempty(obj.internalLoop), return, end
+            s = obj.internalLoop.solve(1);
+            obj.mdotInt = s.Mtot;
+            obj.radMdot = s.mdot;
+        end
+
         function [Qdel, TretP] = exchange(obj, mdotPrimary, TsupHx)
-            TsecIn = obj.Tzone + obj.heatExchanger.secApproach;
-            [Qdel, TretP] = obj.heatExchanger.transfer(mdotPrimary, TsupHx, TsecIn);
+            % EXCHANGE  Heat from the district water to the building.
+            %   Without an internal loop the exchanger delivers to the zones directly (the secondary
+            %   heat follows from the radiator law of DHS.IdealHeatExchanger). With one, the exchanger heats the
+            %   loop water, the radiators take it to the zones, and the cooled water returns.
+            if isempty(obj.internalLoop)
+                [Qdel, TretP] = obj.heatExchanger.idealTransfer(mdotPrimary, TsupHx, obj.Tzone);   % IdealHeatExchanger
+                obj.Qdel = Qdel;  obj.TretPrimary = TretP;
+                return
+            end
+            [Qdel, TretP, TsecOut] = obj.heatExchanger.transfer(mdotPrimary, TsupHx, obj.TintRet, obj.mdotInt);
             obj.Qdel = Qdel;  obj.TretPrimary = TretP;
+            m   = obj.radMdot;  dt = seconds(obj.sim.timeStep);
+            % the loop water is a stirred tank at the supply side: Cl dT/dt = mdot cp (TsecOut - T)
+            if obj.mdotInt > 1e-9
+                Cd = obj.loopCap/dt;  Cm = obj.mdotInt*obj.cp;
+                switch obj.integrator
+                    case 'backwardEuler'
+                        obj.TintSup = (Cd*obj.TintState + Cm*TsecOut) / (Cd + Cm);
+                    case 'forwardEuler'
+                        if Cm/Cd > 2
+                            warning('DHS:Building:forwardEulerUnstable', ...
+                                'Building "%s": forwardEuler for the loop water needs a step below %.3g s (it is %.3g s).', ...
+                                obj.name, 2*obj.loopCap/Cm, dt);
+                        end
+                        obj.TintSup = obj.TintState + (Cm/Cd)*(TsecOut - obj.TintState);
+                    case 'exact'
+                        obj.TintSup = TsecOut + (obj.TintState - TsecOut)*exp(-Cm/Cd);
+                end
+            else
+                obj.TintSup = obj.TintState;
+            end
+            [TsupZ, qlS] = obj.internalLoop.supplyTemperatures(obj.TintSup, obj.Tzone, m, obj.cp);
+            Tout = TsupZ;                                      % a bypass passes the water on unchanged
+            for k = 1:numel(obj.radiators)
+                rad = obj.radiators{k};  j = obj.radBranch(k);
+                if obj.isMultiZone(), Tz = obj.mz.Tz(obj.radZone(k)); else, Tz = obj.Tzone; end
+                [Qa, To, Tm, Qw] = rad.response(m(j), TsupZ(j), Tz, dt);
+                rad.store(m(j), TsupZ(j), To, Qw, Qa, Tm);
+                Tout(j) = To;
+            end
+            [Tret, qlR] = obj.internalLoop.returnTemperatures(Tout, obj.Tzone, m, obj.cp);
+            obj.QlossLoop = qlS + qlR;                         % heat the loop pipes give to the building
+            if obj.mdotInt > 1e-9, obj.TintRet = Tret; end
         end
 
         function advance(obj, ~, tNext, wx)
             N = numel(obj.sim.Tnow);
             q = zeros(N, 1);
+            Qheat = obj.Qdel;                                  % heat to the zone air: the exchanger's, or the radiators'
+            if ~isempty(obj.internalLoop)
+                Qrz = zeros(1, max(1, numel(obj.zones)));
+                for k = 1:numel(obj.radiators)
+                    Qrz(obj.radZone(k)) = Qrz(obj.radZone(k)) + obj.radiators{k}.Qair;
+                    obj.radiators{k}.commit();
+                end
+                Qheat = sum(Qrz) + obj.QlossLoop;            % radiators plus the loop pipes' own heat
+                obj.TintState = obj.TintSup;
+            end
 
             if obj.isMultiZone()
                 nZ = numel(obj.zones);
                 A  = [obj.zones.area];
                 Tz = obj.mz.Tz;  Tsp = obj.mz.Tsp;  occ = obj.mz.occ;
 
-                % split the delivered heat by each zone's current heating demand
-                w = A .* max(0, Tsp - Tz);
-                if sum(w) > eps, obj.mz.Qdel = obj.Qdel * w ./ sum(w);
-                else,            obj.mz.Qdel = zeros(1,nZ);
+                if ~isempty(obj.internalLoop)
+                    obj.mz.Qdel = Qrz;                         % each zone gets what its radiators give
+                else
+                    % ideal substation: split the delivered heat by each zone's current heating demand
+                    w = A .* max(0, Tsp - Tz);
+                    if sum(w) > eps, obj.mz.Qdel = obj.Qdel * w ./ sum(w);
+                    else,            obj.mz.Qdel = zeros(1,nZ);
+                    end
                 end
 
                 for z = 1:nZ
@@ -303,7 +462,9 @@ classdef Building < dynamicprops
                     end
                     obj.mz.Qvent(z) = qv;  obj.mz.Qfc(z) = qf;
 
-                    q(zm.iAir) = q(zm.iAir) + obj.mz.Qdel(z) + obj.mz.Qsa(z) + obj.mz.Qia(z) + qv + qf;
+                    qpipe = 0;
+                    if ~isempty(obj.internalLoop), qpipe = obj.QlossLoop * zm.area / sum(A); end   % loop pipe heat, by area
+                    q(zm.iAir) = q(zm.iAir) + obj.mz.Qdel(z) + qpipe + obj.mz.Qsa(z) + obj.mz.Qia(z) + qv + qf;
                     if ~isempty(zm.iMass)
                         q(zm.iMass(1)) = q(zm.iMass(1)) + obj.mz.Qsm(z) + obj.mz.Qim(z);
                     else
@@ -327,7 +488,7 @@ classdef Building < dynamicprops
                     frac = min(1, (Tz - Tsp - obj.freeCoolDeadband) / 1.0);
                     obj.Qfreecool = -frac * obj.freeCoolFactor * obj.Ginf * (Tz - wx.Tout);
                 end
-                q(obj.iAir) = q(obj.iAir) + obj.Qdel + obj.Qsa + obj.Qia + obj.Qvent + obj.Qfreecool;
+                q(obj.iAir) = q(obj.iAir) + Qheat + obj.Qsa + obj.Qia + obj.Qvent + obj.Qfreecool;
                 if ~isempty(obj.iMass)
                     q(obj.iMass(1)) = q(obj.iMass(1)) + obj.Qsm + obj.Qim;
                 else
@@ -362,18 +523,165 @@ classdef Building < dynamicprops
                 'Qvent',obj.Qvent,'Qfreecool',obj.Qfreecool, ...
                 'valve',obj.heatExchanger.valve.pos, ...
                 'pump',obj.heatExchanger.pump.speed, ...
-                'Tret_primary',obj.TretPrimary);
+                'Tret_primary',obj.TretPrimary, ...
+                'Tint_sup',obj.TintSup,'Tint_ret',obj.TintRet,'mdot_int',obj.mdotInt);
             if obj.isMultiZone()
                 s.Tzones    = arrayfun(@(z) obj.sim.Tnow(z.iAir), obj.zones);
                 s.zoneNames = {obj.zones.key};
+                s.Qzones    = obj.mz.Qdel;
             else
                 s.Tzones    = obj.zoneTemp();
                 s.zoneNames = {obj.name};
+                s.Qzones    = obj.Qdel;
+                if ~isempty(obj.internalLoop) && ~isempty(obj.radiators)
+                    s.Qzones = sum(cellfun(@(r) r.Qair, obj.radiators));
+                end
             end
         end
     end
 
+    methods
+        % ---- hydraulic branch protocol (DHS.HydraulicNetwork) -----------------------------
+        function K = branchResistance(obj, rho, mu, m)
+            % BRANCHRESISTANCE  Service pipes + valve + exchanger body + minor losses [Pa/(kg/s)^2],
+            %   with the pipes' friction at the flow m (the last solved flow when not given).
+            A  = pi*obj.connD^2/4;
+            if nargin < 4, m = obj.connPipeSup.mdot; end
+            m0 = max(m, 0.2);
+            K = obj.connPipeSup.resistance(m0, rho, mu) + obj.connPipeRet.resistance(m0, rho, mu) ...
+              + obj.heatExchanger.primaryResistance(rho) + obj.Kminor/(2*rho*A^2);
+        end
+
+        function p = branchPump(obj)
+            p = obj.heatExchanger.pump;
+        end
+
+        function m = branchFlow(obj)
+            m = obj.connPipeSup.mdot;
+        end
+
+        function [T, ql] = inletTemperature(obj, Tnode, Tground, m, cp)
+            % water temperature at the heat exchanger, after the supply service pipe
+            [T, ql] = obj.connPipeSup.outletTemperature(Tnode, Tground, m, cp);
+        end
+
+        function [T, ql] = outletTemperature(obj, Thx, Tground, m, cp)
+            % water temperature leaving the building, after the return service pipe
+            [T, ql] = obj.connPipeRet.outletTemperature(Thx, Tground, m, cp);
+        end
+
+        function vel = setBranchResult(obj, m, rho, dpBooster, pSup, pRet)
+            % SETBRANCHRESULT  Store the solved flow in the service pipes, pump and valve.
+            hx = obj.heatExchanger;
+            A  = pi*obj.connD^2/4;
+            vel = m/(rho*A);
+            obj.connPipeSup.mdot = m;  obj.connPipeRet.mdot = m;
+            obj.connPipeSup.vel = vel; obj.connPipeRet.vel = vel;
+            hx.pump.mdot = m;  hx.pump.head = dpBooster;
+            hx.valve.dp  = hx.valve.resistance(rho) * m^2;
+            obj.inlet.p  = pSup;  obj.outlet.p = pRet;
+        end
+    end
+
+    methods (Access = {?DHS.HeatExchanger})
+        function sec = ensureInternalLoop(obj)
+            % ENSUREINTERNALLOOP  The building's internal hydraulic network, made the first time anything is
+            %   connected to the exchanger's internal outlet or inlet. Its root is the exchanger's internal side.
+            if isempty(obj.internalLoop)
+                sec = DHS.HydraulicNetwork();
+                sec.pReturnRef = 1.0e5;  sec.rho = 983;  sec.mu = 4.7e-4;
+                sup = DHS.Hydraulic.Junction([obj.name '.internalOutlet'], 'supply');
+                ret = DHS.Hydraulic.Junction([obj.name '.internalInlet'], 'return');
+                sup.network = sec;  ret.network = sec;
+                sec.plantSupply = sup;  sec.plantReturn = ret;
+                sec.nameOwner = obj;                              % loop parts are reachable by name on the building
+                obj.internalLoop = sec;
+            end
+            sec = obj.internalLoop;
+        end
+    end
+
     methods (Access = private)
+        function checkHeatExchanger(obj)
+            % the heat exchanger type and the internal loop must agree, and the loop must be connected
+            hx = obj.heatExchanger;
+            assert(~isempty(hx), 'DHS:Building:noHeatExchanger', ...
+                'Building "%s" has no heat exchanger: building.addHeatExchanger(...) or attachHeatExchanger(...).', obj.name);
+            loop = obj.internalLoop;
+            if hx.usesInternalLoop()
+                outOk = ~isempty(loop) && ~(isempty(loop.plantSupply.outLinks) && isempty(loop.plantSupply.terminals));
+                inOk  = ~isempty(loop) && ~(isempty(loop.plantReturn.inLinks) && isempty(loop.plantReturn.fedBuildings));
+                if ~(outOk && inOk)
+                    miss = {};
+                    if ~outOk, miss{end+1} = 'internalOutlet'; end %#ok<AGROW>
+                    if ~inOk,  miss{end+1} = 'internalInlet';  end %#ok<AGROW>
+                    error('DHS:Building:heatExchangerPorts', ...
+                        ['Building "%s": the %s needs its internal loop connected to the heat exchanger, and ' ...
+                         'hx.%s is not connected. Connect the loop between hx.internalOutlet and hx.internalInlet, ' ...
+                         'or use a DHS.IdealHeatExchanger for a building without a loop.'], ...
+                        obj.name, class(hx), strjoin(miss, ' and hx.'));
+                end
+            elseif ~isempty(loop)
+                error('DHS:Building:idealWithLoop', ...
+                    ['Building "%s" has an internal loop but its heat exchanger is a %s, which stands for a ' ...
+                     'building without one. Use an ENTUPlateHeatExchanger or a FixedEffectivenessHeatExchanger, ' ...
+                     'or remove the loop.'], obj.name, class(hx));
+            end
+        end
+
+        function prepareLoop(obj)
+            % find the radiators of the internal loop, their zones, and the water it holds
+            if isempty(obj.internalLoop), obj.radiators = {}; return, end
+            net = obj.internalLoop;
+            net.compile();                                        % walks the connections; needs a pump
+            rads = {};
+            for k = 1:numel(net.buildings)
+                if isa(net.buildings{k}, 'DHS.Radiator'), rads{end+1} = net.buildings{k}; end %#ok<AGROW>
+            end
+            obj.radiators = rads;
+            for k = 1:numel(rads), rads{k}.integrator = obj.integrator; end
+            links = net.allLinks();  V = 0;
+            for k = 1:numel(links)
+                if isa(links{k}, 'DHS.Hydraulic.Pipe'), V = V + pi*links{k}.D^2/4 * links{k}.L; end
+            end
+            V = V + obj.heatExchanger.internalVolume/1000;        % pipes plus the exchanger's internal side [m3]
+            if isnan(obj.loopCapacity), obj.loopCap = max(net.rho * V * obj.cp, 1);
+            else,                       obj.loopCap = obj.loopCapacity; end
+            obj.mapRadiators();
+        end
+
+        function key = zoneKeyOf(obj, z)
+            % 'Storey.Zone' of an RCBS zone object (or the text itself)
+            if ischar(z) || isstring(z), key = char(z); return, end
+            key = '';
+            rcb = obj.rcBuilding;
+            for s = 1:numel(rcb.storeyList)
+                st = rcb.(rcb.storeyList{s});
+                for q = 1:numel(st.zoneList)
+                    if st.(st.zoneList{q}) == z, key = [rcb.storeyList{s} '.' st.zoneList{q}]; return, end
+                end
+            end
+        end
+
+        function mapRadiators(obj)
+            % zone index and branch index of every radiator
+            nR = numel(obj.radiators);
+            obj.radZone = ones(1, nR);  obj.radBranch = zeros(1, nR);
+            for k = 1:nR
+                rad = obj.radiators{k};
+                if obj.isMultiZone()
+                    assert(~isempty(rad.zone), 'DHS:Building:radiatorZone', ...
+                        'Radiator "%s": connect it to the zone it heats, rad.connect(zone).', rad.name);
+                    key = obj.zoneKeyOf(rad.zone);
+                    j = find(strcmp({obj.zones.key}, key), 1);
+                    assert(~isempty(j), 'DHS:Building:radiatorZone', ...
+                        'Radiator "%s": its zone is not one of the building''s zones.', rad.name);
+                    obj.radZone(k) = j;
+                end
+                obj.radBranch(k) = find(cellfun(@(x) x == rad, obj.internalLoop.buildings), 1);
+            end
+        end
+
         function T = nodeT(obj, idx)
             if isempty(idx), T = NaN; else, T = obj.sim.Tnow(idx(1)); end
         end

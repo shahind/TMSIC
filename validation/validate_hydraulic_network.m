@@ -19,7 +19,7 @@ function V = validate_hydraulic_network(plotMode)
 %        off one tee -> equal flow.
 %     C  SINGLE-BRANCH OPERATING POINT vs a hand calculation: one branch, no
 %        building pump, branch resistance K_b, central pump curve
-%        dpC(M) = dp0 (1 - (M/Mmax)^2).  The steady flow solves
+%        dpC(M) = dp0 (1 - (M/Mmax)^2)   (Mmax = mdotFree = 2 mdotRated for the default duty head).  The steady flow solves
 %           dp0 (1 - (M/Mmax)^2) = (K_seg + K_b) M^2
 %        =>  M = Mmax / sqrt(1 + Mmax^2 (K_seg + K_b) / dp0)     (analytic)
 %        solve() is called a few times first so the lagged Darcy friction factor
@@ -65,7 +65,7 @@ function V = validate_hydraulic_network(plotMode)
     sys = DHS.System('startDate', datetime(2025,1,1));
     chp = sys.addCentralHeatPlant('CHP');
     chp.addBoiler('B','QMax',1e6);
-    chp.addPump('P','dp0',3.0e5,'mdotMax',16);
+    chp.addPump('P','dp0',3.0e5,'mdotRated',8);
     hn = sys.addHydraulicNetwork();
     t1 = hn.addJunction('T1');  t2 = hn.addJunction('T2');  t3 = hn.addJunction('T3');
     hn.addPipe(chp.supplyPort, t1, 'L',30,'D',0.10);
@@ -80,7 +80,7 @@ function V = validate_hydraulic_network(plotMode)
         b = sys.addBuilding(sprintf('B%d', i));
         b.useRCModel( trivialRC() );
         hx = b.addHeatExchanger('HX','UA',3e4,'Qcap',5e5);
-        hx.valve.Kvs = 18;  hx.pump.dp0 = 0.9e5;  hx.pump.mdotMax = 5;  hx.pump.minSpeed = 0.2;
+        hx.valve.Kvs = 18;  hx.pump.dp0 = 0.9e5;  hx.pump.mdotRated = 2.5;  hx.pump.minSpeed = 0.2;
         b.attachSolar(DHS.Solar());  b.attachSchedule(DHS.Schedule());
         hn.connectBuilding(tees{i}, b, rets{i});
     end
@@ -103,14 +103,14 @@ function V = validate_hydraulic_network(plotMode)
 
     % ================= B: parallel symmetry =================
     sys2 = DHS.System('startDate', datetime(2025,1,1));
-    c2 = sys2.addCentralHeatPlant('C');  c2.addBoiler('B','QMax',1e6);  c2.addPump('P','dp0',3e5,'mdotMax',16);
+    c2 = sys2.addCentralHeatPlant('C');  c2.addBoiler('B','QMax',1e6);  c2.addPump('P','dp0',3e5,'mdotRated',8);
     h2 = sys2.addHydraulicNetwork();  tt = h2.addJunction('TT');
     h2.addPipe(c2.supplyPort, tt, 'L',20,'D',0.12);
     rr = h2.addJunction('RR', 'side','return');  h2.addPipe(rr, c2.returnPort, 'L',20,'D',0.12);
     for i = 1:2
         b = sys2.addBuilding(sprintf('P%d',i));  b.useRCModel(trivialRC());
         hx = b.addHeatExchanger('HX','UA',3e4,'Qcap',5e5);
-        hx.valve.Kvs = 20;  hx.pump.dp0 = 1e5;  hx.pump.mdotMax = 5;
+        hx.valve.Kvs = 20;  hx.pump.dp0 = 1e5;  hx.pump.mdotRated = 2.5;
         b.attachSolar(DHS.Solar()); b.attachSchedule(DHS.Schedule());
         h2.connectBuilding(tt, b, rr);
     end
@@ -121,7 +121,7 @@ function V = validate_hydraulic_network(plotMode)
     sys3 = DHS.System('startDate', datetime(2025,1,1));
     c3 = sys3.addCentralHeatPlant('C');  c3.addBoiler('B','QMax',1e6);
     dp0 = 2.5e5;  Mmax = 12;
-    c3.addPump('P','dp0',dp0,'mdotMax',Mmax);
+    c3.addPump('P','dp0',dp0,'mdotRated',Mmax/2);
     h3 = sys3.addHydraulicNetwork();  h3.pReturnRef = 1.5e5;
     tc = h3.addJunction('TC');
     Lm = 25;  Dm = 0.11;
@@ -129,7 +129,7 @@ function V = validate_hydraulic_network(plotMode)
     rc = h3.addJunction('RC', 'side','return');  h3.addPipe(rc, c3.returnPort, 'L',Lm,'D',Dm);
     b = sys3.addBuilding('S');  b.useRCModel(trivialRC());
     hx = b.addHeatExchanger('HX','UA',1e5,'Qcap',5e5,'dpNomPrimary',1e-6);   % near-zero HX & valve loss
-    hx.valve.Kvs = 1e6;  hx.pump.dp0 = 0;  hx.pump.mdotMax = 1e6;  hx.pump.minSpeed = 0;  % no building pump
+    hx.valve.Kvs = 1e6;  hx.pump.dp0 = 0;  hx.pump.mdotRated = 500000;  hx.pump.minSpeed = 0;  % no building pump
     b.connLength = 20;  b.connD = 0.05;  b.Kminor = 0;
     b.attachSolar(DHS.Solar()); b.attachSchedule(DHS.Schedule());
     h3.connectBuilding(tc, b, rc);
@@ -183,14 +183,14 @@ function V = validate_hydraulic_network(plotMode)
     % ================= H, I, J, K: end-of-line bypass =================
     sys4 = DHS.System('startDate', datetime(2025,1,1));
     c4 = sys4.addCentralHeatPlant('C');  c4.addBoiler('B','QMax',1e6);
-    c4.addPump('P','dp0',dp0,'mdotMax',Mmax);
+    c4.addPump('P','dp0',dp0,'mdotRated',Mmax/2);
     h4 = sys4.addHydraulicNetwork();  h4.pReturnRef = 1.5e5;
     t4 = h4.addJunction('TB');  h4.addPipe(c4.supplyPort, t4, 'L',Lm,'D',Dm);
     r4 = h4.addJunction('RB', 'side','return');  h4.addPipe(r4, c4.returnPort, 'L',Lm,'D',Dm);
     h4.addBypass(t4, r4, 'L',20, 'D',0.05, 'Kvs',1.5);
     b4 = sys4.addBuilding('S');  b4.useRCModel(trivialRC());
     hx4 = b4.addHeatExchanger('HX','UA',1e5,'Qcap',5e5,'dpNomPrimary',1e-6);
-    hx4.valve.Kvs = 25;  hx4.pump.dp0 = 0;  hx4.pump.mdotMax = 1e6;  hx4.pump.minSpeed = 0;
+    hx4.valve.Kvs = 25;  hx4.pump.dp0 = 0;  hx4.pump.mdotRated = 500000;  hx4.pump.minSpeed = 0;
     b4.connLength = 20;  b4.connD = 0.05;  b4.Kminor = 0;
     b4.attachSolar(DHS.Solar()); b4.attachSchedule(DHS.Schedule());
     h4.connectBuilding(t4, b4, r4);

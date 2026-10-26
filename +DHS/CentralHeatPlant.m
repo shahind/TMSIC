@@ -7,13 +7,13 @@ classdef CentralHeatPlant < dynamicprops
 %   BUILD IT  (two equivalent styles; see DHS.HydraulicNetwork)
 %     chp    = sys.addCentralHeatPlant('CHP');
 %     boiler = chp.addBoiler('B1', 'QMax',1.5e6, 'etaCurve',@(Tr) 0.92-0.0025*(Tr-50));
-%     pump   = chp.addPump('P0', 'dp0',3.0e5, 'mdotMax',14);     % a CentrifugalPump
+%     pump   = chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',7);     % a CentrifugalPump
 %     boiler.connectTo(pump);
 %     chp.setSupplySetpoint(70);                        % fixed scalar
 %     boiler.attachController( c );                     % optional: replace the firing controller
 %
 %   or, naming the pump type and wiring it port-by-port:
-%     pump = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',3.0e5, 'mdotMax',14);
+%     pump = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',3.0e5, 'mdotRated',7);
 %     chp.attachPump(pump);
 %     pipe1 = DHS.Hydraulic.Pipe('B1->P0');  boiler.connectToPipe('output', pipe1);
 %     pipe1.connectOutput(pump.inlet);       % pipe1 is decorative here: the plant's

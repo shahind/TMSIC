@@ -1,19 +1,31 @@
-classdef HeatExchanger < dynamicprops
-% DHS.HEATEXCHANGER  Substation plate heat exchanger + its primary valve & pump.
+classdef (Abstract) HeatExchanger < dynamicprops
+% DHS.HEATEXCHANGER  Abstract substation heat exchanger: its primary valve & pump, its ports and the
+%                    pressure loss. The concrete types differ in how they find the delivered heat.
 %
-%   Transfers heat from the district PRIMARY water to a building's SECONDARY
-%   hydronic circuit by the effectiveness-NTU method (counterflow). Heating-only:
-%   delivered heat is clamped to [0, Qcap].
+%   Three types ship with the toolbox (the same pattern as the pumps):
 %
-%       Cp = mdot_p*cp ;  Cmin = min(Cp, mdotSecNom*cp) ;  Cr = Cmin/Cmax
-%       NTU = UA/Cmin
-%       eps = (1-exp(-NTU(1-Cr)))/(1-Cr*exp(-NTU(1-Cr)))      (Cr < 1)
-%           = NTU/(1+NTU)                                      (Cr -> 1)
-%       Q   = clamp( eps*Cmin*(Tsup_primary - Tsec_in) , 0 , Qcap )
-%       Tret_primary = Tsup_primary - Q/Cp
+%   For a building WITH an internal loop (DHS.LoopHeatExchanger): the internal side is the building's
+%   loop, so the heat follows from the district temperatures and flow and from the temperature and flow
+%   of the water coming back from the loop.
+%     DHS.ENTUPlateHeatExchanger            counterflow plate exchanger, effectiveness from NTU = UA/Cmin
+%     DHS.FixedEffectivenessHeatExchanger   effectiveness fixed by the user
+%   For a building WITHOUT an internal loop:
+%     DHS.IdealHeatExchanger                the exchanger is a simple radiator that the district water
+%                                           flows through (the radiator model of EN 442, as in the
+%                                           Modelica Buildings library): the heat follows from the
+%                                           district temperature and flow and the room temperature
+%   Create the default type with  building.addHeatExchanger('HX', 'UA',..,'Qcap',..)  (an
+%   ENTUPlateHeatExchanger) and any other with
+%       building.attachHeatExchanger( DHS.FixedEffectivenessHeatExchanger('HX', 'effectiveness',0.85, 'Qcap',..) )
+%       building.attachHeatExchanger( DHS.IdealHeatExchanger('HX', 'Qnom',8e5) )
 %
-%   Same effectiveness-NTU relation as MATLAB/Simscape's Heat Exchanger (TL-TL)
-%   and Plate Heat Exchanger (TL-TL) blocks (docs/dhs-heat-exchanger.md).
+%   FOUR PORTS  districtInlet / districtOutlet (the building's supply and return junctions, connected to
+%   the district network with  tee.portC.connect(building); building.connect(returnJunction))  and
+%   internalOutlet / internalInlet (the junctions where the building's internal loop starts and ends;
+%   the first use of either creates the loop):
+%       hx.internalOutlet.addPipe(0.05, 4)  ...  returnPipe.connect(hx.internalInlet)
+%   A loop heat exchanger needs both internal ports connected and an ideal one needs none: running a
+%   building that does not satisfy this stops with an error that names the ports.
 %
 %   PRIMARY-SIDE PRESSURE LOSS  The valve plus the exchanger body
 %   itself. The body loss is quoted, the same way a manufacturer's data sheet
@@ -31,15 +43,14 @@ classdef HeatExchanger < dynamicprops
 %       hx.valve.attachController(c) ,  hx.pump.attachController(c)
 %   or swap the pump type entirely:
 %       hx.attachPump( DHS.Hydraulic.FixedDisplacementPump('P','mdotRated',4,'dpMax',2e5) )
-%   Create with  building.addHeatExchanger('HX', 'UA',..,'Qcap',..). A valve or pump you attach is
-%   reachable by its own name: hx.attachValve(DHS.Hydraulic.Valve('V1','Kvs',12)) gives hx.V1.Kvs.
+%   A valve or pump you attach is reachable by its own name:
+%   hx.attachValve(DHS.Hydraulic.Valve('V1','Kvs',12)) gives hx.V1.Kvs.
 %
-%   PROPERTIES (SI)
+%   PROPERTIES (SI, common to all types)
 %     name          char
-%     UA            [W/K]   heat-exchanger conductance
 %     Qcap          [W]     substation heat-delivery limit
-%     mdotSecNom    [kg/s]  secondary-loop nominal mass flow
-%     secApproach   [K]     emitter approach: secondary return into the HX = zone air + this
+%     internalVolume [L]    water in the exchanger's internal side and its manifolds (5); the loop
+%                           water also counts the volume of the loop pipes
 %     cp            [J/kg/K] water specific heat                         (4186)
 %     dpNomPrimary  [Pa]    HX-body primary pressure drop at mdotNomPrimary (3.0e4)
 %     mdotNomPrimary [kg/s] primary flow the dpNomPrimary rating is quoted at;
@@ -52,29 +63,37 @@ classdef HeatExchanger < dynamicprops
 
     properties
         name           (1,:) char = 'HX'
-        UA             (1,1) double = 4.0e4
         Qcap           (1,1) double = 5.0e5
-        mdotSecNom     (1,1) double = 6
-        secApproach    (1,1) double = 28
+        internalVolume (1,1) double = 5
         cp             (1,1) double = 4186
         dpNomPrimary   (1,1) double = 3.0e4
         mdotNomPrimary        double = []
         valve          DHS.Hydraulic.Valve
         pump                                   % a DHS.Hydraulic.Pump: the primary pump
     end
-    properties (SetAccess = private)
+    properties (SetAccess = protected)
         Qdel        (1,1) double = 0
         TretPrimary (1,1) double = NaN
     end
     properties (Access = ?DHS.Building)
         hostBuilding = []     % the DHS.Building this substation belongs to
     end
+    properties (Dependent, SetAccess = private)
+        districtInlet         % the building's supply junction
+        districtOutlet        % the building's return junction
+        internalOutlet        % supply junction of the internal loop (water leaving the exchanger)
+        internalInlet         % return junction of the internal loop (water entering the exchanger)
+    end
+
+    methods (Abstract)
+        tf = usesInternalLoop(obj)     % true: the internal side is the building's loop; false: the exchanger is the emitter
+    end
 
     methods
         function obj = HeatExchanger(name, varargin)
             if nargin >= 1, obj.name = name; end
-            obj.valve = DHS.Hydraulic.Valve([name '.valve']);
-            obj.pump  = DHS.Hydraulic.CentrifugalPump([name '.pump'], 'speed', 0);
+            obj.valve = DHS.Hydraulic.Valve([obj.name '.valve']);
+            obj.pump  = DHS.Hydraulic.CentrifugalPump([obj.name '.pump'], 'speed', 0);
             for i = 1:2:numel(varargin), obj.(varargin{i}) = varargin{i+1}; end
         end
 
@@ -96,43 +115,10 @@ classdef HeatExchanger < dynamicprops
             DHS.registerName(obj, v);                          % hx.V1.Kvs
         end
 
-        function j = inlet(obj)
-            % INLET  Diagnostic port accessor -- the substation's own primary
-            %   train (pump/valve/HX) is one lumped branch fed from the
-            %   building's inlet junction; see DHS.Building.
-            assert(~isempty(obj.hostBuilding), 'DHS:HeatExchanger:noHost', ...
-                'Heat exchanger "%s" is not attached to a building yet.', obj.name);
-            j = obj.hostBuilding.inlet;
-        end
-
-        function j = outlet(obj)
-            % OUTLET  see inlet().
-            assert(~isempty(obj.hostBuilding), 'DHS:HeatExchanger:noHost', ...
-                'Heat exchanger "%s" is not attached to a building yet.', obj.name);
-            j = obj.hostBuilding.outlet;
-        end
-
-        function [Qdel, TretP] = transfer(obj, mdotPrimary, TsupPrimary, TsecIn)
-            % TRANSFER  eps-NTU heat transfer for the resolved primary flow.
-            if mdotPrimary <= 1e-6 || TsupPrimary <= TsecIn
-                Qdel = 0; TretP = TsupPrimary;
-            else
-                Cp   = mdotPrimary * obj.cp;
-                Cs   = obj.mdotSecNom * obj.cp;
-                Cmin = min(Cp, Cs);  Cmax = max(Cp, Cs);
-                Cr   = Cmin / Cmax;
-                NTU  = obj.UA / Cmin;
-                if abs(1 - Cr) < 1e-6
-                    eps = NTU / (1 + NTU);
-                else
-                    ex  = exp(-NTU * (1 - Cr));
-                    eps = (1 - ex) / (1 - Cr * ex);
-                end
-                Qdel  = min(max(eps * Cmin * (TsupPrimary - TsecIn), 0), obj.Qcap);
-                TretP = TsupPrimary - Qdel / Cp;
-            end
-            obj.Qdel = Qdel;  obj.TretPrimary = TretP;
-        end
+        function j = get.districtInlet(obj),  j = obj.host().inlet;  end
+        function j = get.districtOutlet(obj), j = obj.host().outlet; end
+        function j = get.internalOutlet(obj), j = obj.host().ensureInternalLoop().plantSupply; end
+        function j = get.internalInlet(obj),  j = obj.host().ensureInternalLoop().plantReturn; end
 
         function K = primaryResistance(obj, rho)
             % PRIMARYRESISTANCE  valve + HX-body hydraulic resistance [Pa/(kg/s)^2].
@@ -140,6 +126,14 @@ classdef HeatExchanger < dynamicprops
             if isempty(mNom), mNom = max(obj.Qcap/(obj.cp*20), 0.5); end   % 20 K design drop
             Khx = obj.dpNomPrimary / mNom^2;
             K   = obj.valve.resistance(rho) + Khx;
+        end
+    end
+
+    methods (Access = private)
+        function b = host(obj)
+            assert(~isempty(obj.hostBuilding), 'DHS:HeatExchanger:noHost', ...
+                'Heat exchanger "%s" is not attached to a building yet.', obj.name);
+            b = obj.hostBuilding;
         end
     end
 end

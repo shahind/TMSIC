@@ -15,11 +15,13 @@
 %   DHS.System             - the top object: plant + network + buildings, run()
 %   DHS.CentralHeatPlant   - boilers, pump, plant-side water dynamics, firing PID
 %   DHS.Boiler             - a burner stage in the plant
-%   DHS.HeatExchanger      - substation plate heat exchanger (eps-NTU) + valve + pump
-%   DHS.Hydraulic.Pipe / .Junction / .TJunction / .Valve  - pipe-network parts
+%   DHS.HeatExchanger      - abstract substation heat exchanger + valve + pump; types:
+%     DHS.ENTUPlateHeatExchanger / DHS.FixedEffectivenessHeatExchanger / DHS.IdealHeatExchanger
+%   DHS.Hydraulic.Pipe / .Valve / .Pump (links), .Junction / .TJunction (nodes) - pipe-network parts, wired with connect / add
 %   DHS.Hydraulic.Pump / .CentrifugalPump / .FixedDisplacementPump - pump types
 %   DHS.HydraulicNetwork   - trunk-and-branch pipe-network solver
 %   DHS.Building            - one building on the loop, wraps an RCBS.Building
+%   DHS.Radiator           - a zone's radiator on the building's internal loop
 %   DHS.Weather / DHS.Solar / DHS.Schedule - boundary conditions and gains
 %   DHS.drawSchematic      - draw an assembled system
 %

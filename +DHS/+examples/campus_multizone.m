@@ -4,7 +4,7 @@ function sys = campus_multizone(varargin)
 %   sys = DHS.examples.campus_multizone()
 %
 %   Same central heat plant and distribution network as DHS.examples.campus, but
-%   every building's RC model is now several thermal zones instead of one:
+%   every building's RC model has several thermal zones instead of one:
 %
 %     * each storey is split into a LARGER zone (60 % of the footprint) and a
 %       SMALLER zone (40 %);
@@ -43,9 +43,9 @@ function sys = campus_multizone(varargin)
     chp.sensorTau = 20;  chp.firingSlewPerMin = 0.15;
     chp.setSupplySetpoint(70);
 
-    boiler1 = chp.addBoiler('B1', 'QMax', 1.5e6, 'etaRef', 0.92, 'etaSlope', 0.0025, ...
+    boiler1 = chp.addBoiler('B1', 'QMax', 2.0e6, 'etaRef', 0.92, 'etaSlope', 0.0025, ...
         'TetaRef', 50, 'etaMin', 0.80, 'etaMax', 0.98);
-    pump0 = DHS.Hydraulic.CentrifugalPump('P0', 'dp0', 6.0e5, 'mdotMax', 20);
+    pump0 = DHS.Hydraulic.CentrifugalPump('P0', 'dp0', 6.0e5, 'mdotRated',10);
     chp.attachPump(pump0);
     boiler1.connectTo(pump0);
 
@@ -72,8 +72,18 @@ function sys = campus_multizone(varargin)
     Kvs            = [ 14    18    20    26    8  ];
     dpNomPrimary   = [30e3  35e3  35e3  40e3  25e3];   % HX-body design pressure drop [Pa]
     mdotNomPrimary = [ 3.5   4.5   5.0   6.0   2.0 ];  % ... at this primary design flow [kg/s]
+    % Lengths of the pipes of each building's internal loop [m]; the totals are about 0.2 m of pipe per m2
+    % of floor, as in a radiator system with an air handling unit (7,400, 11,700, 14,000, 19,200 and 3,400 m2).
+    %             exchanger  pump to    supply main   return main   branch to a   bypass
+    %             to pump    1st tee    between tees  per zone      radiator
+    %                                   (per zone)                  (each way)
+    loopLen = [      75         75          130           130          28          75;      % Administration, 4 zones, 1,490 m
+                    115        115          135           135          29         115;      % Arts, 6 zones, 2,310 m
+                    140        140          122           122          26         140;      % Science, 8 zones, 2,790 m
+                    190        190          170           170          36         190;      % Engineering, 8 zones, 3,870 m
+                     35         35           60            60          13          35 ];    % Library, 4 zones, 690 m
 
-    % wired port-by-port, one pipe at a time (see DHS.examples.campus)
+    % wired one component at a time with addPipe / addTee (see DHS.examples.campus)
     order  = [1 5 2 3 4];                   % build order -> distance order (Admin,Lib,Arts,Sci,Eng)
     segLen = [40 30 20 40 40];
     Dmain  = 0.11;
@@ -81,11 +91,9 @@ function sys = campus_multizone(varargin)
     tee = cell(1,5);
     for kk = 1:5
         bi = order(kk);
-        trunkPipe = DHS.Hydraulic.Pipe(sprintf('trunk%d', kk), 'L',segLen(kk), 'D',Dmain, 'UperM',0.30);
-        outlet.connectToPipe(trunkPipe);
-        tee{bi} = DHS.Hydraulic.TJunction(['T_' B{bi,1}], 'mainDiameter',Dmain, 'sideDiameter',connD(bi));
-        trunkPipe.connectOutput(tee{bi});
-        outlet = tee{bi}.portB;
+        trunkPipe = outlet.addPipe(Dmain, segLen(kk), 'name',sprintf('trunk%d', kk), 'UperM',0.30);
+        tee{bi}   = trunkPipe.addTee(connD(bi), 'name',['T_' B{bi,1}]);
+        outlet    = tee{bi}.portB;
     end
 
     % return main: defined separately from the supply main -- its own junctions and pipes,
@@ -97,9 +105,8 @@ function sys = campus_multizone(varargin)
     for kk = 1:5                                 % built from the plant outward, like the supply main
         bi = order(kk);
         if kk == 1, dest = chp.returnPort; else, dest = retJ{order(kk-1)}; end
-        retPipe = DHS.Hydraulic.Pipe(sprintf('return%d', kk), 'L',segLen(kk), 'D',Dmain, 'UperM',0.30);
-        retJ{bi}.connectToPipe(retPipe);
-        retPipe.connectOutput(dest);
+        retPipe = retJ{bi}.addPipe(Dmain, segLen(kk), 'name',sprintf('return%d', kk), 'UperM',0.30);
+        retPipe.connect(dest);
     end
 
     % central pump speed holds the supply-return differential pressure at the last tee at 3 bar
@@ -131,14 +138,23 @@ function sys = campus_multizone(varargin)
         % with different loads (high-ventilation labs, high-gain dining, ...)
         hx = b.addHeatExchanger('HX', ...
             'UA', 2.0*Qpk/22, 'Qcap', 1.8*Qpk, ...
-            'mdotSecNom', max(2.0, 1.3*Qpk/(4186*22)), 'secApproach', 28, ...
             'dpNomPrimary', dpNomPrimary(i), 'mdotNomPrimary', mdotNomPrimary(i));
         hx.valve.Kvs = 1.3*Kvs(i);  hx.valve.char = 'eqpct';  hx.valve.rangeability = 50;
-        valvePID = DHS.controllers.PID(0.14, 1.6e-4, 0, 40);
-        valvePID.name = [name '-valvePID'];
-        valvePID.measure   = @(sys) b.Tzone;           % the zone temperature ...
-        valvePID.reference = @(sys) b.setpoint;        % ... held at the schedule's setpoint
-        hx.valve.attachController(valvePID);
+        % internal loop: exchanger -> pipe -> pump -> pipe -> one tee per zone (portC: valve -> radiator,
+        % portB: on to the next tee) -> bypass; a return main collects the radiators back to the exchanger
+        % 100 mm mains with the lengths of loopLen, insulated pipes inside the building (UperM 0.15 W/m/K).
+        mdotLoop = Qpk/(4186*20);                             % design flow of the whole loop [kg/s]
+        Dm   = 0.10;                                          % loop main diameter [m]
+        L    = loopLen(i,:);  nZ = numel(zinfo);              % feed, pump to tee, supply seg, return seg, branch, bypass [m]
+        % loop pump: 1.5 x the design flow (the radiators' plus what the bypass takes), shut-off head 1.6 x
+        % the head that pushes all of it through the mains and the bypass with the zone valves shut
+        Mref  = 1.5 * mdotLoop;
+        Kmain = DHS.Hydraulic.Pipe('mains', 'L',L(1)+L(2)+nZ*(L(3)+L(4)), 'D',Dm).resistance(Mref, 983, 4.7e-4);
+        Kbyp  = 1.2e4 / (0.5*mdotLoop)^2;
+        loopPump = hx.internalOutlet.addPipe(Dm, L(1), 'UperM',0.15).addPump( ...
+            'dp0',1.6*(Kmain + Kbyp)*Mref^2, 'mdotRated',Mref, 'name','loopPump');
+        feed = loopPump.addPipe(Dm, L(2), 'UperM',0.15);      % end of the supply main so far
+        rjPrev = hx.internalInlet;                            % end of the return main so far
 
         for z = 1:numel(zinfo)
             zi = zinfo(z);  rf = roomFeatures(zi.roomType);
@@ -156,9 +172,44 @@ function sys = campus_multizone(varargin)
                      'Tocc',rf.Tocc,'Tsetback',rf.Tset, ...
                      'gainOccW', rf.gW*zi.area, 'gainMassFraction', rf.radiant), ...
                 'GventOcc', zi.Gvent_occ, 'Ginf', zi.Ginf);
-        end
 
-        hn.connectBuilding(tee{i}, b, retJ{i});
+            % this zone's radiator, sized for the zone's peak load, and its valve; both hang on a tee of the loop
+            rad = DHS.Radiator(matlab.lang.makeValidName(['Rad_' zi.key]), ...
+                'Qdes', max(500, (zi.UA_design + zi.Gvent_occ)*(21 - (-15))), 'Tsup', 60, 'Tret', 40);
+            zk = strsplit(zi.key, '.');
+            rad.connect(rcB.(zk{1}).(zk{2}));                 % the radiator heats this zone
+            zTee      = feed.addTee(rad.pipeD);
+            zoneValve = zTee.portC.addValve('Kvs',DHS.Hydraulic.Valve.kvsFor(rad.mdotDes, 5e3), 'char','linear', 'minPos',1e-3, 'name',['Valve_' rad.name]);
+            zoneValve.addPipe(rad.pipeD, L(5), 'UperM',0.15).connect(rad);
+            rj = DHS.Hydraulic.Junction(sprintf('%s.ret%d', name, z), 'return');
+            rad.addPipe(rad.pipeD, L(5), 'UperM',0.15).connect(rj);
+            rj.addPipe(Dm, L(4), 'UperM',0.15).connect(rjPrev);
+            rjPrev = rj;
+            feed = zTee.portB.addPipe(Dm, L(3), 'UperM',0.15);   % the supply main goes on to the next zone
+            zonePID = DHS.controllers.PID(0.6, 2e-3, 0);      % the zone valve holds the zone temperature
+            zonePID.name = [rad.name '-valvePID'];
+            zonePID.measure   = @(sys) rad.Tzone;
+            zonePID.reference = @(sys) rad.setpoint;
+            zoneValve.attachController(zonePID);
+        end
+        % the end of the supply main is a bypass: the pipe's valve joins the last return junction
+        feed.L = L(6);                                        % the pipe after the last tee is the bypass pipe
+        bypassValve = feed.addValve('Kvs',DHS.Hydraulic.Valve.kvsFor(0.5*mdotLoop, 1.2e4), 'char','linear', 'name','bypassValve');
+        bypassValve.connect(rjPrev);
+        flowPID = DHS.controllers.PID('Kp',0.03/mdotLoop, 'Ki',0.002/mdotLoop, 'uMin',0.3);
+        flowPID.name = [name '-flowPID'];
+        flowPID.measure   = @(sys) b.mdotInt;
+        flowPID.reference = 1.5*mdotLoop;            % the radiators' design flow plus what the bypass takes
+        loopPump.attachController(flowPID);          % the loop pump holds the internal mass flow
+        % the district valve holds the internal supply temperature (exchanger internal outlet)
+        supPID = DHS.controllers.PID(0.02, 4e-5, 0);
+        supPID.name = [name '-supplyPID'];
+        supPID.measure   = @(sys) b.TintSup;
+        supPID.reference = 60;
+        hx.valve.attachController(supPID);
+
+        tee{i}.portC.connect(b);                       % the building hangs on its tee's side port
+        b.connect(retJ{i});                            % and drains into its return junction
     end
 end
 
@@ -296,3 +347,4 @@ function [B, zinfo] = makeMultiZoneRC(nS, footprint, h, Ln, Le, C, layout, Tinit
         end
     end
 end
+

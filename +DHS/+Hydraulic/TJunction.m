@@ -5,13 +5,17 @@ classdef TJunction < DHS.Hydraulic.Junction
 %
 %   BUILD IT
 %     tee = DHS.Hydraulic.TJunction('T1', 'mainDiameter',0.10, 'sideDiameter',0.05);
-%     tee.portB.connectToPipe(pipeRun);      pipeRun.connectOutput(nextTee);
-%     tee.portC.connectToPipe(pipeBranch);   pipeBranch.connectOutput(building.inlet);
+%     tee.portB.connect(pipeRun);      pipeRun.connect(nextTee);
+%     tee.portC.connect(building);     building.connect(returnJunction);
 %   or, the same wires with the port named as text:
-%     tee.connectToPipe('portB', pipeRun);   tee.connectToPipe('portC', pipeBranch);
-%     tee.connectToPipe(pipeRun)             % portB, the run, when no port is named
-%     pipeIn.connectOutput(tee);             % (or tee.portA, equivalently)
-%   The ports are objects (DHS.Hydraulic.Port): tee.portC.D, tee.portC.p, tee.portB.pipe.
+%     tee.connect('portB', pipeRun);   tee.connect('portC', pipeBranch);
+%     tee.connect(pipeRun)             % portB, the run, when no port is named
+%     pipeIn.connect(tee);             % (or tee.portA, equivalently)
+%   or create and connect in one call (the new component is returned):
+%     pipeBranch = tee.portC.addPipe(0.05, 12);     valve = pipeBranch.addValve('Kvs',4);
+%   Older names (connectToPipe, connectOutput) still work. A radiator or building connected to a tee
+%   leaves portC unless you say portB. The ports are objects (DHS.Hydraulic.Port): tee.portC.D,
+%   tee.portC.p, tee.portB.pipe.
 %
 %   or insert one on an existing pipe's downstream end:
 %     tee = pipe1.addTjunction('T1', 0.05);     % mainDiameter = pipe1.D
@@ -61,25 +65,22 @@ classdef TJunction < DHS.Hydraulic.Junction
             obj.portC = DHS.Hydraulic.Port(obj, 'portC');
         end
 
-        function p = connectToPipe(obj, varargin)
-            % CONNECTTOPIPE  tee.connectToPipe('portB', pipe) for the straight run,
-            %   tee.connectToPipe('portC', pipe) for the side branch, or tee.connectToPipe(pipe)
-            %   for portB, the run. tee.portB.connectToPipe(pipe) is the same wire.
-            if numel(varargin) == 1
-                portName = 'portB';  pipe = varargin{1};
-            else
-                portName = varargin{1};  pipe = varargin{2};
+        function markStart(obj, port, thing)
+            % MARKSTART  A link leaves portB (the run) or portC (the branch); a radiator or building
+            %   leaves portC unless told otherwise. Sets the fitting's loss on whatever leaves.
+            isLink = isa(thing, 'DHS.Hydraulic.Link');
+            if isempty(port) || strcmp(port, 'portA')
+                if isLink, port = 'portB'; else, port = 'portC'; end
             end
-            switch lower(string(portName))
-                case "portb", pipe.teeSide = 'run';
-                case "portc", pipe.teeSide = 'branch';
+            switch lower(string(port))
+                case "portb", side = 'run';
+                case "portc", side = 'branch';
                 otherwise
                     error('DHS:TJunction:port', ...
-                        'Unknown port "%s" (use ''portB'' for the run or ''portC'' for the branch).', portName);
+                        'Unknown port "%s" (use ''portB'' for the run or ''portC'' for the branch).', port);
             end
-            pipe.nodeA = obj;
+            thing.teeSide = side;
             obj.pipeCount = obj.pipeCount + 1;
-            p = pipe;
         end
 
         function K = teeLossK(obj, side, rho, mu, mdot)

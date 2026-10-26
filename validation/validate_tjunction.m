@@ -208,7 +208,7 @@ function [Mtot, Kt] = singleBranchNetwork(dp0, Mmax, Lm, Dm, junctionType, Dside
 % total branch resistance (everything the flow passes through).
     sys = DHS.System('startDate', datetime(2025,1,1));
     c = sys.addCentralHeatPlant('C');  c.addBoiler('B','QMax',1e6);
-    c.addPump('P','dp0',dp0,'mdotMax',Mmax);
+    c.addPump('P','dp0',dp0,'mdotRated',Mmax/2);
     hn = sys.addHydraulicNetwork();  hn.pReturnRef = 1.5e5;
     if strcmpi(junctionType, 'tee')
         node = hn.addJunction('T', 'type','tee', 'mainDiameter',Dm, 'sideDiameter',Dside);
@@ -219,7 +219,7 @@ function [Mtot, Kt] = singleBranchNetwork(dp0, Mmax, Lm, Dm, junctionType, Dside
     rj = hn.addJunction('R', 'side','return');  hn.addPipe(rj, c.returnPort, 'L',Lm, 'D',Dm);
     b = sys.addBuilding('S');  b.useRCModel(trivialRC());
     hx = b.addHeatExchanger('HX', 'UA',1e5, 'Qcap',5e5, 'dpNomPrimary',1e-6);
-    hx.valve.Kvs = 1e6;  hx.pump.dp0 = 0;  hx.pump.mdotMax = 1e6;  hx.pump.minSpeed = 0;
+    hx.valve.Kvs = 1e6;  hx.pump.dp0 = 0;  hx.pump.mdotRated = 500000;  hx.pump.minSpeed = 0;
     b.connLength = 15;  b.connD = 0.05;  b.Kminor = 0;
     b.attachSolar(DHS.Solar());  b.attachSchedule(DHS.Schedule());
     hn.connectBuilding(node, b, rj);

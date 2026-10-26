@@ -27,6 +27,13 @@ function V = validate_valve(plotMode)
 %        installed curve is monotone, spans [~0, full flow], and is "more linear"
 %        (smaller curvature) at beta ~ 0.7 than the inherent eqpct curve.
 %
+%     E  actuator lag: the position the flow equation uses follows the command with a first-order lag
+%        of time constant valve.lag (default 60 s): after a step of the command,
+%        posActual(t) = cmd + (pos0 - cmd) exp(-t/lag), exactly at each step; lag 0 follows at once;
+%        outside a run the command is used as it is.
+%
+%   REFERENCE  The flow coefficient equation of IEC 60534-2-1 (liquids, non-choked flow), written above.
+%
 %   WHY THIS TEST IS GOOD
 %     A pins the sizing equation and the units (bar<->Pa, m3/h<->kg/s); B and C
 %     pin the two inherent characteristics against their definitions; D checks
@@ -79,11 +86,28 @@ function V = validate_valve(plotMode)
     curv_inh = max(abs(q_inh - lin2));
     okD = all(diff(q_inst) > -1e-9) && q_inst(1) < 0.3 && curv_inst < curv_inh;
 
+    % ---- E: actuator lag ----
+    tau = 60;  dtL = 10;  nL = 48;
+    vL = DHS.Hydraulic.Valve('VL', 'Kvs',Kvs, 'char','linear', 'lag',tau);
+    vL.pos = 0.2;  vL.beginRun();  vL.pos = 0.9;
+    paL = zeros(1,nL);  paRef = zeros(1,nL);  eK = 0;
+    for k = 1:nL
+        vL.advance(dtL);  paL(k) = vL.posActual;  paRef(k) = 0.9 + (0.2 - 0.9)*exp(-k*dtL/tau);
+        eK = max(eK, abs(vL.resistance(rho) - vL.resistance(rho, paL(k)))/vL.resistance(rho));
+    end
+    eE = max(abs(paL - paRef));
+    v0 = DHS.Hydraulic.Valve('V0', 'Kvs',Kvs, 'lag',0);  v0.pos = 0.3;  v0.beginRun();  v0.pos = 0.8;  v0.advance(1);
+    vOut = DHS.Hydraulic.Valve('VO', 'Kvs',Kvs);  vOut.pos = 0.4;
+    okE = abs(v0.posActual - 0.8) < 1e-15 && vOut.position() == 0.4 && vL.lag == tau && DHS.Hydraulic.Valve('d').lag == 60;
+
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
     C(1) = mk('A  Kv recovered from resistance() at pos=1',   Kvs, Kv_recovered, 1e-9, 'rel');
     C(2) = mk('B  eqpct inherent  Kv(0.5)/Kvs = R^(-0.5)',    ratioBref, ratioB, 1e-9, 'rel');
     C(3) = mk('C  linear inherent  Kv(pos)/Kvs = pos',        0, eC, 1e-9, 'abs');
     C(4) = mk(sprintf('D  installed eqpct (beta=%.2f) monotone & more linear', beta), 1, double(okD), 0, 'abs');
+    C(5) = mk('E  actuator lag: first-order response to a command step [-]', 0, eE, 1e-12, 'abs');
+    C(6) = mk('E  the flow equation uses the position reached (rel)',        0, eK, 1e-12, 'abs');
+    C(7) = mk('E  lag 0 and outside a run follow the command; default 60 s', 1, double(okE), 0, 'abs');
     V.name = 'Control valve: Kv equation, inherent characteristics, installed authority';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('eA',eA,'eB',eB,'eC',eC,'beta',beta,'curv_inst',curv_inst,'curv_inh',curv_inh);

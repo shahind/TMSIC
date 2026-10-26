@@ -29,9 +29,9 @@ function V = validate_desBuilding(plotMode)
 %         the split), and Q_del,z >= 0 with more heat to the colder / larger
 %         zones.  (When no zone is below setpoint the building has zero heating
 %         demand and the split is not exercised -- see note below.)
-%     (3) HX WRAPPER CONSISTENCY.  DHS.Building.exchange(mdot, Tsup) must return
-%         exactly what heatExchanger() returns for the same arguments (the
-%         secondary-return temperature is T_zone + secApproach).
+%     (3) HX WRAPPER CONSISTENCY.  DHS.Building.exchange(mdot, Tsup) of a building with an
+%         IdealHeatExchanger must return the heat and the primary return temperature of the radiator
+%         law  Q = Qnom ((Tsup - Q/(2 mdot cp) - Tzone)/dTnom)^n  (the reference solves it with fzero).
 %
 %   WHY THIS TEST IS GOOD
 %     (1) is an end-to-end check that the per-step assembly (prepare -> control
@@ -67,7 +67,7 @@ function V = validate_desBuilding(plotMode)
     sys = DHS.System('weather', csv, 'startDate', t0, 'timeStep', seconds(60));
     chp = sys.addCentralHeatPlant('CHP');
     chp.addBoiler('B','QMax',2e6);
-    chp.addPump('P','dp0',1.0e5,'mdotMax',6);
+    chp.addPump('P','dp0',1.0e5,'mdotRated',3);
     chp.setSupplySetpoint(75);
     hn  = sys.addHydraulicNetwork();
     t1  = hn.addJunction('T1');
@@ -78,8 +78,8 @@ function V = validate_desBuilding(plotMode)
     b = sys.addBuilding('Test');
     b.useRCModel(B);
     b.GventOcc = Gvent;  b.freeCool = false;  b.connLength = 15;  b.connD = 0.03;  b.Kminor = 8;
-    hx = b.addHeatExchanger('HX','UA',8e3,'Qcap',2e5,'mdotSecNom',1.2,'secApproach',15);
-    hx.valve.Kvs = 4;  hx.pump.dp0 = 2e4;  hx.pump.mdotMax = 1.5;  hx.pump.minSpeed = 0.1;
+    hx = DHS.IdealHeatExchanger('HX','Qnom',2e5,'dTnom',50,'Qcap',2e5);   b.attachHeatExchanger(hx);   % no internal loop
+    hx.valve.Kvs = 4;  hx.pump.dp0 = 2e4;  hx.pump.mdotRated = 0.75;  hx.pump.minSpeed = 0.1;
     pid = DHS.controllers.PID(0.15, 1.6e-4, 0, 40);
     pid.measure = @(sys) b.Tzone;  pid.reference = @(sys) b.setpoint;
     hx.valve.attachController(pid);
@@ -101,6 +101,9 @@ function V = validate_desBuilding(plotMode)
     % ================= (2) multi-zone heat-split conservation =================
     sys2 = DHS.examples.campus_multizone();
     bm  = sys2.buildings{3};                                        % Science
+    bm.internalLoop = [];  bm.radiators = {};                          % no loop: an ideal substation, heat split by demand
+    bm.attachHeatExchanger(DHS.IdealHeatExchanger('HX','Qnom',6e5));
+    bm.heatExchanger.valve.controller = [];
     sys2.compile();
     dt = 60;
     bm.bindClock(sys2.startDate, seconds(dt), @(t) -5);  bm.reset(dt);
@@ -126,13 +129,15 @@ function V = validate_desBuilding(plotMode)
 
     % ================= (3) HX wrapper consistency =================
     b3 = DHS.Building('W');  b3.useRCModel(trivialRC());
-    hx3 = b3.addHeatExchanger('HX','UA',3e4,'Qcap',4e5,'mdotSecNom',5,'secApproach',12);
+    hx3 = DHS.IdealHeatExchanger('HX','Qnom',2e5,'dTnom',50,'exponent',1.3,'Qcap',4e5);   b3.attachHeatExchanger(hx3);
     b3.attachSolar(DHS.Solar()); b3.attachSchedule(DHS.Schedule());
     b3.bindClock(datetime(2025,1,1), seconds(60), @(t) 0);  b3.reset(60);
     b3.prepare(datetime(2025,1,1), struct('ghi',0,'dhi',0,'dni',0,'sunZen',120,'sunAz',0,'sunEl',-30,'albedo',0.2,'Tout',0,'Tground',4));
     Tz3 = b3.zoneTemp();
     [Qw, Trw] = b3.exchange(3.5, 68);
-    [Qref, TrwRef] = heatExchanger(3.5, 68, Tz3 + hx3.secApproach, hx3.UA, hx3.mdotSecNom*hx3.cp, hx3.Qcap, hx3.cp);
+    Cp3 = 3.5*hx3.cp;
+    Qref = fzero(@(Q) 2e5*((68 - Q/(2*Cp3) - Tz3)/50)^1.3 - Q, [0 Cp3*(68 - Tz3)]);
+    TrwRef = 68 - Qref/Cp3;
     eWrap = max(abs(Qw - Qref), abs(Trw - TrwRef)) / max(abs(Qref), eps);
 
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
@@ -141,7 +146,7 @@ function V = validate_desBuilding(plotMode)
     C(3) = mk('(1) valve modulates (0 < pos < 1) -> has authority',1, double(valveModulates), 0, 'abs');
     C(4) = mk('(2) multi-zone split conserves  sum(Qz) = Qtotal', 0, splitResid, 1e-9, 'abs');
     C(5) = mk('(2) no negative per-zone delivered heat',         0, double(negFound), 0, 'abs');
-    C(6) = mk('(3) exchange() == heatExchanger() for same args', 0, eWrap, 1e-12, 'abs');
+    C(6) = mk('(3) exchange() == radiator law of the ideal exchanger', 0, eWrap, 1e-9, 'abs');
     V.name = 'DHS.Building: closed-loop energy balance + multi-zone heat-split conservation';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('Tz',Tz,'Qd',Qd,'mdot',mdE,'valve',vE,'balRes',balRes, ...

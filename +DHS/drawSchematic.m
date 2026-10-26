@@ -60,7 +60,7 @@ function drawSchematic(sys)
         xb = jx(p.nodeB.name);
         if isKey(jx, p.nodeA.name), xa = jx(p.nodeA.name); else, xa = xPlantR; end
         plot(ax, [xa xb], [ySup ySup], '-', 'Color',cSup, 'LineWidth',lwMain);
-        pipeLabel(ax, (xa+xb)/2, ySup+0.35, 'bottom', p.name, p.L, p.D, cSup);
+        pipeLabel(ax, (xa+xb)/2, ySup+0.35, 'bottom', p.name, linkL(p), linkD(p), cSup);
         arrow(ax, xa + 0.62*(xb-xa), ySup, +1, cSup);
     end
 
@@ -70,7 +70,7 @@ function drawSchematic(sys)
         xa = rx(p.nodeA.name);  xb = rx(p.nodeB.name);          % flow runs from xa toward the plant
         plot(ax, [xa xb], [yRet yRet], '-', 'Color',cRet, 'LineWidth',lwMain);
         if abs(xb - xa) > 1.5
-            pipeLabel(ax, (xa+xb)/2, yRet-0.35, 'top', p.name, p.L, p.D, cRet, true);
+            pipeLabel(ax, (xa+xb)/2, yRet-0.35, 'top', p.name, linkL(p), linkD(p), cRet, true);
             arrow(ax, xa + 0.5*(xb-xa), yRet, sign(xb-xa), cRet);
         end
     end
@@ -138,6 +138,10 @@ function drawSchematic(sys)
             'FontSize',10,'Interpreter','none');
         text(ax, x, yB-0.55, sprintf('(%s)', zoneCount(bd.rcBuilding)), 'HorizontalAlignment','center', ...
             'FontSize',10,'Color',cGrey);
+        if ~isempty(bd.internalLoop) && ~isempty(bd.radiators)
+            text(ax, x, yB-1.25, radiatorCount(numel(bd.radiators)), 'HorizontalAlignment','center', ...
+                'FontSize',8,'Color',cGrey);
+        end
         text(ax, x+0.4, (ySup + yB+bh/2)/2, sprintf('%g m / D%.0f mm', bd.connPipeSup.L, 1000*bd.connPipeSup.D), ...
             'HorizontalAlignment','left','FontSize',8,'Color',cSup*0.85);
         text(ax, x+0.4, (yRet + yB-bh/2)/2, sprintf('%g m / D%.0f mm', bd.connPipeRet.L, 1000*bd.connPipeRet.D), ...
@@ -185,7 +189,7 @@ end
 function pipeLabel(ax, x, y, va, name, L, D, color, isReturn)
     % two-line label: pipe name, then length and diameter
     if nargin < 9, isReturn = false; end %#ok<NASGU>
-    dim = sprintf('L = %g m,  D = %.0f mm', L, 1000*D);
+    if isnan(L), dim = 'in-line pump'; else, dim = sprintf('L = %g m,  D = %.0f mm', L, 1000*D); end
     if strcmp(va,'bottom')
         text(ax, x, y,      name, 'HorizontalAlignment','center','VerticalAlignment','bottom', ...
             'FontSize',8,'Color',color*0.85,'Interpreter','none','FontAngle','italic');
@@ -269,4 +273,18 @@ function x = returnX(node, rx, jx, net, xFirst)
     end
     if isempty(v), x = xFirst; else, x = mean(v); end
     rx(node.name) = x;
+end
+
+function s = radiatorCount(n)
+    % "1 radiator" / "N radiators": the zone radiators on the building's internal loop
+    if n == 1, s = '1 radiator'; else, s = sprintf('%d radiators', n); end
+end
+
+function L = linkL(p)
+    % length of a pipe; NaN for an in-line pump (a link without a size)
+    if isa(p, 'DHS.Hydraulic.Pump'), L = NaN; else, L = p.L; end
+end
+
+function D = linkD(p)
+    if isa(p, 'DHS.Hydraulic.Pump'), D = NaN; else, D = p.D; end
 end

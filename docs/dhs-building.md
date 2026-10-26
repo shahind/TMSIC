@@ -6,8 +6,15 @@ occupancy schedule, and the ventilation and free-cooling terms, and it computes 
 flow that enters the RC nodes at each step. RCBS itself stays a pure RC library. The heat
 is calculated here and injected into the right RCBS node with `RCBS.Simulation.stepOnce`.
 
-A building is created with `system.addBuilding(name)` and attached to the network with
-`hn.connectBuilding(supplyJunction, building, returnJunction)`. It exposes an `inlet` and an `outlet`, the
+The substation can be ideal, delivering the exchanger's heat straight to the zones, or it can have a
+internal loop with a radiator and a valve at every zone ([internal loop page](dhs-internal-loop.md)).
+In the ideal case the heat is shared between zones by their demand, `area × max(0, setpoint − T)`, which is
+only a rough split; with a loop each zone gets what its radiator gives.
+
+A building is created with `system.addBuilding(name)` and connected to the network like any other
+component: it hangs on a supply node or a tee port and drains into a return junction,
+`tee.portC.connect(building); building.connect(returnJunction)` (the declarative form is
+`hn.connectBuilding(supplyJunction, building, returnJunction)`). It exposes an `inlet` and an `outlet`, the
 supply and return ports of its branch.
 
 ## One zone
@@ -69,14 +76,15 @@ ventilation drift apart, as the campus example shows (worst room bias 1.5 K).
 
 ## What the building does at each step
 
-`DHS.System.run` drives these four calls. You rarely need them directly, but they are the
+`DHS.System.run` drives these calls. You rarely need them directly, but they are the
 place to look when writing a custom co-simulation.
 
 | Call | Inputs | Output or effect |
 |---|---|---|
 | `prepare(t, wx)` | time, weather sample | Samples the schedule and solar model (per zone if there are several). |
-| `control(sys, dt)` | the `DHS.System`, step (s) | Runs the valve controller (and the booster pump's, if it has one) and returns the valve command in [0, 1]. |
-| `exchange(mdot, Tsup_hx)` | primary flow (kg/s), supply temperature at the exchanger (degC) | `[Qdel, Tret]`: delivered heat (W) and primary return temperature (degC). |
+| `control(sys, dt)` | the `DHS.System`, step (s) | Runs the valve controller (and the booster pump's, the zone valves' and the loop pumps', if it has them) and returns the valve command in [0, 1]. |
+| `solveInternalLoop()` | none | With an internal loop, solves its flows for the current valve positions and pump speeds. |
+| `exchange(mdot, Tsup_hx)` | primary flow (kg/s), supply temperature at the exchanger (degC) | `[Qdel, Tret]`: delivered heat (W) and primary return temperature (degC). With a loop it also runs the loop water and the radiators. |
 | `advance(dt, tNext, wx)` | step, next time, weather sample | Builds the node-heat vector and steps the RC model one interval. |
 
 ## Function reference
@@ -84,8 +92,10 @@ place to look when writing a custom co-simulation.
 | Function | Inputs | Output or effect |
 |---|---|---|
 | `useRCModel(B)` | an `RCBS.Building` | Attaches the thermal model. |
-| `addHeatExchanger(name, ...)` | name; `HeatExchanger` properties | Creates, attaches and returns the substation ([heat exchanger page](dhs-heat-exchanger.md)). |
-| `attachHeatExchanger(hx)` | a `DHS.HeatExchanger` | Installs a pre-built substation. |
+| `addHeatExchanger(name, ...)` | name; heat exchanger properties | Creates, attaches and returns the default substation, an `ENTUPlateHeatExchanger` for a building with an internal loop ([heat exchanger page](dhs-heat-exchanger.md)). |
+| `attachHeatExchanger(hx)` | a `DHS.HeatExchanger` | Installs a pre-built substation: `FixedEffectivenessHeatExchanger` (with a loop) or `IdealHeatExchanger` (without one). |
+| `connect(dst)`, `addPipe(...)`, `addValve(...)`, `addPump(...)` | see [the internal loop page](dhs-internal-loop.md) | Connect the building to its return junction, or create a component on the return side. |
+| `.heatExchanger.internalOutlet`, `.internalInlet` | none | Where the internal loop starts and ends; connect pipes, a pump, tees and radiators between them ([internal loop page](dhs-internal-loop.md)). |
 | `attachSolar(s)`, `attachSchedule(s)` | a `DHS.Solar`, a `DHS.Schedule` | Sets the boundary conditions of a one-zone building. |
 | `attachZone(key, 'area',A, 'roomType',t, 'solar',s, 'schedule',sc, 'GventOcc',G, 'Ginf',Gi, 'freeCool',tf)` | `"Storey.Zone"`; floor area (m²), a label, and per-zone models and conductances (W/K) | Registers one zone of a multi-zone building. |
 | `zoneTemp()` | none | Current air-weighted zone temperature (degC). |

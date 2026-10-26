@@ -9,7 +9,7 @@ classdef System < dynamicprops
 %
 %     chp    = sys.addCentralHeatPlant('CHP');
 %     chp.addBoiler('B1', 'QMax',1.5e6);
-%     chp.addPump('P0', 'dp0',3.0e5, 'mdotMax',14);
+%     chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',7);
 %     chp.setSupplySetpoint(70);
 %
 %     hn = sys.addHydraulicNetwork();
@@ -25,8 +25,8 @@ classdef System < dynamicprops
 %     sys.visualize();
 %     res = sys.run(days(14));
 %
-%   This declarative style and the port-wiring style
-%   (pipe.connectOutput/connectToPipe, T-junctions, named pump types) build the
+%   This declarative style and the connecting style (a.connect(b), or
+%   pipe = node.addPipe(D, L), T-junctions, named pump types) build the
 %   exact same network -- see DHS.HydraulicNetwork and DHS.Hydraulic.*.
 %
 %   PER-STEP SEQUENCE  (sequential / Gauss-Seidel with an inner supply/return
@@ -56,6 +56,7 @@ classdef System < dynamicprops
         pumpFrac   (1,1) double = 1        % central pump speed when it has no controller
         baseHeatW  (1,1) double = 0
         cp         (1,1) double = 4186
+        integrator (1,:) char {mustBeMember(integrator, {'backwardEuler','forwardEuler','exact'})} = 'backwardEuler'   % time integration of the buildings' RC models, the radiators and the loop water
 
         weather    DHS.Weather
         plant      DHS.CentralHeatPlant
@@ -87,6 +88,7 @@ classdef System < dynamicprops
             p.addParameter('couplingIterations', 2);
             p.addParameter('pumpFrac', 1);
             p.addParameter('baseHeatW', 0);
+            p.addParameter('integrator', 'backwardEuler');
             p.parse(varargin{:});
             o = p.Results;
             if ~isempty(o.weather), obj.weather = DHS.Weather(char(o.weather)); end
@@ -95,6 +97,7 @@ classdef System < dynamicprops
             obj.couplingIterations = o.couplingIterations;
             obj.pumpFrac  = o.pumpFrac;
             obj.baseHeatW = o.baseHeatW;
+            obj.integrator = o.integrator;
         end
 
         % ---- assembly API ------------------------------------------------
@@ -146,6 +149,8 @@ classdef System < dynamicprops
             obj.plant.supplyPort.network = obj.network;
             obj.plant.returnPort.network = obj.network;
             obj.network.plantPump = obj.plant.supplyPump;
+            obj.network.discover();
+            obj.network.orderTerminals(obj.buildings);   % the flow vectors are indexed like sys.buildings
             obj.network.compile();
 
             obj.plantInit = [obj.plant.Tboiler, obj.plant.Tsupply];
@@ -169,12 +174,19 @@ classdef System < dynamicprops
             for c = {pump0, bpv}
                 if ~isempty(c{1}) && ~isempty(c{1}.controller), c{1}.controller.reset(); end
             end
+            obj.network.resetLinkControllers();
             pf = obj.pumpFrac;  pump0.speed = pf;
             wfcn = @(t) obj.weather.at(t).Tout;
             for b = 1:n
+                obj.buildings{b}.integrator = obj.integrator;
+                obj.buildings{b}.sim.solverMode = obj.simMode();
                 obj.buildings{b}.bindClock(obj.startDate, obj.timeStep, wfcn);
                 obj.buildings{b}.reset(dt);
             end
+
+            obj.network.beginRun();                           % the valves follow their commands with their lags
+            for b = 1:n, obj.buildings{b}.beginRun(); end
+            runGuard = onCleanup(@() obj.endValveRun());
 
             time  = obj.startDate + seconds((0:nt-1)'*dt);
             Toutv = zeros(nt,1);
@@ -185,13 +197,15 @@ classdef System < dynamicprops
             b0 = struct('name','','Tzone',zc(),'Twall',zc(),'Troof',zc(),'Tmass',zc(), ...
                         'setpoint',zc(),'Qdeliv',zc(),'Qsolar',zc(),'Qint',zc(), ...
                         'Qvent',zc(),'Qfreecool',zc(),'valve',zc(),'pump',zc(),'mdot',zc(), ...
-                        'vel',zc(),'Tsup_hx',zc(),'Tret_primary',zc(),'pSup',zc(),'pRet',zc());
+                        'vel',zc(),'Tsup_hx',zc(),'Tret_primary',zc(),'pSup',zc(),'pRet',zc(), ...
+                        'Tint_sup',zc(),'Tint_ret',zc(),'mdot_int',zc());
             Bd = repmat(b0,1,n);
             for b = 1:n
                 Bd(b).name = obj.buildings{b}.name;
                 sg0 = obj.buildings{b}.signals();
                 Bd(b).zoneNames = sg0.zoneNames;
                 Bd(b).Tzones    = zeros(nt, numel(sg0.zoneNames));
+                Bd(b).Qzones    = zeros(nt, numel(sg0.zoneNames));
             end
 
             W = obj.weather.atVec(time);
@@ -213,7 +227,7 @@ classdef System < dynamicprops
                 Bd(b).Tzone(1)=sg.Tzone; Bd(b).Twall(1)=sg.Twall;
                 Bd(b).Troof(1)=sg.Troof; Bd(b).Tmass(1)=sg.Tmass;
                 Bd(b).setpoint(1)=sg.setpoint;
-                Bd(b).Tzones(1,:)=sg.Tzones;
+                Bd(b).Tzones(1,:)=sg.Tzones;  Bd(b).Qzones(1,:)=0;
                 Bd(b).mdot(1)=hyd0.mdot(b); Bd(b).vel(1)=hyd0.vel(b);
                 Bd(b).pSup(1)=hyd0.pSupBranch(b); Bd(b).pRet(1)=hyd0.pRetBranch(b);
                 Bd(b).Tsup_hx(1)=obj.plant.Tsupply; Bd(b).Tret_primary(1)=obj.plant.Tsupply;
@@ -233,11 +247,14 @@ classdef System < dynamicprops
                 end
                 for b = 1:n
                     obj.buildings{b}.control(obj, dt);
+                    obj.buildings{b}.solveInternalLoop();
                 end
 
                 pf = obj.loopCommand(pump0, pf, dt);                    % central pump
                 pump0.speed = pf;
                 if ~isempty(bpv), bpv.pos = obj.loopCommand(bpv, bpv.pos, dt); end   % bypass valve
+                obj.network.controlLinks(obj, dt);                     % valves and pumps placed in the network
+                obj.network.advanceValves(dt);
                 hyd  = obj.network.solve(pf);
                 mdot = hyd.mdot;
                 obj.plant.stepControl(obj, dt);
@@ -284,7 +301,8 @@ classdef System < dynamicprops
                     Bd(b).Qsolar(k)=sg.Qsolar; Bd(b).Qint(k)=sg.Qint; Bd(b).Qvent(k)=sg.Qvent;
                     Bd(b).Qfreecool(k)=sg.Qfreecool; Bd(b).valve(k)=sg.valve; Bd(b).pump(k)=sg.pump;
                     Bd(b).Tret_primary(k)=sg.Tret_primary;
-                    Bd(b).Tzones(k,:)=sg.Tzones;
+                    Bd(b).Tzones(k,:)=sg.Tzones;  Bd(b).Qzones(k,:)=sg.Qzones;
+                    Bd(b).Tint_sup(k)=sg.Tint_sup;  Bd(b).Tint_ret(k)=sg.Tint_ret;  Bd(b).mdot_int(k)=sg.mdot_int;
                     Bd(b).mdot(k)=hyd.mdot(b); Bd(b).vel(k)=hyd.vel(b);
                     Bd(b).Tsup_hx(k)=TsupHx(b);
                     Bd(b).pSup(k)=hyd.pSupBranch(b); Bd(b).pRet(k)=hyd.pRetBranch(b);
@@ -308,6 +326,20 @@ classdef System < dynamicprops
     end
 
     methods (Access = private)
+        function endValveRun(obj)
+            if ~isempty(obj.network), obj.network.endRun(); end
+            for b = 1:numel(obj.buildings), obj.buildings{b}.endRun(); end
+        end
+
+        function m = simMode(obj)
+            % RCBS.Simulation solverMode that matches obj.integrator
+            switch obj.integrator
+                case 'backwardEuler', m = "cached";
+                case 'forwardEuler',  m = "forwardEuler";
+                case 'exact',         m = "exact";
+            end
+        end
+
         function u = loopCommand(obj, comp, u, dt)
             % One sample of the controller on a pump or valve; u is unchanged without one.
             if isempty(comp) || isempty(comp.controller), return, end

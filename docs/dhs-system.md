@@ -27,7 +27,7 @@ sys = DHS.System('weather','solar_data_2025.csv', 'startDate',datetime(2025,1,1)
 
 chp = sys.addCentralHeatPlant('CHP');                    % plant: one boiler, one pump
 chp.addBoiler('B1', 'QMax',1.0e6);
-chp.addPump('P0', 'dp0',3.0e5, 'mdotMax',12);
+chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',6);
 chp.setSupplySetpoint(70);
 
 hn = sys.addHydraulicNetwork();                          % network: a supply and a return junction, a pipe each
@@ -72,6 +72,7 @@ time step unless stated otherwise.
 | `res.bldg(i).Tzone`, `.setpoint`, `.Tzones`, `.zoneNames` | Air temperature and setpoint (degC); per-zone temperatures for a multi-zone building. |
 | `res.bldg(i).Qdeliv`, `.Qsolar`, `.Qint`, `.Qvent`, `.Qfreecool` | Heat delivered by the substation, solar gain, internal gain, ventilation loss, free cooling (W). |
 | `res.bldg(i).valve`, `.pump`, `.mdot`, `.vel` | Valve position and booster pump speed (0 to 1, the pump is stopped by default), branch flow (kg/s), velocity (m/s). |
+| `res.bldg(i).Tint_sup`, `.Tint_ret`, `.mdot_int`, `.Qzones` | Internal loop supply and return temperature (degC) and flow (kg/s), and the heat each zone receives (W, one column per zone). The temperatures and flow are NaN or zero for an ideal substation. |
 | `res.bldg(i).Tsup_hx`, `.Tret_primary`, `.pSup`, `.pRet` | Primary supply and return temperatures at the exchanger (degC) and gauge pressures at the tee (Pa). |
 | `res.energy.gas_kWh`, `.boiler_kWh`, `.delivered_kWh`, `.dist_loss_kWh`, `.base_kWh` | Scalars: energy totals over the run. |
 | `res.energy.plant_eff`, `.closure_err` | Scalars: delivered plus losses over gas input, and the relative closure error of the energy balance. |

@@ -25,7 +25,7 @@ classdef FixedDisplacementPump < DHS.Hydraulic.Pump
 %   work.
 %
 %   PROPERTIES (SI, in addition to DHS.Hydraulic.Pump)
-%     mdotRated [kg/s]  flow delivered at full speed against a low-resistance load
+%     mdotRated [kg/s]  flow delivered at maximum speed nMax (displacement x rpm) against a low-resistance load
 %     dpMax     [Pa]    relief-valve / maximum working-pressure ceiling
 
     properties
@@ -43,6 +43,11 @@ classdef FixedDisplacementPump < DHS.Hydraulic.Pump
             %   pump is running, 0 when stopped (see the class header SCOPE note).
             if nargin < 3 || isempty(frac), frac = obj.speed; end
             if min(1, max(0,frac)) <= 0, h = 0; else, h = obj.dpMax; end
+        end
+
+        function [K, H] = inlineCurve(obj) %#ok<MANU>
+            error('DHS:FixedDisplacementPump:inline', ...
+                'A fixed-displacement pump cannot be placed in-line in a network; use a centrifugal pump.');
         end
 
         function [m, h] = solveBranch(obj, Kbranch, dpAvailable, frac)

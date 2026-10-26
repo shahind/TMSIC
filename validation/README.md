@@ -12,7 +12,7 @@ interfaces behave, which is regression testing. Here, the checks address the phy
 
 ```matlab
 addpath(genpath(pwd))
-run_all_validation            % runs all 18 checks, prints a table for each, saves the figures
+run_all_validation            % runs all 20 checks, prints a table for each, saves the figures
 V = validate_pump;            % runs one check and shows its figure
 V = validate_pump('none');    % runs one check without a figure
 ```
@@ -30,7 +30,7 @@ over its own validated range [18](../docs/references.md#r18); this check's own w
 number below that validated range) sets its tolerance at 3.5 percent. No tolerance was
 widened to make a check pass.
 
-**All 18 checks pass.**
+**All 20 checks pass.**
 
 ## How to read the figures
 
@@ -52,6 +52,8 @@ Where the two agree, the coloured line covers the grey one.
 | [2.5](#25-pipe-friction) | Pipe friction | 3.1 % against Colebrook–White |
 | [2.6](#26-t-junction) | T-junction | 5e-12 relative |
 | [2.7](#27-pipe-network) | Pipe network | 4e-11 relative |
+| [2.8](#28-radiator) | Radiator and secondary exchanger | 2e-16 relative at the design point |
+| [2.9](#29-in-line-links) | In-line links: pump, valve, radiator, bypass | 8e-7 relative against an independent solution |
 | [3.1](#31-pid-controller) | PID controller | 0.007 in normalised output |
 | [3.2](#32-lqr-controller) | LQR controller | 0.002 in gain |
 | [4.1](#41-central-heat-plant) | Central heat plant | 0.3 % in normalised temperature |
@@ -129,7 +131,8 @@ average of the two.
 ![Convergence of backward Euler and agreement with the exact discretisation](figures/validate_bdf_solver.png)
 
 **What it validates.** The backward-Euler integrator shared by every RC model, including its
-cached sparse factorisation.
+cached sparse factorisation, and the explicit forward-Euler mode that can be selected instead
+(`solverMode = "forwardEuler"`, see [the solvers page](../docs/dhs-solvers.md)).
 
 **Reference.** The convergence theory of backward Euler, a plain dense solve that
 serves as reference implementation, and the exact zero-order-hold discretisation (Franklin,
@@ -138,9 +141,10 @@ Powell and Emami-Naeini [41](../docs/references.md#r41)).
 **Expected output.** Halving the step halves the error (order 1). The cached solver
 matches the dense reference to numerical precision and differs from the exact discretisation
 by no more than the method's own truncation error. The discrete energy balance closes to
-machine precision.
+machine precision. Forward Euler is first order too, agrees with the exact discretisation to a
+fraction of a degree, and warns when the step is beyond its stability limit.
 
-**Component output.** The measured order is 1.005. Cached and dense solvers differ by 1.6e-12 °C. Against the exact discretisation the cached solver differs by 0.00019 °C. Its energy-balance residual is 5.5e-15.
+**Component output.** The measured order is 1.005 (0.986 for forward Euler, which differs from the exact discretisation by 0.00019 °C and warns for a 30 min step on a network that is safe below 100 s). Cached and dense solvers differ by 1.6e-12 °C. Against the exact discretisation the cached solver differs by 0.00019 °C. Its energy-balance residual is 5.5e-15.
 
 ### 1.5 Whole building
 
@@ -172,8 +176,9 @@ for a 2×2 multi-zone layout. Measured conductance is 128.333 W/K against an ana
 
 ![Effectiveness, delivered heat and pressure drop of the substation exchanger](figures/validate_heat_exchanger.png)
 
-**What it validates.** The plate heat exchanger at each substation, in two respects: the heat
-it transfers, and the pressure drop it and its valve add to the network branch.
+**What it validates.** The heat exchanger at each substation, in two respects: the heat
+it transfers (for each of the three types: `ENTUPlateHeatExchanger` and `FixedEffectivenessHeatExchanger`
+for a building with an internal loop, `IdealHeatExchanger` for one without), and the pressure drop it and its valve add to the network branch.
 
 **Reference.** The effectiveness–NTU relation for a counterflow exchanger (Incropera and
 DeWitt [12](../docs/references.md#r12), Section 11.4), the IEC 60534 valve equation [22](../docs/references.md#r22), and the primary-side design
@@ -184,12 +189,15 @@ in the IEA District Heating and Cooling connection handbook [29](../docs/referen
 point and in three limits: a very large secondary flow, equal capacity rates, and a very
 large heat-transfer area. The heat given up by the primary side equals the heat received by
 the secondary side. The delivered heat never exceeds the rated capacity and never reverses.
+The class `ENTUPlateHeatExchanger` gives the same heat as the standalone reference function at several flows;
+`FixedEffectivenessHeatExchanger` gives $\varepsilon\,\dot C_{\min}\Delta T$ with the user's $\varepsilon$;
+`IdealHeatExchanger` gives the heat and the return temperature of the radiator law $\dot Q = \dot Q_\text{nom}((\bar T_w - T_\text{zone})/\Delta T_\text{nom})^n$ with the district water as the radiator, equal to an independent root-finding solution; and the NTU relation tends to $\dot C_{\min}\Delta T$ as $UA\to\infty$.
 The primary pressure drop equals the design body loss plus the valve loss computed
 independently, and the default design drop is of the same order as the published guidance.
 
 **Component output.** All heat-transfer cases agree with their closed forms to 2e-9 or
 better: 432.3 kW at the general point, 456.2 kW, 354.1 kW and 502.3 kW in the three limits.
-Energy is conserved to 3e-16. Primary pressure drop is 54.1 kPa, equal to the
+Energy is conserved to 3e-16. The three types agree with their definitions to 1e-9 or better. Primary pressure drop is 54.1 kPa, equal to the
 independent calculation to 1e-16, and the default design drop is 30 kPa.
 
 **Cross-check.** MathWorks' Simscape Heat Exchanger (TL-TL) and Plate Heat Exchanger
@@ -209,14 +217,16 @@ and on a substation branch.
 
 **Reference.** Karassik et al. [25](../docs/references.md#r25) and Gülich [26](../docs/references.md#r26) for the affinity laws.
 
-**Expected output.** The head is the rated shut-off value at zero flow and zero at the
-run-out flow. At speed $s$ the curve obeys $H(sQ, s) = s^2 H(Q, 1)$. Against a quadratic
+**Expected output.** The head is the shut-off value at zero flow and zero at the
+free-delivery flow, and the curve passes through the rated duty point (flow `mdotRated`, head `dpRated`) of the data sheet. At speed $s$ the curve obeys $H(sQ, s) = s^2 H(Q, 1)$. Against a quadratic
 system curve the pump settles at the analytic intersection. On a branch of given
 resistance, the flow follows the closed-form expression, and the pump's own head at that
 flow equals the pressure the branch needs. A stopped pump (speed 0) adds no head and no
-resistance, so the branch flow is $\sqrt{\Delta p/K}$, for both pump types.
+resistance, so the branch flow is $\sqrt{\Delta p/K}$, for both pump types. The speed is the fraction of the
+maximum rotational speed: setting `rpm` sets `speed = rpm/nMax`, and the head then follows the affinity law.
 
-**Component output.** The shut-off head (300 kPa) and the run-out flow (14 kg/s) are exact.
+**Component output.** The shut-off head (300 kPa) and the free-delivery flow (14 kg/s) are exact, as are the head at the duty
+point of a pump given by data sheet points and its rpm-to-speed mapping.
 Affinity scaling holds to 2e-16, and the operating point (8.909 kg/s) matches the analytic
 intersection to 2e-16. Branch flow and head balance agree to 6e-16, and a stopped pump
 matches $\sqrt{\Delta p/K}$ exactly.
@@ -266,11 +276,14 @@ equation and its linear and equal-percentage travel characteristics.
 **Expected output.** The rated $K_v$ can be recovered from the valve's own pressure-drop
 equation. The equal-percentage characteristic follows $K_v/K_{vs} = R^{\text{pos}-1}$ and the
 linear one follows $K_v/K_{vs} = \text{pos}$. A valve installed in series with a fixed
-resistance has a monotonic characteristic that is closer to linear than the inherent one.
+resistance has a monotonic characteristic that is closer to linear than the inherent one. The position the
+flow equation uses follows the command with a first-order lag of time constant `lag` (default 60 s):
+after a step of the command it is $\text{cmd} + (x_0 - \text{cmd})e^{-t/\tau}$ at every step, a valve with `lag` 0
+follows at once, and outside a run the command applies.
 
 **Component output.** The recovered $K_v$ is 25.0, equal to the rated value to 3e-16. At half
 travel the equal-percentage ratio is 0.141421, the exact value for $R = 50$. Agreement on the linear curve is 2e-16. With an authority of 0.59 the installed curve is monotonic and less
-curved than the inherent one.
+curved than the inherent one. The lag response matches the exponential to 1e-16 at every 10 s step.
 
 **Cross-check.** MathWorks' Simscape Gate Valve (TL) block [58](../docs/references.md#r58)
 models a different valve archetype (a discharge coefficient and gate opening area) than
@@ -331,7 +344,7 @@ expression evaluated at the leg's own Reynolds number, and differs from the `'fi
 value at low flow. At equal diameters the branch coefficient is exactly three times the run
 coefficient, since 60 / 20 = 3. A pipe leaving the tee picks up the loss of the port it is
 wired to, and a pipe with no tee picks up none. In a network, a tee lowers the flow by the
-amount the loss predicts, and the declarative and port-wiring styles give the same loss.
+amount the loss predicts, and the declarative and connecting styles give the same loss.
 
 **Component output.** For a 0.10 m main and a 0.05 m side leg, $K_\text{run}$ is 2.731 and
 $K_\text{branch}$ is 153.53 Pa/(kg/s)², both equal to the formula. At equal diameters the
@@ -382,6 +395,63 @@ the total flow matches the closed form to 9e-13 (relative), the flow ratio to 3e
 valve moves the flow to the bypass as expected, the half-open bypass valve carries the closed-form flow
 to 1e-13 (relative), and the bypass temperatures agree with the hand
 calculation to 1e-9 K with the heat balance closing to 4e-17.
+
+### 2.8 Radiator
+
+`validate_radiator`
+
+![Metal temperature of the radiator after a step, and its water-side conductance against flow](figures/validate_radiator.png)
+
+**What it validates.** The zone radiator of a building's internal loop, an R-C-R element whose water-side
+conductance depends on the flow, and the exchanger's secondary side with the loop's actual flow.
+
+**Reference.** The sizing relations of the radiator; the exact solution of the linear metal ODE; the
+first law of thermodynamics; and the effectiveness-NTU relation of the heat exchanger
+(Incropera and DeWitt [12](../docs/references.md#r12)).
+
+**Expected output.** At the design flow, supply temperature and air temperature, the steady radiator gives
+exactly its design heat and return temperature. After a step in the water supply, the metal temperature
+follows $T_{ss} + (T_0 - T_{ss})e^{-(a+UA_{ma})t/C}$. In every step the heat from the water minus the heat to the air equals
+the change of stored heat, and the heat from the water equals $\dot m c_p (T_\text{in} - T_\text{out})$. The
+water-side conductance equals $\dot m c_p(1 - e^{-UA_{wm}/(\dot m c_p)})$ at several flows, rises with the flow and stays
+below both $UA_{wm}$ and $\dot m c_p$. With no flow the metal relaxes to the zone temperature as $e^{-UA_{ma}t/C}$. The
+exchanger with a secondary flow conserves energy on both sides, and a larger secondary flow delivers more heat.
+The metal temperature can be advanced by backward Euler (default), forward Euler or the exact solution
+(`integrator`): the exact one reproduces the ODE solution for constant inputs at a 10 minute step, forward Euler is
+first order, and all of them keep the first law in every step.
+
+**Component output.** The design point matches to 2e-16 (relative). The step response is within 0.021 K of the
+exponential and the no-flow decay within 0.013 K (backward Euler with a 1 s step). The energy balance closes to 2e-14, the
+conductance to 1e-16, and the exchanger to 2e-16. The exact integrator is within 4e-16 K of the ODE solution at a 600 s
+step, and halving the step of forward Euler halves its error.
+
+### 2.9 In-line links
+
+`validate_inline_links`
+
+![Flow through the radiator and the bypass against the valve opening](figures/validate_inline_links.png)
+
+**What it validates.** A loop made of links wired with `connect` and `add...`: an in-line pump, pipes, a
+tee, a radiator valve, a radiator and a bypass valve to a return junction. It validates the way the
+solver handles a pump in line, a valve in series with a branch (including a valve almost shut), and a bypass.
+
+**Reference.** The loop equations written from the textbook relations, independently of the code:
+Darcy-Weisbach with the Swamee-Jain friction factor [16](../docs/references.md#r16), the equivalent-length
+tee loss [51](../docs/references.md#r51), the $K_v$ equation of the valves [22](../docs/references.md#r22), and
+the parabola of the centrifugal pump [25](../docs/references.md#r25). The flows are the solution of
+$M = m_\text{rad} + m_\text{bp}$, $K_\text{rad} m_\text{rad}^2 = K_\text{bp} m_\text{bp}^2$ and
+$H - K_\text{pump}M^2 = K_\text{line}M^2 + K_\text{rad} m_\text{rad}^2$, found separately with `fzero`.
+
+**Expected output.** The flows the network returns satisfy the three equations. They equal the separate
+solution at nine valve openings (from the minimum position to fully open) and at four pump speeds. With the
+valve at its minimum position the radiator takes $\sqrt{\Delta p/K}$ (under 1 % of its design flow) and the
+bypass the rest. Closing the valve lowers the radiator flow and raises the bypass flow. The same network
+wired in the opposite order, with the downstream chains first and the pump joined last, gives the same
+flows. A loop without a pump stops with an error.
+
+**Component output.** The closure residual is 5e-11 (relative); the flows agree with the separate
+solution to 8e-7 over the sweeps and to 4e-7 with the valve at its minimum position; the two wiring orders
+give the same flows to 4e-11 kg/s; and the loop without a pump raises `DHS:HydraulicNetwork:noPump`.
 
 ---
 

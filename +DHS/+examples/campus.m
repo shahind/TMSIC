@@ -10,11 +10,12 @@ function sys = campus(varargin)
 %   plate heat exchanger + control valve, a solar model and a
 %   weekly occupancy schedule.
 %
-%   The plant and the supply main are wired PORT BY PORT here -- a pipe is
-%   built, its input is connected, its output is connected, the same way a
-%   zone wires its walls in +RCBS. DHS.HydraulicNetwork also accepts the
-%   declarative style (hn.addPipe(nodeA,nodeB,...)) if you prefer it; both
-%   produce the identical network.
+%   The supply main is wired one component at a time with addPipe / addTee
+%   and connect, and each building has an internal loop (pipe, pump, tee,
+%   valve, radiator, bypass) wired the same way from the heat exchanger's
+%   internal outlet to its internal inlet. DHS.HydraulicNetwork also accepts
+%   the declarative style (hn.addPipe(nodeA,nodeB,...)) if you prefer it;
+%   both produce the identical network.
 %
 %   The 14-day results (plant heat, zone temperatures, efficiency, energy
 %   closure) should match the archived DES_results.mat; the distribution
@@ -40,9 +41,9 @@ function sys = campus(varargin)
     chp.sensorTau = 20;  chp.firingSlewPerMin = 0.15;
     chp.setSupplySetpoint(70);
 
-    boiler1 = chp.addBoiler('B1', 'QMax', 1.5e6, ...
+    boiler1 = chp.addBoiler('B1', 'QMax', 2.0e6, ...
         'etaRef', 0.92, 'etaSlope', 0.0025, 'TetaRef', 50, 'etaMin', 0.80, 'etaMax', 0.98);
-    pump0 = DHS.Hydraulic.CentrifugalPump('P0', 'dp0', 6.0e5, 'mdotMax', 20);
+    pump0 = DHS.Hydraulic.CentrifugalPump('P0', 'dp0', 6.0e5, 'mdotRated',10);
     chp.attachPump(pump0);
     boiler1.connectTo(pump0);
 
@@ -69,13 +70,22 @@ function sys = campus(varargin)
     connD         = [0.045 0.050 0.050 0.055 0.036];
     Kvs           = [ 14    18    20    26    8  ];
     dpNomPrimary  = [30e3  35e3  35e3  40e3  25e3];   % HX-body design pressure drop [Pa]
+    % Lengths of the pipes of each building's internal loop [m]; the totals are about 0.2 m of pipe per m2
+    % of floor, as in a radiator system with an air handling unit (7,400, 11,700, 14,000, 19,200 and 3,400 m2).
+    %               exchanger   pump to   branch to the     return    bypass
+    %               to pump     the tee   radiator (each way) main
+    loopLen       = [   75       520        75              665        70;      % Administration, 1,480 m
+                       115       820       115             1055       120;      % Arts, 2,340 m
+                       140       980       140             1260       140;      % Science, 2,800 m
+                       190      1345       190             1730       195;      % Engineering, 3,840 m
+                        35       240        35              305        30 ];    % Library, 680 m
     mdotNomPrimary= [ 3.5   4.5   5.0   6.0   2.0 ];  % ... at this primary design flow [kg/s]
 
     % supply main: one T-junction per building, ordered by distance from the
-    % plant, wired one pipe at a time -- build it, connect its input, connect
-    % its output, and the T-junction's own run/branch loss is picked up
-    % automatically wherever a pipe leaves its portB or portC (see
-    % DHS.Hydraulic.TJunction)
+    % plant. Each trunk pipe is created at the end of the previous one with addPipe(D, L),
+    % and the tee at its end with addTee(side diameter); the tee's run (portB) continues
+    % the main, and its portC feeds a building. The T-junction's own run/branch loss is
+    % picked up automatically wherever a pipe leaves its portB or portC.
     %   Admin 40 m, Library 70 m, Arts 90 m, Science 130 m, Engineering 170 m
     order   = [1 5 2 3 4];                       % build order -> distance order
     segLen  = [40 30 20 40 40];                  % plant->T1, T1->T2, ... segment lengths [m]
@@ -83,12 +93,10 @@ function sys = campus(varargin)
     outlet  = chp.supplyPort;
     tee = cell(1,5);
     for kk = 1:5
-        bi   = order(kk);
-        trunkPipe = DHS.Hydraulic.Pipe(sprintf('trunk%d', kk), 'L',segLen(kk), 'D',Dmain, 'UperM',0.30);
-        outlet.connectToPipe(trunkPipe);
-        tee{bi} = DHS.Hydraulic.TJunction(['T_' B{bi,1}], 'mainDiameter',Dmain, 'sideDiameter',connD(bi));
-        trunkPipe.connectOutput(tee{bi});
-        outlet = tee{bi}.portB;
+        bi = order(kk);
+        trunkPipe = outlet.addPipe(Dmain, segLen(kk), 'name',sprintf('trunk%d', kk), 'UperM',0.30);
+        tee{bi}   = trunkPipe.addTee(connD(bi), 'name',['T_' B{bi,1}]);
+        outlet    = tee{bi}.portB;
     end
 
     % return main: defined separately from the supply main -- its own junctions and pipes,
@@ -100,9 +108,8 @@ function sys = campus(varargin)
     for kk = 1:5                                 % built from the plant outward, like the supply main
         bi = order(kk);
         if kk == 1, dest = chp.returnPort; else, dest = retJ{order(kk-1)}; end
-        retPipe = DHS.Hydraulic.Pipe(sprintf('return%d', kk), 'L',segLen(kk), 'D',Dmain, 'UperM',0.30);
-        retJ{bi}.connectToPipe(retPipe);
-        retPipe.connectOutput(dest);
+        retPipe = retJ{bi}.addPipe(Dmain, segLen(kk), 'name',sprintf('return%d', kk), 'UperM',0.30);
+        retPipe.connect(dest);
     end
 
     % central pump speed holds the supply-return differential pressure at the last tee at 3 bar
@@ -122,20 +129,56 @@ function sys = campus(varargin)
         Qpk  = (geom.UA_total + geom.rc.Gvent_occ) * (21 - (-15));
 
         b = sys.addBuilding(name);
-        b.useRCModel( rcBuildingFromRc(geom.rc) );
+        rcB = rcBuildingFromRc(geom.rc);
+        b.useRCModel(rcB);
         b.GventOcc = geom.rc.Gvent_occ;
         b.connD = connD(i);  b.connLength = 20;  b.Kminor = 8;
 
         hx = b.addHeatExchanger('HX', ...
             'UA', 1.6*Qpk/22, 'Qcap', 1.5*Qpk, ...
-            'mdotSecNom', max(1.5, Qpk/(4186*22)), 'secApproach', 28, ...
             'dpNomPrimary', dpNomPrimary(i), 'mdotNomPrimary', mdotNomPrimary(i));
         hx.valve.Kvs = Kvs(i);  hx.valve.char = 'eqpct';  hx.valve.rangeability = 50;
-        valvePID = DHS.controllers.PID(0.14, 1.6e-4, 0, 40);
-        valvePID.name = [name '-valvePID'];
-        valvePID.measure   = @(sys) b.Tzone;           % the zone temperature ...
-        valvePID.reference = @(sys) b.setpoint;        % ... held at the schedule's setpoint
-        hx.valve.attachController(valvePID);
+
+        % internal loop, from the exchanger's internal outlet back to its internal inlet:
+        %   pipe -> pump -> pipe -> tee (portC: valve -> pipe -> radiator -> pipe, portB: bypass) -> return junction -> pipe
+        % 100 mm mains with the lengths of loopLen, insulated pipes inside the building (UperM 0.15 W/m/K).
+        rad  = DHS.Radiator('Radiator', 'Qdes', Qpk, 'Tsup', 60, 'Tret', 40);
+        rad.connect(rcB.S1.Z);                                % the radiator heats the zone
+        L    = loopLen(i,:);                                  % feed, pump to tee, branch, return main, bypass [m]
+        Dm   = 0.10;  Dz = rad.pipeD;                         % loop main and zone branch pipe diameters [m]
+        % loop pump: the flow the radiator needs plus what the bypass takes, 1.5 x the design flow, and the
+        % head to push all of it through the mains and the bypass with the zone valve shut (shut-off head 1.6 x that)
+        Mref  = 1.5 * rad.mdotDes;
+        Kmain = DHS.Hydraulic.Pipe('mains', 'L',L(1)+L(2)+L(4), 'D',Dm).resistance(Mref, 983, 4.7e-4);
+        Kbyp  = 1.2e4 / (0.5*rad.mdotDes)^2;
+        loopPump = hx.internalOutlet.addPipe(Dm, L(1), 'UperM',0.15).addPump( ...
+            'dp0',1.6*(Kmain + Kbyp)*Mref^2, 'mdotRated',Mref, 'name','loopPump');
+        loopTee = loopPump.addPipe(Dm, L(2), 'UperM',0.15).addTee(Dz);
+        zoneValve = loopTee.portC.addValve('Kvs',DHS.Hydraulic.Valve.kvsFor(rad.mdotDes, 5e3), 'char','linear', 'minPos',1e-3, 'name','zoneValve');
+        zoneValve.addPipe(Dz, L(3), 'UperM',0.15).connect(rad);
+        retJloop = DHS.Hydraulic.Junction([name '.loopReturn'], 'return');
+        rad.addPipe(Dz, L(3), 'UperM',0.15).connect(retJloop);
+        retJloop.addPipe(Dm, L(4), 'UperM',0.15).connect(hx.internalInlet);
+        bypassValve = loopTee.portB.addPipe(Dm, L(5), 'UperM',0.15).addValve('Kvs',DHS.Hydraulic.Valve.kvsFor(0.5*rad.mdotDes, 1.2e4), 'char','linear', 'name','bypassValve');
+        bypassValve.connect(retJloop);                              % takes the water the zone valve does not
+        % the zone valve holds the zone temperature at the schedule's setpoint
+        zonePID = DHS.controllers.PID(0.6, 2e-3, 0);
+        zonePID.name = [name '-zoneValvePID'];
+        zonePID.measure   = @(sys) rad.Tzone;
+        zonePID.reference = @(sys) rad.setpoint;
+        zoneValve.attachController(zonePID);
+        % the loop pump holds the internal mass flow
+        flowPID = DHS.controllers.PID('Kp',0.03/rad.mdotDes, 'Ki',0.002/rad.mdotDes, 'uMin',0.3);   % pump speed from the flow error
+        flowPID.name = [name '-flowPID'];
+        flowPID.measure   = @(sys) b.mdotInt;
+        flowPID.reference = 1.5*rad.mdotDes;           % the radiator's design flow plus what the bypass takes
+        loopPump.attachController(flowPID);
+        % the district valve holds the internal supply temperature (exchanger internal outlet)
+        supPID = DHS.controllers.PID(0.02, 4e-5, 0);
+        supPID.name = [name '-supplyPID'];
+        supPID.measure   = @(sys) b.TintSup;
+        supPID.reference = 60;
+        hx.valve.attachController(supPID);
 
         % solar: glazing spread over 4 orientations from the real facade lengths
         fN = Ln/(Ln+Le)/2;  fE = Le/(Ln+Le)/2;
@@ -150,7 +193,8 @@ function sys = campus(varargin)
             'weekendOccupied',logical(occ(3)),'weekendStartHour',10,'weekendEndHour',18, ...
             'Tocc',21,'Tsetback',18,'gainOccW', gW*Af*ns,'gainMassFraction',0.30) );
 
-        hn.connectBuilding(tee{i}, b, retJ{i});
+        tee{i}.portC.connect(b);                       % the building hangs on its tee's side port
+        b.connect(retJ{i});                            % and drains into its return junction
     end
 end
 

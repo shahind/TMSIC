@@ -5,7 +5,7 @@ classdef Port < handle
 %   A tee's ports are reached by name:
 %
 %       tee = hn.tee2;
-%       tee.portB.connectToPipe(pipe3);     % wire the run
+%       tee.portB.connect(pipe3);           % wire the run
 %       tee.portC.D = 0.06;                 % diameter of the side branch [m]
 %       tee.portC.p                         % gauge pressure at the tee [Pa]
 %       tee.portC.pipe.L                    % the pipe leaving that port
@@ -35,14 +35,26 @@ classdef Port < handle
             obj.node = node;  obj.name = name;
         end
 
-        function pipe = connectToPipe(obj, pipe)
-            % CONNECTTOPIPE  Attach a pipe to this port: portB the run, portC the side branch.
-            %   Finish the wire with  pipe.connectOutput(nextNode).
+        function dst = connect(obj, dst, varargin)
+            % CONNECT  Join the next component to this port: tee.portC.connect(pipe), or a radiator or building.
+            %   portB is the run and portC the side branch; portA is the inlet, so finish the incoming
+            %   component with  component.connect(tee).
             if strcmp(obj.name, 'portA')
-                error('DHS:Port:inlet', 'portA is the inlet: finish the incoming pipe with pipe.connectOutput(tee).');
+                error('DHS:Port:inlet', 'portA is the inlet: finish the incoming component with component.connect(tee).');
             end
-            obj.node.connectToPipe(obj.name, pipe);
+            DHS.Hydraulic.connectEnds(obj, dst, varargin{:});
         end
+
+        function pipe = connectToPipe(obj, pipe)
+            % CONNECTTOPIPE  Older name for connect.
+            obj.connect(pipe);
+        end
+
+        function x = addPipe(obj, varargin),     x = DHS.Hydraulic.addOn(obj, 'pipe', varargin{:});     end
+        function x = addValve(obj, varargin),    x = DHS.Hydraulic.addOn(obj, 'valve', varargin{:});    end
+        function x = addPump(obj, varargin),     x = DHS.Hydraulic.addOn(obj, 'pump', varargin{:});     end
+        function x = addTee(obj, varargin),      x = DHS.Hydraulic.addOn(obj, 'tee', varargin{:});      end
+        function x = addRadiator(obj, varargin), x = DHS.Hydraulic.addOn(obj, 'radiator', varargin{:}); end
 
         function v = get.D(obj)
             if strcmp(obj.name, 'portC'), v = obj.node.sideDiameter; else, v = obj.node.mainDiameter; end
@@ -65,7 +77,8 @@ classdef Port < handle
             for k = 1:numel(obj.node.childPipes)
                 if strcmp(obj.node.childPipes{k}.teeSide, side), v = obj.node.childPipes{k}; return, end
             end
-            if strcmp(side, 'branch') && ~isempty(obj.node.fedBuildings)
+            if strcmp(side, 'branch') && ~isempty(obj.node.fedBuildings) ...
+                    && isprop(obj.node.fedBuildings{1}, 'connPipeSup')
                 v = obj.node.fedBuildings{1}.connPipeSup;            % a building's service pipe
             end
         end

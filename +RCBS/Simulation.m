@@ -38,7 +38,7 @@ classdef Simulation < handle
 %     measure(zoneKey[,node])   - LIVE node temperature during a run
 %     stepOnce(t,Tout,Q)        - advance exactly one step (external co-simulation)
 %     getStateSpace()           - continuous ss() model for LQR / MPC design
-%     solverMode                - "cached" (default) | "legacy" | "exact"
+%     solverMode                - "cached" (backward Euler, default) | "forwardEuler" | "legacy" | "exact"
 %
 %   Units summary: temperature degC, capacitance J/K, conductance W/K, heat W,
 %   time seconds (obj.timeStep is a duration).
@@ -55,7 +55,7 @@ classdef Simulation < handle
         stepCallback = []       % f(sim,k,t,Tvec) : called after each step
         act          = struct() % actuator registry (name -> value)
 
-        solverMode   = "cached" % "cached" | "legacy" | "exact"
+        solverMode   = "cached" % "cached" (backward Euler) | "forwardEuler" | "legacy" | "exact"
         warmStart    = false    % true => run()/buildLinear keep the current state
         k            = 0        % current step index during a run
 
@@ -207,6 +207,15 @@ classdef Simulation < handle
             M = spdiags(obj.Cvec/dt, 0, N, N) + obj.Lmat;
             obj.decompM   = decomposition(M, 'lu');
             obj.dtFactored = dt;
+            if obj.solverMode == "forwardEuler"
+                % explicit Euler is stable only for dt < 2/lambda_max; Gershgorin bounds lambda_max by 2 max(L_ii/C_i)
+                dtMax = 1 / max(abs(diag(obj.Lmat)) ./ obj.Cvec);
+                if dt > dtMax
+                    warning('RCBS:Simulation:forwardEulerUnstable', ...
+                        ['forwardEuler with a step of %.3g s may be unstable (this network is safe below %.3g s): ', ...
+                         'use a smaller timeStep or solverMode "cached" (backward Euler).'], dt, dtMax);
+                end
+            end
             if obj.solverMode == "exact"
                 Cinv  = spdiags(1./obj.Cvec, 0, N, N);
                 Adyn  = full(-Cinv * obj.Lmat);                 % [1/s]
@@ -243,6 +252,8 @@ classdef Simulation < handle
                 case "cached"
                     rhs  = (obj.Cvec/dt).*obj.Tnow + obj.goutVec*Tout + q;
                     Tnew = obj.decompM \ rhs;
+                case "forwardEuler"
+                    Tnew = obj.Tnow + dt * (-(obj.Lmat*obj.Tnow) + obj.goutVec*Tout + q) ./ obj.Cvec;
                 case "legacy"
                     Tnew = obj.stepLegacyDense(dt, Tout, q);
                 case "exact"

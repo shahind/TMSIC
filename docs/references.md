@@ -86,7 +86,7 @@ documentation pages and the validation report
   covers the inherent flow characteristics (linear, equal-percentage).
   <https://webstore.iec.ch/en/publication/2461>
 - <a id="r23"></a>**[23]** Crane Co. (2009). *Flow of Fluids Through Valves, Fittings, and Pipe.* Technical Paper
-  No. 410, metric ed. ISBN 978-1-4005-2712-0 (`paper/references/crane2013`). This edition
+  No. 410, metric ed. ISBN 978-1-4005-2712-0. This edition
   gives the general equivalent-length (L/D) and K-factor methods for valves and fittings
   (Section 2, pages A-27 to A-30), but for tees and wyes specifically it uses a
   correlation in the branch-to-combined flow ratio, the area ratio and the branch angle
@@ -131,7 +131,11 @@ documentation pages and the validation report
   ("Permissible pressure losses through a heat exchanger") gives a primary-side design
   pressure loss below 20 kPa for domestic hot water and low-pressure heating substations,
   with a separate 50 to 60 kPa target for the whole substation's supply/return
-  differential. <https://www.iea-dhc.org/fileadmin/documents/Annex_VI/DHC_Connection_Handbook.pdf>
+  differential. Part II (the passage before Table 11.2) also gives the output of a heat emitter as the ratio of
+  the mean water temperatures to a power $n$: 1.3 for radiators, 1.4 for natural convectors and 1.0 for
+  forced convectors including the heating coils of air handling units, the mean temperature being that of
+  supply and return. Used for the radiator law of `DHS.IdealHeatExchanger`.
+  <https://www.iea-dhc.org/fileadmin/documents/Annex_VI/DHC_Connection_Handbook.pdf>
 - <a id="r30"></a>**[30]** Euroheat and Power (2008). *Guidelines for district heating substations.*
   <https://www.euroheat.org/>
 - <a id="r31"></a>**[31]** Logstor and Uponor pre-insulated pipe product data, for pipe conductivity and $U'$.
@@ -241,3 +245,35 @@ documentation pages and the validation report
   Simscape Fluids documentation. A discharge-coefficient/gate-opening-area model, a
   different valve archetype from the $K_v$ flow-coefficient model of [22](#r22) that
   `Valve` uses. <https://www.mathworks.com/help/hydro/ref/gatevalvetl.html>
+- <a id="r59"></a>**[59]** Stauffer, Y., Saba, F., Carrillo, R.E., Boegli, M., Malengo, A. and Hutter, A. *Smart sensors
+  network for accurate indirect heat accounting in apartment buildings.* Journal of Building
+  Engineering (2021), 103534; arXiv:2111.02459. Quotes the EN 442 model of a radiator,
+  $\Phi = \Phi_{50}((T_m-T_a)/50)^n$ with $T_m$ the mean of the measured inlet and outlet fluid temperatures
+  and $n$ typically 1.1 to 1.4 (usually taken as 1.3); its Table 1 gives measured exponents of 1.28 to
+  1.37 for three radiator types. Used for the radiator law of `DHS.IdealHeatExchanger`.
+  <https://arxiv.org/abs/2111.02459>, DOI 10.1016/j.jobe.2021.103534
+- <a id="r60"></a>**[60]** European Committee for Standardization. *EN 442-1:2014 Radiators and convectors, Part 1:
+  Technical specification and requirements*, and *EN 442-2:2014 Part 2: Test methods and rating.*
+  Cited by [59](#r59) as the source of the radiator characteristic equation (the standards are not
+  freely available).
+- <a id="r61"></a>**[61]** Marchesi, R., Rinaldi, F., Tarini, C., Arpino, F., Cortellessa, G., Dell'Isola, M. and Ficco, G.
+  (2019). *Experimental analysis of radiators' thermal output for heat accounting.* Thermal Science 23(2B),
+  989-1002. Measures how the output of radiators departs from the EN 442 model when installed and operated
+  off the reference conditions.
+  <https://www.researchgate.net/publication/318853851_Experimental_analysis_of_radiators'_thermal_output_for_heat_accounting>
+- <a id="r62"></a>**[62]** Lawrence Berkeley National Laboratory. *Buildings.Fluid.HeatExchangers.Radiators* (model
+  `RadiatorEN442_2`), Modelica Buildings library documentation. Power law of the heat with the temperature
+  difference to the exponent $n$ (default 1.24), split into a convective and a radiative part, with the
+  nominal conditions taken from EN 442-2 data.
+  <https://simulationresearch.lbl.gov/modelica/releases/latest/help/Buildings_Fluid_HeatExchangers_Radiators.html>
+- <a id="r63"></a>**[63]** Lawrence Berkeley National Laboratory. *Buildings.DHC.ETS.Heating* (the indirect heating
+  energy transfer station), Modelica Buildings library documentation. A plate heat exchanger of the
+  `PlateHeatExchangerEffectivenessNTU` type with a counterflow configuration, which has a parameter
+  `eta` ("Constant effectiveness", default 0.8); a PI controller moves the primary valve to hold the
+  building supply temperature setpoint. The page does not show which of the exchanger's sizing modes
+  the station uses. <https://simulationresearch.lbl.gov/modelica/releases/latest/help/Buildings_DHC_ETS_Heating.html>
+- <a id="r64"></a>**[64]** City Energy Analyst. Source of the module `cea.technologies.substation`. The substation
+  heat exchanger is sized at the peak load for a design effectiveness of 0.9 with a constant $U$, and
+  run off-design by the effectiveness-NTU relation with the secondary temperatures taken from the demand
+  (the primary flow follows from the demand).
+  <https://city-energy-analyst.readthedocs.io/en/stable/_modules/cea/technologies/substation.html>

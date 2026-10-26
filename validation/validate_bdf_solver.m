@@ -3,7 +3,8 @@ function V = validate_bdf_solver(plotMode)
 %                     and discrete energy conservation.
 %
 %   COMPONENT      RCBS.Simulation  (cached sparse-LU backward Euler; also the
-%                  "legacy" dense per-step assembly and the "exact" ZOH expm path)
+%                  "legacy" dense per-step assembly, the "exact" ZOH expm path and the explicit
+%                  "forwardEuler" mode)
 %
 %   TEST CASE
 %     (a) ORDER  A 1R1C zone with a known analytical solution is integrated to a
@@ -17,6 +18,10 @@ function V = validate_bdf_solver(plotMode)
 %           sum(Q_in) dt  -  sum(Q_loss) dt  =  Delta[ sum(C .* T) ]
 %         must hold to machine precision -- the implicit update is conservative
 %         for a constant-coefficient RC network.
+%
+%     (d) FORWARD EULER  solverMode "forwardEuler" is first order too (error ~ dt), agrees with the
+%         exact discretisation to O(dt) on the 3-node building, and warns when the step is beyond
+%         its stability limit.
 %
 %   REFERENCE
 %     Backward (implicit) Euler is a first-order A-stable one-step method. The
@@ -52,12 +57,29 @@ function V = validate_bdf_solver(plotMode)
         errs(i) = abs(Ts(end) - (Tout + (T0-Tout)*exp(-Tend/tau)));
     end
     p = polyfit(log(dts), log(errs), 1);  order = p(1);
+    errsFE = zeros(size(dts));
+    for i = 1:numel(dts)
+        b = RCBS.Building(); b.addStorey('S'); b.S.addZone('Z','C_main',Cc);
+        b.S.Z.nodes(1).T = T0;  b.S.Z.addWindow(Rr,'W');
+        b.outdoorTempFunc = @(t) Tout;
+        b.simulation.solverMode = "forwardEuler";
+        b.simulation.startDate = datetime(2025,1,1); b.simulation.timeStep = seconds(dts(i));
+        b.simulate(seconds(Tend));
+        Ts = b.simulation.results.S.Z.T;
+        errsFE(i) = abs(Ts(end) - (Tout + (T0-Tout)*exp(-Tend/tau)));
+    end
+    pf = polyfit(log(dts), log(errsFE), 1);  orderFE = pf(1);
 
     % ---- (b) solver-mode equivalence ----
     mk3 = @() build3();
     b = mk3();  b.simulation.solverMode = "cached";  b.simulate(days(3));  Tc = b.simulation.results.S.Z.T;
     b = mk3();  b.simulation.solverMode = "legacy";  b.simulate(days(3));  Tl = b.simulation.results.S.Z.T;
     b = mk3();  b.simulation.solverMode = "exact";   b.simulate(days(3));  Te = b.simulation.results.S.Z.T;
+    b = mk3();  b.simulation.solverMode = "forwardEuler";  b.simulate(days(3));  Tf = b.simulation.results.S.Z.T;
+    eFE = max(abs(Tf - Te));
+    bw = RCBS.Building(); bw.addStorey('S'); bw.S.addZone('Z','C_main',1e4); bw.S.Z.addWindow(0.01,'W');
+    bw.simulation.solverMode = "forwardEuler";  bw.simulation.timeStep = minutes(30);  bw.simulation.buildLinear();
+    lastwarn('');  bw.simulation.factor(1800);  [~, wid] = lastwarn;  okWarn = strcmp(wid, 'RCBS:Simulation:forwardEulerUnstable');
     eCL = max(abs(Tc - Tl));
     eCE = max(abs(Tc - Te));
 
@@ -80,7 +102,10 @@ function V = validate_bdf_solver(plotMode)
     C(2) = mk('|cached - legacy|  max  [degC]',                  0, eCL,   1e-8, 'abs');
     C(3) = mk('|cached - exact ZOH|  max  [degC]',               0, eCE,   5e-3, 'abs');
     C(4) = mk('discrete energy-balance relative residual',       0, eEnergy, 1e-9, 'abs');
-    V.name = 'Backward-Euler solver: order, mode equivalence, energy conservation';
+    C(5) = mk('convergence order p  (forward Euler => 1)',      1, orderFE, 0.1, 'abs');
+    C(6) = mk('|forward Euler - exact ZOH|  max  [degC]',       0, eFE,   5e-2, 'abs');
+    C(7) = mk('forward Euler warns beyond its stability limit', 1, double(okWarn), 0, 'abs');
+    V.name = 'Euler solvers: order, mode equivalence, energy conservation';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('order',order,'errs',errs,'dts',dts,'eCL',eCL,'eCE',eCE,'eEnergy',eEnergy);
 

@@ -44,7 +44,7 @@ chp.mdotMinBoiler = 2.5;  chp.TboilerMax = 90;               % low-loss header, 
 chp.setSupplySetpoint(70);                                   % supply setpoint [degC]
 
 boiler1 = chp.addBoiler('B1', 'QMax',1.5e6, 'etaRef',0.92, 'etaSlope',0.0025);
-pump0   = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',6.0e5, 'mdotMax',20);
+pump0   = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',6.0e5, 'mdotRated',10);
 chp.attachPump(pump0);                                       % any DHS.Hydraulic.Pump
 boiler1.connectTo(pump0);                                    % records the link for the drawing
 firing = DHS.controllers.PID(0.045, 3e-5, 1.5, 150);
@@ -58,9 +58,10 @@ boiler1.etaOf(80)    % 0.845
 ```
 
 In the five-building campus example (`+DHS/+examples/campus.m`) this plant holds the
-supply temperature between 65.3 and 75.1 degC around a 70 degC setpoint over 14 days,
-its efficiency ranges from 0.879 to 0.925, and its peak gas input is 1,204 kW against a
-1,500 kW capacity.
+supply temperature between 61.8 and 76.4 degC around a 70 degC setpoint over 14 days
+(it dips below it while all five buildings warm up together in the morning),
+its efficiency ranges from 0.858 to 0.974, and its peak gas input is 1,658 kW against a
+2,000 kW capacity.
 
 The boilers and the pump are reachable by name: `sys.CHP.B1.QMax`, `sys.CHP.P0.dp0`.
 
@@ -72,7 +73,7 @@ The boilers and the pump are reachable by name: `sys.CHP.B1.QMax`, `sys.CHP.P0.d
 |---|---|---|
 | `CentralHeatPlant(name)` | name | A plant with the two ports `supplyPort` and `returnPort`. |
 | `addBoiler(name, ...)` | name; `Boiler` properties as name-value pairs | Creates a `DHS.Boiler` with a default PID on the supply temperature, adds it to the plant and returns it. |
-| `addPump(name, 'dp0',.., 'mdotMax',..)` | name; pump properties | Builds a `CentrifugalPump`, installs it as the central pump and returns it. |
+| `addPump(name, 'dp0',.., 'mdotRated',..)` | name; pump properties | Builds a `CentrifugalPump`, installs it as the central pump and returns it. |
 | `attachPump(pump)` | any `DHS.Hydraulic.Pump` | Installs a pre-built pump, for example a `FixedDisplacementPump`. |
 
 | `setSupplySetpoint(T)` | temperature (degC) | Sets the fixed supply setpoint. |

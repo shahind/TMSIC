@@ -1,4 +1,4 @@
-classdef Pipe < handle
+classdef Pipe < DHS.Hydraulic.Link
 % DHS.HYDRAULIC.PIPE  A run of buried pre-insulated pipe between two hydraulic nodes.
 %
 %   Hydraulics : Darcy-Weisbach with the Swamee-Jain explicit friction
@@ -9,11 +9,12 @@ classdef Pipe < handle
 %                applies it pipe by pipe, so every pipe loses heat once, with the
 %                flow it actually carries.
 %
-%   Two equivalent ways to wire a pipe into a network (see DHS.HydraulicNetwork):
+%   Ways to wire a pipe into a network (see DHS.HydraulicNetwork and DHS.Hydraulic.Link):
 %     declarative   hn.addPipe(nodeA, nodeB, 'L',40, 'D',0.11)
-%     port-wiring   pipe = DHS.Hydraulic.Pipe('name', 'L',40, 'D',0.11);
-%                   nodeA.connectToPipe(pipe);
-%                   pipe.connectOutput(nodeB);      % registers it with the network
+%     connecting    pipe = DHS.Hydraulic.Pipe('name', 'L',40, 'D',0.11);
+%                   nodeA.connect(pipe);
+%                   pipe.connect(nodeB);            % registers it with the network
+%     one call      pipe = nodeA.addPipe(0.11, 40); % diameter, length
 %
 %   PROPERTIES (SI)
 %     name    char
@@ -23,6 +24,7 @@ classdef Pipe < handle
 %     UperM   [W/m/K] buried-pipe heat-loss coefficient   (0.30)
 %     Input   the node the pipe starts at (read only; Input.p, Input.T)
 %     Output  the node the pipe ends at   (read only; Output.p, Output.T)
+%     (nodeA, nodeB, teeSide, decorative and downBuildings are those of DHS.Hydraulic.Link)
 %     teeSide char    '' | 'run' | 'branch' -- set automatically when this pipe
 %                     leaves a DHS.Hydraulic.TJunction; adds that fitting's own
 %                     minor loss to resistance() (see TJunction).
@@ -46,11 +48,8 @@ classdef Pipe < handle
         D       (1,1) double = 0.10
         eps     (1,1) double = 4.6e-5
         UperM   (1,1) double = 0.30
-        teeSide (1,:) char = ''
     end
     properties
-        nodeA = []           % DHS.Hydraulic.Junction or plant/pump/HX port
-        nodeB = []           % DHS.Hydraulic.Junction or plant/pump/HX port
         mdot  (1,1) double = 0
         vel   (1,1) double = 0
         dp    (1,1) double = 0
@@ -59,22 +58,14 @@ classdef Pipe < handle
         Tout  (1,1) double = NaN
         Tdrop (1,1) double = 0
         Qloss (1,1) double = 0
-        decorative double = false
-        downBuildings double = []   % indices of the buildings in this pipe's subtree
-    end
-    properties (Dependent, SetAccess = private)
-        Input
-        Output
     end
 
     methods
         function obj = Pipe(name, varargin)
-            % PIPE  Pipe(name, 'L',40, 'D',0.11, ...)  for port-wiring (nodeA/
-            %   nodeB are filled in later by connectToPipe/connectOutput), or
-            %   the legacy Pipe(name, nodeA, nodeB, 'L',.., 'D',..) form used
-            %   internally by HydraulicNetwork.addPipe -- a leading argument
-            %   that is not a property-name string is taken as nodeA (then
-            %   nodeB), so both call styles are unambiguous.
+            % PIPE  Pipe(name, 'L',40, 'D',0.11, ...)  creates a pipe whose ends are
+            %   joined later with connect. Pipe(name, nodeA, nodeB, 'L',.., 'D',..)
+            %   gives the end nodes directly; a leading argument that is not a
+            %   property-name string is taken as nodeA (then nodeB).
             if nargin >= 1, obj.name = name; end
             rest = varargin;
             if ~isempty(rest) && ~(ischar(rest{1}) || isstring(rest{1}))
@@ -86,37 +77,13 @@ classdef Pipe < handle
             for i = 1:2:numel(rest), obj.(rest{i}) = rest{i+1}; end
         end
 
-        function n = get.Input(obj),  n = obj.nodeA; end
-        function n = get.Output(obj), n = obj.nodeB; end
-
-        function p = connectOutput(obj, port)
-            % CONNECTOUTPUT  Port-wiring: finish this pipe by attaching its
-            %   downstream end to PORT, and register it with the hydraulic
-            %   network that either end already belongs to -- the same
-            %   registration hn.addPipe performs, so the network solve is
-            %   unaffected by which style built the topology. A pipe between two
-            %   supply nodes joins the supply tree, between two return nodes the
-            %   return tree (flowing toward the plant).
-            if isa(port, 'DHS.Hydraulic.Port'), port = port.node; end
-            obj.nodeB = port;
-            net = [];
-            if ~isempty(obj.nodeA) && isprop(obj.nodeA, 'network'), net = obj.nodeA.network; end
-            if isempty(net) && isprop(obj.nodeB, 'network'), net = obj.nodeB.network; end
-            assert(~isempty(net), 'DHS:Pipe:connectOutput', ...
-                ['Pipe "%s" is not attached to a hydraulic network yet -- start it at a wired ', ...
-                 'node (nodeA.connectToPipe(pipe)) or end it at one.'], obj.name);
-            net.registerPipe(obj);
-            p = obj;
-        end
-
         function tee = addTjunction(obj, name, sideDiameter)
             % ADDTJUNCTION  Insert a T-junction at this pipe's downstream end.
             %   tee = pipe1.addTjunction('T1', 0.05)
             %   The tee's main diameter is this pipe's own D; finish the branch
-            %   and run legs with tee.portB.connectToPipe(pipeRun) /
-            %   tee.portC.connectToPipe(pipeBranch), each followed by .connectOutput(...).
+            %   and run legs with tee.portB.connect(pipeRun) / tee.portC.connect(pipeBranch).
             tee = DHS.Hydraulic.TJunction(name, 'mainDiameter', obj.D, 'sideDiameter', sideDiameter);
-            obj.connectOutput(tee);
+            obj.connect(tee);
         end
 
         function K = resistance(obj, mdot, rho, mu)
@@ -135,6 +102,17 @@ classdef Pipe < handle
     end
 
     methods
+        function [K, H] = linkLoss(obj, mdot, rho, mu)
+            % LINKLOSS  Pressure loss K*mdot^2 and head gain H of this link (a pipe has no head gain);
+            %   the network walks supply pressure as  p(B) = p(A) - (K mdot^2 - H).
+            K = obj.resistance(mdot, rho, mu);  H = 0;
+        end
+
+        function setFlow(obj, Q, dp, rho)
+            % SETFLOW  Store the solved flow, pressure change and velocity.
+            obj.mdot = Q;  obj.dp = dp;  obj.vel = Q/(rho*pi*obj.D^2/4);
+        end
+
         function [Tout, Qloss] = outletTemperature(obj, Tin, Tground, mdot, cp)
             % OUTLETTEMPERATURE  Water temperature leaving the pipe and the heat lost.
             %   [Tout, Qloss] = pipe.outletTemperature(Tin, Tground, mdot, cp)

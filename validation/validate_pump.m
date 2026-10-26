@@ -2,7 +2,9 @@ function V = validate_pump(plotMode)
 %VALIDATE_PUMP  Centrifugal pump curve + affinity laws + operating point.
 %
 %   COMPONENT      DHS.Hydraulic.CentrifugalPump.curveHead(mdot, speed)
-%                    head(m, s) = max(0,  s^2*dp0  -  dp0 * m^2 / mdotMax^2 )
+%                    head(m, s) = max(0,  s^2*dp0  -  K * m^2 ),   K = (dp0 - dpRated)/mdotRated^2
+%                    (the parabola through the shut-off head and a rated duty point of the data sheet;
+%                     with the default dpRated = 0.75 dp0 its zero-head flow is mdotFree = 2 mdotRated)
 %
 %   TEST CASE + REFERENCE
 %     A quadratic (parabolic) head-flow curve is the standard first model of a
@@ -10,25 +12,29 @@ function V = validate_pump(plotMode)
 %     ratio s a homologous operating point (Q, H) maps to (s*Q, s^2*H):
 %         Q2/Q1 = s ,   H2/H1 = s^2 ,   P2/P1 = s^3
 %     The quadratic model satisfies this exactly:
-%         head(s*Q, s) = s^2 dp0 - dp0 (sQ)^2/mmax^2 = s^2 (dp0 - dp0 Q^2/mmax^2)
-%                      = s^2 * head(Q, 1)
+%         head(s*Q, s) = s^2 dp0 - K (sQ)^2 = s^2 (dp0 - K Q^2) = s^2 * head(Q, 1)
 %
 %   Sub-cases:
 %     A  shut-off head  head(0, 1) = dp0
-%     B  run-out        head(mdotMax, 1) = 0
+%     B  free delivery  head(mdotFree, 1) = 0
 %     C  affinity law   head(s*Q, s) = s^2 * head(Q, 1)   for several Q, s
 %     D  operating point against a quadratic system curve  H_sys = K*Q^2:
-%          intersection  Q* = mdotMax * s / sqrt(1 + K*mdotMax^2/dp0)  (analytic)
+%          intersection  Q* = mmax * s / sqrt(1 + K*mmax^2/dp0)  (analytic), mmax = mdotFree
 %     E  BRANCH-CLOSURE ROLE  solveBranch(Kbranch, dpAvailable, s) -- the method
 %        DHS.HydraulicNetwork.solve actually calls at every substation pump --
 %        matches its own closed form
-%          mdot = sqrt( (s^2 dp0 + dpAvailable) / (Kbranch + dp0/mdotMax^2) )
+%          mdot = sqrt( (s^2 dp0 + dpAvailable) / (Kbranch + K) )
 %        over a grid of (Kbranch, dpAvailable, s).
 %     F  SELF-CONSISTENCY  at the solveBranch solution, the pump's own curve
 %        head(mdot,s) must equal the branch's pressure balance
 %        Kbranch*mdot^2 - dpAvailable (the equation solveBranch is solving) --
 %        checks solveBranch and curveHead cannot silently disagree with each
 %        other after an edit to either one.
+%     H  DUTY POINT  with an explicit dpRated the curve passes through both data points,
+%        head(0,1) = dp0 and head(mdotRated,1) = dpRated, and ends at the closed-form
+%        mdotFree = mdotRated sqrt(dp0/(dp0 - dpRated)).
+%     I  ROTATIONAL SPEED  speed is the fraction of the maximum rotational speed nMax:
+%        setting rpm sets speed = rpm/nMax, and the head follows the affinity law at that speed.
 %     G  STOPPED PUMP  with speed 0 a substation pump adds no head and no
 %        resistance, for both pump types: solveBranch(Kbranch, dpAvailable, 0)
 %        returns mdot = sqrt(dpAvailable/Kbranch) and head 0.
@@ -52,10 +58,11 @@ function V = validate_pump(plotMode)
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));
 
     dp0 = 3.0e5;  mmax = 14;
-    p = DHS.Hydraulic.CentrifugalPump('P','dp0',dp0,'mdotMax',mmax);
+    p = DHS.Hydraulic.CentrifugalPump('P','dp0',dp0,'mdotRated',mmax/2);   % dpRated defaults to 0.75 dp0
 
     hShut = p.curveHead(0, 1);
-    hRun  = p.curveHead(mmax, 1);
+    hRun  = p.curveHead(p.mdotFree, 1);
+    eFree = abs(p.mdotFree - mmax)/mmax;
 
     % affinity law over a grid
     Qg = [1 3 6 9];  Sg = [0.4 0.6 0.8 1.0];
@@ -80,7 +87,7 @@ function V = validate_pump(plotMode)
 
     % ---- E, F: substation branch-closure role (solveBranch) ----
     % Kbr_g is chosen so that even the worst case (s=1, dpAv=max(dpAv_g)) keeps
-    % the solved flow within the pump's own curve (m < mdotMax); outside that
+    % the solved flow within the pump's own curve (m < mdotFree); outside that
     % envelope the unclamped branch-closure algebra and curveHead's own
     % max(0,...) floor legitimately part ways (the branch is asking for more
     % flow than the pump curve can physically supply at that speed), which
@@ -112,15 +119,26 @@ function V = validate_pump(plotMode)
         end
     end
 
+    % ---- H: duty point ----
+    p2 = DHS.Hydraulic.CentrifugalPump('P2','dp0',3e5,'mdotRated',6,'dpRated',2e5);
+    eH2 = max([abs(p2.curveHead(0,1) - 3e5)/3e5, abs(p2.curveHead(6,1) - 2e5)/3e5, ...
+               abs(p2.mdotFree - 6*sqrt(3e5/1e5))/p2.mdotFree, abs(p2.curveHead(p2.mdotFree,1))/3e5, eFree]);
+    % ---- I: rotational speed ----
+    p3 = DHS.Hydraulic.CentrifugalPump('P3','dp0',dp0,'mdotRated',mmax/2,'nMax',2900);
+    p3.rpm = 1160;
+    eRpm = max(abs(p3.speed - 0.4), abs(p3.curveHead(3) - (0.4^2*dp0 - p3.curveK()*3^2))/dp0);
+
     C = struct('label',{},'expected',{},'actual',{},'tol',{},'kind',{});
     C(1) = mk('A  shut-off head  head(0,1) = dp0  [Pa]',       dp0, hShut, 1e-12, 'rel');
-    C(2) = mk('B  run-out        head(mdotMax,1) [Pa]',        0,   hRun,  1e-9,  'abs');
+    C(2) = mk('B  free delivery  head(mdotFree,1) [Pa]',       0,   hRun,  1e-9,  'abs');
     C(3) = mk('C  affinity law   head(sQ,s) = s^2 head(Q,1)',  0,   eAff,  1e-12, 'abs');
     C(4) = mk('D  operating point Q* vs analytic intersection',Qstar_an, Qstar, 1e-9, 'rel');
     C(5) = mk('D  pump head = system head at Q*',              0,   eH,    1e-12, 'abs');
     C(6) = mk('E  solveBranch matches its own closed form',    0,   eBranch, 1e-12, 'abs');
     C(7) = mk('F  solveBranch/curveHead self-consistency',     0,   eSelf,   1e-12, 'abs');
     C(8) = mk('G  stopped pump: mdot = sqrt(dp/K), head 0',    0,   eStop,   1e-12, 'abs');
+    C(9) = mk('H  curve through both data points; mdotFree (rel)', 0, eH2, 1e-12, 'abs');
+    C(10) = mk('I  rpm sets speed = rpm/nMax; head follows s^2',   0, eRpm, 1e-12, 'abs');
     V.name = 'Centrifugal pump: curve, affinity laws, operating point, branch closure';
     V.passed = vtable(V.name, C);
     V.cases = C;  V.detail = struct('hShut',hShut,'hRun',hRun,'eAff',eAff,'Qstar',Qstar,'Qstar_an',Qstar_an,'Hstar_an',Hstar_an,'eBranch',eBranch,'eSelf',eSelf);
