@@ -1,89 +1,20 @@
 classdef HydraulicNetwork < dynamicprops
-% DHS.HYDRAULICNETWORK  The district pipe network: a supply tree and a return tree, both
-%                       rooted at the central heat plant, with buildings joining them.
-%                       One central pump; each building's flow is set by its control
-%                       valve (a booster pump per building is optional).
+% DHS.HYDRAULICNETWORK  The district pipe network: a supply tree and a return tree rooted at the plant,
+%   with buildings joining them. The same class solves a building's internal loop.
 %
-%   You define the supply side and the return side separately. They need not look alike:
-%   the return branch may be longer or shorter, with other diameters, roughness or heat
-%   loss than the supply branch. Each side is a tree of junctions and pipes:
-%     supply  plant supply port -> junctions -> buildings        (pipes flow away from the plant)
-%     return  buildings -> junctions -> plant return port        (pipes flow toward the plant)
+%   hn = sys.addHydraulicNetwork();
+%   tee1 = chp.supplyPort.addPipe(0.11, 40).addTee(0.05);              % one-call style
+%   r1 = DHS.Hydraulic.Junction('R1', 'return');  r1.addPipe(0.13, 45).connect(chp.returnPort);
+%   tee1.portC.connect(building);  building.connect(r1);
+%   Declarative style: hn.addJunction, hn.addPipe(nodeA, nodeB, ...), hn.connectBuilding(supplyJ, building, returnJ).
+%   hn.addBypass(supplyJ, returnJ, 'L',.., 'D',.., 'Kvs',..) adds an end-of-line bypass.
+%   Parts are reachable by name: hn.pipe1.L, hn.T1.portC.p.
 %
-%   Two equivalent ways to build the same network -- both end up compiled into
-%   the same integer-indexed trees, so solve() cannot tell which one you used.
-%
-%   LINKS  The pipes of the two trees are links between nodes; valves and in-line pumps are links too
-%   (DHS.Hydraulic.Link): a valve loses K*mdot^2 where it sits, a pump adds its head there. A network
-%   needs at least one pump, the central pump plantPump or an in-line pump placed anywhere in a tree.
-%   A link's flow is the sum of the branch flows behind it. A link joined to a return junction from
-%   the supply side is a bypass branch (DHS.Hydraulic.CrossLink).
-%
-%   CONNECTING  Components are wired with connect (or created and wired with add*), the same call on a
-%   junction, tee port, pipe, valve, pump, radiator and building; the network is found by walking the
-%   connections from the plant, so the order of the calls does not matter (see DHS.Hydraulic.Link):
-%     tee.portC.connect(building);   building.connect(returnJunction);
-%
-%   DECLARATIVE
-%     hn = sys.addHydraulicNetwork();
-%     t1 = hn.addJunction('T1');                                  % a supply junction
-%     hn.addPipe(chp.supplyPort, t1, 'name','sup1', 'L',40, 'D',0.11);
-%     r1 = hn.addJunction('R1', 'side','return');                 % a return junction
-%     hn.addPipe(r1, chp.returnPort, 'name','ret1', 'L',45, 'D',0.13);   % flows from r1 to the plant
-%     hn.connectBuilding(t1, bldgArts, r1);                       % supply junction, building, return junction
-%   A tee on the supply side:  hn.addJunction('T2', 'type','tee', 'mainDiameter',0.11, 'sideDiameter',0.05)
-%     the first pipe leaving a tee is its run, the next its branch; a building is always the branch.
-%
-%   CONNECTING  (see DHS.Hydraulic.Link)
-%     pipe1 = DHS.Hydraulic.Pipe('sup1', 'L',40, 'D',0.11);
-%     chp.supplyPort.connect(pipe1);                              % plant supply -> pipe1
-%     tee1  = pipe1.addTee(0.05, 'name','T1');                    % pipe1 -> tee T1 (mainDiameter = pipe1.D)
-%     pipe2 = DHS.Hydraulic.Pipe('sup2', 'L',50, 'D',0.11);
-%     tee1.portB.connect(pipe2);  pipe2.connect(t2);              % the run of T1
-%     r1    = DHS.Hydraulic.Junction('R1', 'return');
-%     r1.addPipe(0.13, 45, 'name','ret1').connect(chp.returnPort);   % return pipe from R1 to the plant
-%     tee1.portC.connect(bldgAdmin);  bldgAdmin.connect(r1);      % a building hangs on the side port of a tee
-%   or in one call, with the new component returned:  tee1 = chp.supplyPort.addPipe(0.11, 40).addTee(0.05)
-%
-%   The same class serves a building's internal loop, which starts at the heat exchanger's internal
-%   outlet (hx.internalOutlet) and ends at its internal inlet (hx.internalInlet); its branches are the
-%   zone radiators. You do not handle the loop network: connecting to those two ports is enough.
-%   Pipes, valves, pumps and tees work exactly as on the district side.
-%
-%   NAMED PARTS  Every junction and pipe is reachable by its name once it is in the network:
-%     hn.sup1.L = 60;   hn.ret1.D = 0.15;   hn.tee2.portC.D = 0.06;   hn.R1.p
-%   A name that is not a valid MATLAB identifier is not registered. The service connection of
-%   a building is sized by its connLength/connD (building.connPipeSup and connPipeRet are
-%   its two pipes and may be edited separately after hn.connectBuilding).
-%
-%   SOLVE  (each co-simulation step, given the central pump speed pumpFrac):
-%     * segment flow  Q_seg  = sum of the branch flows in the subtree behind a pipe
-%     * central pump head  dpC = plantPump.curveHead(Mtot, pumpFrac)
-%     * pressure walk from the plant out along the supply tree, losing  K*Q_seg^2
-%       on each pipe (plus a T-junction's own run/branch loss where one sits, see
-%       DHS.Hydraulic.TJunction), and from the plant return port out along the return tree,
-%       where the pressure rises by K*Q_seg^2 on each pipe
-%     * each building branch (connection pipes + valve + HX body), given the
-%       differential pressure between its supply and its return junction, closes through
-%       its own pump's solveBranch (a stopped pump adds nothing: m = sqrt(dp/K)) -- the
-%       one nonlinear equation a centrifugal and a fixed-displacement pump answer
-%       differently, see DHS.Hydraulic.Pump
-%     * damped fixed-point on Mtot (segment flows and dpC depend on it); the damping starts at
-%       0.5 and is halved whenever the iteration stops improving, so a strongly coupled
-%       network (a narrow return main, say) still converges
-%
-%   TEMPERATURES  (supplyTemperatures / returnTemperatures, called by DHS.System each step
-%   with the flows from solve): the supply walk takes the plant supply temperature out
-%   through every pipe, each losing heat to the ground with its own flow
-%   (DHS.Hydraulic.Pipe.outletTemperature); the return walk takes each heat-exchanger
-%   outlet temperature back through the return tree, loses heat in every return pipe and
-%   mixes the streams at each junction by enthalpy flow. Junctions themselves lose no heat.
-%
-%   The buildings are COUPLED: opening one valve/pump raises Mtot, raises the
-%   shared-trunk friction and pulls the central pump down its curve, so every
-%   other tee loses differential pressure.
-%
-%   Units SI: kg/s, Pa (gauge), m.
+%   solve(pumpFrac) returns Mtot, dpPump, pSupHeader and, per building, mdot, vel, pSupBranch, pRetBranch.
+%   Flows come from Newton's method with a Broyden update (solver 'newton'), or 'anderson' / 'fixedPoint';
+%   maxIter, tol, damping and andersonDepth set them. A network needs at least one pump.
+%   rho [kg/m^3] (978), mu [Pa s] (4e-4), pReturnRef [Pa] (1.5e5).
+%   See docs/dhs-hydraulic.md and docs/dhs-solvers.md.
 
     properties
         pReturnRef (1,1) double = 1.5e5
@@ -125,12 +56,9 @@ classdef HydraulicNetwork < dynamicprops
     methods
         % ---- assembly API (declarative) -----------------------------------
         function j = addJunction(obj, name, varargin)
-            % ADDJUNCTION  hn.addJunction('T1')  for a plain supply junction,
-            %   hn.addJunction('R1', 'side','return')  for a return junction, or
-            %   hn.addJunction('T1','type','tee','mainDiameter',Dm,'sideDiameter',Ds)
-            %   for a supply tee with its own minor-loss physics (see DHS.Hydraulic.TJunction).
-            %   Any property of the part can be given as a name-value pair
-            %   ('roughness', 'frictionModel', ...) and changed later, e.g. hn.T1.sideDiameter = 0.06.
+            % ADDJUNCTION  hn.addJunction('T1') (plain supply junction), hn.addJunction('R1','side','return'), or
+            %   hn.addJunction('T1','type','tee','mainDiameter',Dm,'sideDiameter',Ds). Any junction property can follow
+            %   as a name-value pair.
             type = 'plain';  side = 'supply';
             k = find(strcmpi(varargin(1:2:end), 'type'), 1);
             if ~isempty(k), type = varargin{2*k}; varargin(2*k-1:2*k) = []; end
@@ -152,9 +80,8 @@ classdef HydraulicNetwork < dynamicprops
 
         function p = addPipe(obj, nodeA, nodeB, varargin)
             % ADDPIPE  hn.addPipe(nodeA, nodeB, 'name','pipe1', 'L',40, 'D',0.11, ...)
-            %   A supply pipe runs from nodeA toward nodeB, away from the plant; a return pipe
-            %   (both nodes on the return side) runs from nodeA toward nodeB, toward the plant.
-            %   Any pipe property can be given as a name-value pair.
+            %   A supply pipe runs from nodeA away from the plant; a return pipe (both nodes on the return side)
+            %   runs toward the plant. Any pipe property can follow as a name-value pair.
             ps = DHS.Hydraulic.Pipe([nodeA.name '->' nodeB.name], nodeA, nodeB, varargin{:});
             if isa(nodeA, 'DHS.Hydraulic.TJunction')
                 if nodeA.attachedCount() == 0, ps.teeSide = 'run'; else, ps.teeSide = 'branch'; end
@@ -165,9 +92,7 @@ classdef HydraulicNetwork < dynamicprops
 
         function p = addPump(obj, nodeA, nodeB, varargin)
             % ADDPUMP  hn.addPump(nodeA, nodeB, 'name','P1', 'dp0',5e4, 'mdotRated',1.5)
-            %   An in-line centrifugal pump between two nodes of the same tree. Any pump property can be given
-            %   as a name-value pair, or a pre-built DHS.Hydraulic.CentrifugalPump as the third argument
-            %   after the nodes. It adds its head at that point of the loop.
+            %   An in-line centrifugal pump between two nodes of the same tree, or a pre-built pump after the nodes.
             if ~isempty(varargin) && isa(varargin{1}, 'DHS.Hydraulic.Pump')
                 pump = varargin{1};  varargin(1) = [];
             else
@@ -179,9 +104,7 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function p = registerPipe(obj, pipe)
-            % REGISTERPIPE  Shared endpoint for both assembly styles: given a
-            %   DHS.Hydraulic.Pipe whose nodeA/nodeB are already set, adds it to the supply
-            %   or the return tree. Used directly by DHS.Hydraulic.Pipe.connectOutput.
+            % REGISTERPIPE  Add a pipe whose nodeA and nodeB are set to the supply or the return tree.
             if obj.hasLink(pipe), p = pipe;  return, end
             nodeA = pipe.nodeA;  nodeB = pipe.nodeB;
             assert(~isempty(nodeA) && ~isempty(nodeB), 'DHS:HydraulicNetwork:registerPipe', ...
@@ -212,11 +135,8 @@ classdef HydraulicNetwork < dynamicprops
 
         function connectBuilding(obj, supplyJunction, building, returnJunction)
             % CONNECTBUILDING  hn.connectBuilding(supplyJunction, building, returnJunction)
-            %   The older, declarative form of  tee.portC.connect(building); building.connect(returnJunction).
-            %   The building (or radiator) is fed from a supply junction and drains into a return junction
-            %   (the plant's own returnPort is allowed). A building's two service pipes,
-            %   building.connPipeSup and building.connPipeRet, start from building.connLength
-            %   and building.connD and can be edited separately afterwards.
+            %   The declarative form of tee.portC.connect(building); building.connect(returnJunction). The return
+            %   junction may be the plant's returnPort. The service pipes start from building.connLength and connD.
             assert(isa(supplyJunction,'DHS.Hydraulic.Junction') && strcmp(supplyJunction.side,'supply'), ...
                 'DHS:HydraulicNetwork:conn', 'First argument must be a supply junction.');
             assert(ismethod(building, 'branchResistance'), 'DHS:HydraulicNetwork:conn', ...
@@ -241,9 +161,7 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function discover(obj)
-            % DISCOVER  Register every link and terminal that is connected to the plant but not yet in the
-            %   lists, by walking the connections out from the plant supply port and in from the plant
-            %   return port. Called by compile, so the order of the connect calls does not matter.
+            % DISCOVER  Register every link and terminal connected to the plant. compile calls it.
             if isempty(obj.plantSupply) || isempty(obj.plantReturn), return, end
             queue = {obj.plantSupply};  seen = {};
             while ~isempty(queue)
@@ -276,8 +194,7 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function orderTerminals(obj, list)
-            % ORDERTERMINALS  Put the given buildings first, in that order, so that the flow vector of
-            %   solve() is indexed like the system's building list. Other terminals (bypass links) follow.
+            % ORDERTERMINALS  Put the given buildings first so that solve() indexes flows like the building list.
             idx = zeros(1, numel(list));
             for k = 1:numel(list)
                 j = find(cellfun(@(x) x == list{k}, obj.buildings), 1);
@@ -355,18 +272,10 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function addBypass(obj, supplyJunction, returnJunction, varargin)
-            % ADDBYPASS  An end-of-line bypass from a supply junction to a return junction.
-            %   hn.addBypass(supplyJunction, returnJunction, 'L',20, 'D',0.05, 'Kvs',1.5)
-            %   hn.addBypass(t4, r4, 'name','bp1', 'L',20, 'D',0.05, 'Kvs',1.5, 'pos',1)
-            %   A pipe plus a valve joins the end of the supply tree straight to the
-            %   return side. Water the buildings do not draw (their valves are partly closed)
-            %   passes through it and joins the return; its flow follows from the
-            %   differential pressure between the two junctions, sqrt(dp/K) with K the pipe's
-            %   resistance plus the valve's.
-            %   Name-value pairs set the pipe ('name' (default 'bypass'), 'L', 'D', 'eps',
-            %   'UperM') and the valve ('Kvs', 'pos' (default 1, fixed), 'char', 'rangeability',
-            %   'minPos'). The pipe is hn.<name> and hn.bypassPipe, the valve hn.bypassValve;
-            %   attach a controller to the valve to move it (DHS.controllers.Controller).
+            % ADDBYPASS  hn.addBypass(supplyJunction, returnJunction, 'name','bp1', 'L',20, 'D',0.05, 'Kvs',1.5, 'pos',1)
+            %   A pipe and a valve join a supply junction to a return junction. The flow is sqrt(dp/K) with K the
+            %   pipe plus valve resistance. Pipe options: name, L, D, eps, UperM. Valve options: Kvs, pos, char,
+            %   rangeability, minPos. The parts are hn.<name>, hn.bypassPipe and hn.bypassValve.
             assert(nargin >= 3 && isa(supplyJunction,'DHS.Hydraulic.Junction') && strcmp(supplyJunction.side,'supply') ...
                 && isa(returnJunction,'DHS.Hydraulic.Junction') && strcmp(returnJunction.side,'return'), ...
                 'DHS:HydraulicNetwork:bypass', 'addBypass needs a supply junction and a return junction.');
@@ -596,15 +505,9 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function [TsupHx, Qloss] = supplyTemperatures(obj, Tplant, Tground, m, cp)
-            % SUPPLYTEMPERATURES  Walk the supply tree out from the plant.
-            %   [TsupHx, Qloss] = hn.supplyTemperatures(Tplant, Tground, m, cp)
-            %   Water leaves the plant at Tplant [degC] and loses heat in every pipe
-            %   with the flow that pipe carries (DHS.Hydraulic.Pipe.outletTemperature);
-            %   a junction splits the flow and passes the temperature on unchanged
-            %   (no heat loss in the fitting). m is the building flow vector [kg/s].
-            %   Returns the temperature at each building's heat exchanger inlet and
-            %   the total supply-side heat loss [W]. Pipe and junction temperatures
-            %   are stored (pipe.Tin/Tout, junction.T).
+            % SUPPLYTEMPERATURES  [TsupHx, Qloss] = hn.supplyTemperatures(Tplant, Tground, m, cp)
+            %   Walks the supply tree: each pipe loses heat with its own flow. Returns the water temperature at each
+            %   building's exchanger inlet and the total supply-side heat loss [W].
             if ~obj.compiled, obj.compile(); end
             c = obj.solverData_;
             Tn = zeros(1, c.nS);  Tn(1) = Tplant;  Qloss = 0;
@@ -634,11 +537,8 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function [Tret, Qloss] = returnTemperatures(obj, Thx, Tground, m, cp)
-            % RETURNTEMPERATURES  Walk the return tree in toward the plant.
-            %   [Tret, Qloss] = hn.returnTemperatures(Thx, Tground, m, cp)
-            %   Thx is each building's heat-exchanger outlet temperature [degC].
-            %   Every return pipe loses heat with its own flow, and at each junction
-            %   the incoming streams mix with their enthalpy flows (m*cp*T). Returns the
+            % RETURNTEMPERATURES  [Tret, Qloss] = hn.returnTemperatures(Thx, Tground, m, cp)
+            %   Walks the return tree: pipes lose heat and streams mix by enthalpy flow at each junction. Returns the
             %   temperature arriving at the plant and the total return-side heat loss [W].
             if ~obj.compiled, obj.compile(); end
             c = obj.solverData_;
@@ -811,10 +711,7 @@ classdef HydraulicNetwork < dynamicprops
         end
 
         function registerJunctionIfNew(obj, node)
-            % REGISTERJUNCTIONIFNEW  A junction or T-junction built directly
-            %   (DHS.Hydraulic.Junction(...) / TJunction(...), the port-wiring
-            %   style) rather than through hn.addJunction still needs to be in
-            %   the network's lists for compile()'s node-index map.
+            % REGISTERJUNCTIONIFNEW  List a junction built directly (not through hn.addJunction) for compile.
             if ~isempty(obj.plantSupply) && node == obj.plantSupply, return; end
             if ~isempty(obj.plantReturn) && node == obj.plantReturn, return; end
             if strcmp(node.side, 'supply'), list = obj.junctions; else, list = obj.returnJunctions; end

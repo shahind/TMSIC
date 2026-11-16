@@ -6,15 +6,15 @@ classdef Zone < dynamicprops & handle
         building % parent building
         storey   % parent storey
         crossRes
-        
+
         % Node list: struct array with fields: name, C, T, isMain (logical)
         nodes = struct('name',{}, 'C',{}, 'T',{}, 'isMain', {});
         % Resistors: struct array with fields: n1 (index), n2 (index or 'outdoor'), R, name
         resistors = struct('n1',{}, 'n2',{}, 'R',{}, 'name',{});
-        
+
         % heat source functions: cell of function handles hf(building) -> W
         heatSources = struct('hf',{}, 'nodeName',{});
-        
+
         % defaults (modifiable)
         C_main = 1e5; % J/K default main capacitance
         R_default = 5e-3; % K/W default resistor
@@ -22,7 +22,7 @@ classdef Zone < dynamicprops & handle
     properties (SetAccess = private)
         version = 0   % raised whenever a resistance or capacitance changes (a running simulation rebuilds)
     end
-    
+
     methods
         function obj = Zone(name, building, storey)
             obj.name = name;
@@ -41,13 +41,9 @@ classdef Zone < dynamicprops & handle
             % TOUCH  Record that a parameter of this zone changed (used by RCBS.Part).
             obj.version = obj.version + 1;
         end
-        
+
         function set.C_main(obj, val)
-            % SET.C_MAIN  Keep the main (air) node capacitance in sync with C_main.
-            %   Fixes the long-standing bug where addZone(name,'C_main',val) or a
-            %   later  z.C_main = val  assignment did NOT update nodes(1).C, so
-            %   every zone silently kept the 1e5 J/K default.
-            %   Units: val in J/K.
+            % SET.C_MAIN  Keep the air node capacity [J/K] in sync with C_main.
             obj.C_main = val;
             if ~isempty(obj.nodes)
                 obj.nodes(1).C = val;
@@ -107,28 +103,26 @@ classdef Zone < dynamicprops & handle
             obj.nodes(end+1) = nd;
             idx = numel(obj.nodes);
         end
-        
+
         function addWall(obj, R_wall, C_wall, T0, name)
-            % Corrected T-Network Model: R_wall is the TOTAL resistance,
-            % so we split it into two halves for the model.
+            %ADDWALL  A 2R1C wall: R_wall is the total resistance [K/W], split into R/2 on each side
+            %   of a node with capacity C_wall [J/K]. T0 [degC] ([] for the air value), name optional.
             if nargin<5, name = sprintf('Wall%d', sum(strncmp({obj.nodes.name},'Wall',4))+1); end
             idx = obj.addNode(sprintf('%s', name), C_wall, T0);
-            % resistor main <-> wall (uses R/2)
             obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_wall/2, 'name', [name '_m']);
-            % resistor wall <-> outdoor (uses R/2)
             obj.resistors(end+1) = struct('n1', idx, 'n2', 'outdoor', 'R', R_wall/2, 'name', [name '_o']);
             obj.addPart(name);
         end
-        
+
         function addRoof(obj, R_roof, C_roof, T0, name)
-            % Corrected T-Network Model for roofs as well
+            %ADDROOF  A 2R1C roof, like addWall.
             if nargin<5, name = sprintf('Roof%d', sum(strncmp({obj.nodes.name},'Roof',4))+1); end
             idx = obj.addNode(name, C_roof, T0);
             obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_roof/2, 'name', [name '_m']);
             obj.resistors(end+1) = struct('n1', idx, 'n2', 'outdoor', 'R', R_roof/2, 'name', [name '_o']);
             obj.addPart(name);
         end
-        
+
         function addWindow(obj, R_window, varargin)
             % ADDWINDOW  A window or vent: by default a single resistance from the zone air to
             %   the outdoor boundary, with no state.
@@ -166,32 +160,15 @@ classdef Zone < dynamicprops & handle
             obj.resistors(end+1) = struct('n1', 1, 'n2', idx, 'R', R_int, 'name', [name '_m']);
             obj.addPart(name);
         end
-        
+
         function connectToZone(obj, otherZone, R_between, name, C_mid, T0, kind)
-            % CONNECTTOZONE  Couple this zone's air node to another zone's air node.
-            %
-            %   connectToZone(other, R, name)
-            %       a plain conductance G = 1/R between the two zone air nodes
-            %       (a lightweight air path / open doorway).
-            %
-            %   connectToZone(other, R_total, name, C_mid, T0)
-            %       a capacitive T-network  R_total/2 - C_mid - R_total/2  between
-            %       the two zone air nodes: an interior PARTITION WALL (same
-            %       storey) or a FLOOR/CEILING SLAB (this zone's ceiling = the
-            %       other zone's floor). The mid node (thermal mass of the
-            %       partition / deck) is created inside THIS zone; T0 is its
-            %       initial temperature (default = this zone's air temperature).
-            %
-            %   connectToZone(other, R_total, name, C_mid, T0, kind)
-            %       KIND is a drawing hint only ('wall' | 'slab' | 'air'); it does
-            %       not change the physics.  It tells RCBS.Building.visualize how
-            %       to route the coupling: 'wall' - between the facing side edges,
-            %       'slab' - between the lower ceiling and the upper floor edges,
-            %       'air' - straight between the air nodes.  Default: 'wall' for a
-            %       capacitive coupling, 'air' for a plain one.
-            %
-            %   R_total [K/W], C_mid [J/K]. The connection is registered on both
-            %   zones; RCBS.Simulation resolves it once.
+            %CONNECTTOZONE  Couple this zone's air node to another zone's air node.
+            %   connectToZone(other, R, name)                a plain conductance 1/R (an open doorway)
+            %   connectToZone(other, R, name, C_mid, T0)     an R/2 - C_mid - R/2 element (a partition
+            %                                                or slab); the mid node belongs to this zone
+            %   connectToZone(other, R, name, C_mid, T0, kind)   kind only changes the drawing:
+            %                                                'wall', 'slab' or 'air'
+            %   R [K/W], C_mid [J/K], T0 [degC] (default: this zone's air temperature).
             if nargin < 4 || isempty(name), name = sprintf('%s_to_%s', obj.name, otherZone.name); end
             isCap = nargin >= 5 && ~isempty(C_mid) && C_mid > 0;
             if nargin < 7 || isempty(kind)
@@ -216,27 +193,23 @@ classdef Zone < dynamicprops & handle
             obj.crossRes{end+1} = r;
             otherZone.crossRes{end+1} = r;
         end
-        
+
         function connectToExternalSource(obj, hf, nodeName)
-            % connectToExternalSource(hf, 'NodeName')
-            % hf is function handle: hf(building) -> heat in Watts
-            % nodeName is the name of the target node (e.g., 'T_main', 'IntMass1')
-            
-            % Default to the main node if no name is provided
+            %CONNECTTOEXTERNALSOURCE  Inject heat at a node of this zone at every step.
+            %   hf(building) returns watts. nodeName is a node of this zone, for example
+            %   'T_main' (the air, the default) or 'IntMass1'.
             if nargin < 3, nodeName = 'T_main'; end
-            
-            % Check if the node exists in this zone
             if ~ismember(nodeName, {obj.nodes.name})
                 error('Node "%s" does not exist in Zone "%s".', nodeName, obj.name);
             end
 
             obj.heatSources(end+1) = struct('hf', hf, 'nodeName', nodeName);
         end
-        
+
         function T = getMainTemp(obj)
             T = obj.nodes(1).T;
         end
-        
+
         function nodeCount = getNodeCount(obj)
             nodeCount = numel(obj.nodes);
         end

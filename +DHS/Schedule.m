@@ -1,30 +1,13 @@
 classdef Schedule < handle
-% DHS.SCHEDULE  Weekly occupancy schedule: heating setpoint + internal gains.
+% DHS.SCHEDULE  Weekly occupancy: heating setpoint and internal gains.
 %
-%   Part of the DES example (not the RCBS library). Produces the setpoint and
-%   the internal-gain split that the caller injects into the RCBS zone nodes.
+%   s = DHS.Schedule('occStartHour',7, 'occEndHour',18, 'Tocc',21, 'Tsetback',18, 'gainOccW',20e3);
+%   [Tsp, Qair, Qmass] = s.at(t);        % t is a datetime
 %
-%   A commercial academic building is "occupied" on workdays between
-%   occStartHour and occEndHour (optionally also on weekends, e.g. a library).
-%   During occupied hours the heating setpoint is Tocc and internal gains are at
-%   their full value; otherwise the setpoint drops to Tsetback and only base
-%   (standby) internal gains remain.
-%
-%   A single 0.3 mass fraction (the share of internal gain that is radiant to the
-%   thermal mass) is used as a simplification.
-%
-%   PROPERTIES
-%     occStartHour, occEndHour  [h]     occupied window on an occupied day (7, 18)
-%     workdays        vector, MATLAB weekday() codes 1=Sun..7=Sat  (2:6 = Mon-Fri)
-%     weekendOccupied logical           treat Sat/Sun as occupied too (false)
-%     weekendStartHour, weekendEndHour  [h] window if weekendOccupied (9, 17)
-%     Tocc            [degC]  occupied heating setpoint          (21)
-%     Tsetback        [degC]  unoccupied heating setpoint        (16)
-%     Tcool           [degC]  cooling setpoint (not used by the heating plant) (24)
-%     gainOccW        [W]     total internal gain when occupied  (building-sized)
-%     gainBaseW       [W]     internal gain when unoccupied      (~0.15*gainOccW)
-%     gainMassFraction [-]    fraction of internal gain to the mass node (0.30)
-%     preheatHours    [h]     start ramping to Tocc this many hours early (0)
+%   occStartHour, occEndHour [h] (7, 18); workdays (weekday codes, 2:6); weekendOccupied, weekendStartHour,
+%   weekendEndHour; Tocc, Tsetback [degC] (21, 16); rampHours [h] ramps the setpoint up before occupancy;
+%   preheatHours [h]; gainOccW, gainBaseW [W] (base defaults to 15 % of gainOccW); gainMassFraction (0.3).
+%   See docs/dhs-weather-solar-schedule.md.
 
     properties
         occStartHour     (1,1) double = 7

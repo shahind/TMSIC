@@ -1,24 +1,11 @@
 classdef Callback < DHS.controllers.Controller
 % DHS.CONTROLLERS.CALLBACK  A control law given as a function handle.
 %
-%   Lets you attach a custom law to any actuator without writing a class. The
-%   handle gets the whole simulation, like every controller, and returns the command:
-%
-%       u = fcn(sys, dt)
-%
-%     sys : the DHS.System (read what you need from it)     dt : step [s]
-%     u   : command, clamped to [uMin, uMax] (default 0 to 1)
-%
-%   USAGE
-%     c = DHS.controllers.Callback(@(sys, dt) 0.4*(21 - building.Tzone));
-%     hx.valve.attachController(c);
-%
-%     bypass valve held at a constant position:
-%     network.bypassValve.attachController( DHS.controllers.Callback(@(sys, dt) 0.5) );
-%
-%   A law that needs memory can keep it in a variable the handle captures
-%   (for example a struct or a handle object). Pass 'resetFcn', @() ... to
-%   clear that memory before each run.
+%   c = DHS.controllers.Callback(@(sys, dt) 0.4*(21 - sys.Hall.Tzone));
+%   hx.valve.attachController(c);
+%   The handle receives the DHS.System and the step [s] and returns the command, limited to
+%   [uMin, uMax]. A law that needs memory can capture a variable; 'resetFcn', @() ... clears it
+%   before each run. See docs/dhs-controllers.md.
 
     properties
         fcn      function_handle = @(sys, dt) 0

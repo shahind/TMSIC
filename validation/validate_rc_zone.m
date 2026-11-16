@@ -16,15 +16,6 @@ function V = validate_rc_zone(plotMode)
 %       T(t) = T_inf + (T0 - T_inf) exp(-t / (R C)) ,   T_inf = T_out + Q R
 %     (the lumped capacitance method). The time constant tau = R*C and the steady state T_inf = T_out + Q*R are
 %     exact for this ODE.
-%
-%   WHY THIS TEST IS GOOD
-%     It is the smallest possible RC network with a closed-form solution, so any
-%     error in (a) how a zone assembles its capacitance and conductance, (b) the
-%     sign of the outdoor coupling, (c) the heat-source injection, or (d) the
-%     time integration shows up immediately and unambiguously. Sub-case (2) also
-%     pins the steady-state gain (a units error in C or R would still give a
-%     decaying exponential but the wrong T_inf).
-%
 %   EXPECTED OUTPUT
 %     * free response: max |T_sim - T_analytic| < 0.02 degC at dt = 30 s over 6 h
 %     * time constant recovered from the 63.2 % point within 1 %

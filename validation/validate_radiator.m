@@ -29,12 +29,6 @@ function V = validate_radiator(plotMode)
 %        'exact' (r.integrator). For constant inputs 'exact' reproduces the solution of the ODE at any step
 %        (here 10 minutes), forward Euler is first order (halving the step halves the error), and all three
 %        keep the first law in every step (the heats are the step averages).
-%
-%   WHY THIS TEST IS GOOD
-%     A ties the sizing to the model, B and E check the metal's dynamics against exact solutions, C
-%     checks the first law in every step, D checks the flow-dependent resistance directly, and F that
-%     the exchanger's secondary side conserves energy with the loop's actual flow.
-%
 %   Run:  >> V = validate_radiator
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

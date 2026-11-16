@@ -1,43 +1,12 @@
 classdef Valve < DHS.Hydraulic.Link
-% DHS.HYDRAULIC.VALVE  Control valve sized by its flow coefficient Kv.
+% DHS.HYDRAULIC.VALVE  A control valve sized by its flow coefficient Kv (IEC 60534).
 %
-%       Q [m3/h] = Kv * sqrt(dp [bar])      ->  K = 1e5*3600^2 / (Kv^2 * rho^2)
-%       Kv(pos)  = Kvs * pos                         ('linear')
-%       Kv(pos)  = Kvs * rangeability^(pos-1)        ('eqpct', default)
-%
-%   MATLAB/Simscape's Gate Valve (TL) block models a different valve archetype
-%   (discharge coefficient, gate opening area) -- see docs/dhs-hydraulic.md.
-%
-%   A valve is a link like a pipe: it sits between two components of a network, in series with them
-%   (pipe1.connect(valve1); valve1.connect(pipe2), or valve1 = pipe1.addValve('Kvs',4)), and a
-%   radiator's valve, a building's valve and a bypass valve are all this same component, with
-%   other sizes and limits. Connected between a supply and a return junction it is a bypass.
-%
-%   ACTUATOR LAG  The position pos is the command (what you or a controller set). During a run the valve
-%   follows it with a first-order lag of time constant lag [s] (default 60 s, 0 = no lag):
-%       posActual(k+1) = posActual(k) + (1 - exp(-dt/lag)) (pos - posActual(k)),
-%   and the flow equation uses posActual. Outside a run the command is used as it is. The lag is a
-%   property of the valve, so a fast or a slow actuator is valve.lag = 10 or valve.lag = 120.
-%
-%   Its position can be held fixed or driven by a controller:
-%       valve.attachController( DHS.controllers.PID(...) )
-%   The controller decides what to measure (DHS.controllers.Controller): a
-%   building's valve usually follows its zone temperature, the end-of-line bypass
-%   valve any signal or a constant, e.g. DHS.controllers.Callback(@(sys,dt) 0.5).
-%
-%   PROPERTIES (SI)
-%     name          char
-%     Kvs           [m3/h/sqrt(bar)]  rated flow coefficient (fully open)
-%     char          'eqpct' | 'linear'
-%     rangeability  [-]   equal-percentage rangeability      (50)
-%     minPos        [-]   lowest travel the valve opens to (floor on pos)     (0.02; 0.001 shuts tight)
-%     pos           [-]   0..1 travel command (control input; default 1)
-%     lag           [s]   time constant of the actuator (60); 0 for an ideal, instantaneous valve
-%     controller          [] or a DHS.controllers.Controller
-%   LIVE STATE
-%     posActual     [-]   position the valve has reached (equal to pos outside a run, or with lag 0)
-%     dp            [Pa]  pressure drop this step
-%     mdot          [kg/s] flow through the valve when it is a link of a network
+%   valve = DHS.Hydraulic.Valve('V1', 'Kvs',18, 'char','eqpct');    % or pipe.addValve('Kvs',18)
+%   Q [m3/h] = Kv*sqrt(dp [bar]); Kv = Kvs*pos ('linear') or Kvs*rangeability^(pos-1) ('eqpct').
+%   pos [0..1] is the command. The valve follows it with a first-order lag of time constant lag [s]
+%   (default 60; 0 = none), and the flow uses posActual. Attach a controller with valve.attachController(c).
+%   Kvs [m3/h/sqrt(bar)] (25), rangeability (50), minPos (0.02). A valve joined from the supply side to a
+%   return junction is a bypass. See docs/dhs-hydraulic.md.
 
     properties
         name         (1,:) char = ''

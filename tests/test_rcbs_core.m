@@ -1,18 +1,12 @@
 function tests = test_rcbs_core
-%TEST_RCBS_CORE  Validation of the RCBS RC solver and the Part-A bug fixes.
+%TEST_RCBS_CORE  Unit tests of the RCBS solver and the RC element models.
 %
 %   Run:  >> runtests('tests/test_rcbs_core.m')
 %
-%   Covers (see docs/RCBS_validation.md):
-%     - addZone('C_main',..) actually sets the node capacitance      (bug #1)
-%     - 1R1C step response matches the analytic solution and is 1st-order
-%     - wall T-network matches a high-accuracy ode45 reference
-%     - implicit solver conserves energy to machine precision
-%     - cached-factorisation solver == legacy dense assembly
-%     - "exact" ZOH solver agrees with backward Euler to O(dt)
-%     - heat-source closures / getMainTemp see LIVE temperature       (bug #2)
-%     - controlFcn / stepCallback / actuator registry work            (new)
-%     - getStateSpace returns a stable, correctly-sized model
+%   Covers: the zone capacity set by addZone, the 1R1C step response (analytic, first order), the wall
+%   T-network against ode45, energy conservation, the cached solver against the dense solver, the exact
+%   zero-order-hold solver, live temperatures in heat-source functions, the hooks and the actuator
+%   registry, and the size and stability of the state-space model.
     tests = functiontests(localfunctions);
 end
 

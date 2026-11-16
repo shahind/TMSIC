@@ -1,26 +1,13 @@
 function sys = campus(varargin)
-%DHS.EXAMPLES.CAMPUS  Build the 5-building UBCO-style campus as a DHS.System.
+%DHS.EXAMPLES.CAMPUS  A five-building campus on one gas plant, built with the DHS calls.
 %
 %   sys = DHS.examples.campus()
-%   sys = DHS.examples.campus('weatherCsv', '...', 'startDate', datetime(2025,1,1))
+%   sys = DHS.examples.campus('weatherCsv', 'file.csv', 'startDate', datetime(2025,1,1))
 %
-%   Builds, through the +DHS assembly API, a campus with one central gas heat
-%   plant, a branching supply/return main, and five buildings (Administration,
-%   Arts, Science, Engineering, Library) each with an RCBS thermal model, a
-%   plate heat exchanger + control valve, a solar model and a
-%   weekly occupancy schedule.
-%
-%   The supply main is wired one component at a time with addPipe / addTee
-%   and connect, and each building has an internal loop (pipe, pump, tee,
-%   valve, radiator, bypass) wired the same way from the heat exchanger's
-%   internal outlet to its internal inlet. DHS.HydraulicNetwork also accepts
-%   the declarative style (hn.addPipe(nodeA,nodeB,...)) if you prefer it;
-%   both produce the identical network.
-%
-%   The 14-day results (plant heat, zone temperatures, efficiency, energy
-%   closure) should match the archived DES_results.mat; the distribution
-%   pressures differ slightly because DHS models the supply main as a proper
-%   trunk-and-branch tree rather than five independent radials.
+%   One plant with a boiler and a pump, a supply main with one tee per building, a return main, and five
+%   buildings (Administration, Arts, Science, Engineering, Library). Each has an RC model, a plate heat
+%   exchanger, an internal loop with a zone valve and radiator, a solar model and a weekly schedule.
+%   Read it next to examples/dhs_campus.m; examples/dhs_tutorial.m is a smaller version.
 
     p = inputParser;
     p.addParameter('weatherCsv', fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'solar_data_2025.csv'));

@@ -1,47 +1,24 @@
 classdef Simulation < handle
-% RCBS.SIMULATION  Fixed-step implicit (backward-Euler) solver for an RC building.
+% RCBS.SIMULATION  Fixed-step solver for an RC building (belongs to RCBS.Building).
 %
-%   The building's thermal network (constant R and C) is Linear Time-Invariant:
+%   The network is linear and time-invariant:  C dT/dt = -L T + g_out T_out + Q(t)
+%   with node temperatures T [degC], capacities C [J/K], conductance matrix L [W/K],
+%   outdoor conductances g_out [W/K] and heat inputs Q [W].
 %
-%       C .* dT/dt = -L*T + g_out*T_outdoor + Q(t)                         (1)
+%   solverMode  "cached"       backward Euler with one cached factorisation (default)
+%               "forwardEuler" explicit Euler (warns when the step is too large)
+%               "exact"        exact zero-order hold
+%               "legacy"       backward Euler with a dense solve per step (reference)
 %
-%   where  T        [degC]   node temperature vector            (N x 1)
-%          C        [J/K]    node heat-capacity vector          (N x 1)
-%          L        [W/K]    symmetric conductance (system) matrix (N x N)
-%                            L(i,i) = sum of all conductances at node i
-%                            L(i,j) = -G_ij  (conductance between i and j)
-%          g_out    [W/K]    per-node conductance to the outdoor boundary (N x 1)
-%          Q(t)     [W]      external heat injected at each node (solar, internal,
-%                            hydronic, user heat sources)
+%   Main calls
+%     run(totalSeconds)       advance the whole horizon and fill results
+%     stepOnce(t, Tout, Q)    advance one step (co-simulation)
+%     getStateSpace()         continuous ss model: [sysc, io]
+%     measure(zoneKey, node)  live node temperature during a run
+%     plotResults()           quick temperature plot
+%     registerActuator, setActuator, getActuator   named values shared with hooks
 %
-%   Backward Euler (unconditionally stable, 1st-order accurate):
-%
-%       (C/dt + L) * T_{k+1} = (C/dt).*T_k + g_out*T_out,k + Q_k           (2)
-%
-%   The system matrix  M = C/dt + L  is CONSTANT, so it is factorised once
-%   (decomposition, sparse LU) and every step is a cheap back-substitution.
-%   This replaces the previous implementation, which re-assembled a dense
-%   N x N matrix and called mldivide on every step.
-%
-%   Backward-compatible public API (unchanged behaviour when no controller or
-%   callback is attached):
-%     run(totalSeconds)         - advance the whole horizon, fill obj.results
-%     buildNodeMap()            - enumerate nodes and connections
-%     plotResults()             - quick temperature plot
-%
-%   New capabilities for control-system studies:
-%     obj.controlFcn            - handle f(sim) called BEFORE each physics step
-%     obj.stepCallback          - handle f(sim,k,t,T) called AFTER each step
-%     obj.act                   - struct actuator registry (set by controllers,
-%                                 read by heat-source closures)
-%     registerActuator(name,v0) / getActuator(name) / setActuator(name,v)
-%     measure(zoneKey[,node])   - LIVE node temperature during a run
-%     stepOnce(t,Tout,Q)        - advance exactly one step (external co-simulation)
-%     getStateSpace()           - continuous ss() model for LQR / MPC design
-%     solverMode                - "cached" (backward Euler, default) | "forwardEuler" | "legacy" | "exact"
-%
-%   Units summary: temperature degC, capacitance J/K, conductance W/K, heat W,
-%   time seconds (obj.timeStep is a duration).
+%   Hooks: controlFcn(sim) before each step, stepCallback(sim,k,t,T) after each step.
 
     properties
         building                % RCBS.Building (parent)

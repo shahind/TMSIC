@@ -1,25 +1,15 @@
 classdef PID < DHS.controllers.Controller
-% DHS.CONTROLLERS.PID  Discrete PID with filtered derivative and anti-windup.
+% DHS.CONTROLLERS.PID  Discrete PID with a filtered derivative and back-calculation anti-windup.
 %
-%   Parallel form   u = Kp*e + Ki*Int(e) + Kd*d/dt(e_filt) ,  e = dir*(ref-meas)
+%   c = DHS.controllers.PID(0.14, 1.6e-4, 0);            % Kp, Ki, Kd (Tf defaults to 20 s)
+%   c = DHS.controllers.PID(Kp, Ki, Kd, Tf);              % with a derivative filter time constant [s]
+%   c = DHS.controllers.PID('Kp',..,'Ki',..,'Kd',..,'Tf',..,'Tt',..,'dir',..,'uMin',..,'uMax',..);
+%   c.measure   = @(sys) sys.Hall.Tzone;                  % the measured value
+%   c.reference = @(sys) sys.Hall.setpoint;               % a number or @(sys) ...
+%   hx.valve.attachController(c);
 %
-%   Discretisation (step dt):
-%     I    += Ki*e*dt
-%     d_f  += (dt/Tf)*((e-e_prev)/dt - d_f)          (Tf > 0)
-%     u_raw = Kp*e + I + Kd*d_f
-%     u     = clamp(u_raw, uMin, uMax)
-%     I    += (dt/Tt)*(u - u_raw)                     (back-calculation anti-windup)
-%
-%   CONSTRUCTION
-%     PID(Kp, Ki, Kd)                positional (Tf defaults to 20 s)
-%     PID(Kp, Ki, Kd, Tf)           positional with derivative filter
-%     PID('Kp',..,'Ki',..,'Kd',..,'Tf',..,'Tt',..,'dir',..,'uMin',..,'uMax',..,'name',..)
-%
-%   Example:  c = DHS.controllers.PID(0.14, 1.6e-4, 0);
-%             c.measure   = @(sys) building.Tzone;
-%             c.reference = @(sys) building.setpoint;       % or a number
-%             hx.valve.attachController(c);
-%   Each step:  u = c.update(sys, dt)  with  e = dir*(reference - measure).
+%   u = Kp*e + I + Kd*de_filtered/dt with e = dir*(reference - measure); dir is +1 (direct) or -1 (reverse).
+%   Tt is the anti-windup time constant (chosen automatically). See docs/dhs-controllers.md.
 
     properties
         Kp  (1,1) double = 1

@@ -1,21 +1,12 @@
-%% DHS_CAMPUS_WITH_BYPASS
-%  The campus of dhs_campus with an end-of-line bypass added to the supply main.
+%% DHS_CAMPUS_WITH_BYPASS  The campus with an end-of-line bypass on the supply main.
 %
-%  A bypass is a pipe and a valve from the last supply junction to the return
-%  side. Water the buildings do not draw (their valves are partly closed) passes
-%  through it and joins the return, so the main keeps a minimum flow. The
-%  default campus has no bypass: its central pump slows down instead.
-%
-%  Adding a bypass takes one line, before the system is compiled:
-%
-%      hn = campus.network;
+%  A bypass is a pipe and a valve from the last supply junction to the return side. Water that the
+%  buildings do not draw passes through it and joins the return, so the main keeps a minimum flow.
+%  One call, before compile, adds it:
 %      hn.addBypass(hn.T_Engineering, hn.R_Engineering, 'L',10, 'D',0.05, 'Kvs',1.5);
-%
-%  The first two arguments are the supply junction the bypass leaves and the return
-%  junction it joins, here the end of both mains. 'L' and 'D' are the bypass pipe's
-%  length and diameter, 'Kvs' the valve's full-open flow coefficient [m3/h at 1 bar]
-%  and 'pos' (default 1) its fixed position. Attach a controller to
-%  campus.network.bypassValve to move it (see "controlled bypass" below).
+%  The arguments are the supply junction it leaves and the return junction it joins, then the pipe
+%  length [m] and diameter [m], the valve's full-open flow coefficient Kvs [m3/h/sqrt(bar)] and its
+%  position 'pos' (default 1). Attach a controller to hn.bypassValve to move it (see below).
 %
 %  Run:  >> dhs_campus_with_bypass
 

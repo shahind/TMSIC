@@ -1,46 +1,44 @@
-% Thermal Modeling for System Identification and Control Toolbox
+% Thermal Modeling for System Identification and Control Toolbox (TMSIC)
 % Version 1.0
 %
-% Pure-MATLAB RC thermal modelling of buildings, district heating system
-% assembly, grey-box parameter identification, and controller design.
+% RC models of buildings, district heating systems, parameter identification and
+% controller design. Run setup once per session to put the toolbox on the path.
 %
-% RC building models (+RCBS)
-%   RCBS.Building      - a building: storeys, zones, envelope elements, couplings
-%   RCBS.Storey        - a storey holding zones
-%   RCBS.Zone          - a thermal zone: air node, walls, roof, windows,
-%                        internal mass, connectToZone couplings, heat sources
-%   RCBS.Simulation    - the solver: stepOnce, simulate, getStateSpace
+% Building thermal models (+RCBS)
+%   RCBS.Building       - a building: storeys, zones, envelope elements, couplings
+%   RCBS.Storey         - a storey that holds zones
+%   RCBS.Zone           - a zone: air node, walls, roof, windows, internal mass, zone links, heat sources
+%   RCBS.Part           - a named element of a zone (R, C, T)
+%   RCBS.Simulation     - the solver: run, stepOnce, getStateSpace
 %
-% District heating systems (+DHS)
-%   DHS.System             - the top object: plant + network + buildings, run()
-%   DHS.CentralHeatPlant   - boilers, pump, plant-side water dynamics, firing PID
-%   DHS.Boiler             - a burner stage in the plant
-%   DHS.HeatExchanger      - abstract substation heat exchanger + valve + pump; types:
-%     DHS.ENTUPlateHeatExchanger / DHS.FixedEffectivenessHeatExchanger / DHS.IdealHeatExchanger
-%   DHS.Hydraulic.Pipe / .Valve / .Pump (links), .Junction / .TJunction (nodes) - pipe-network parts, wired with connect / add
-%   DHS.Hydraulic.Pump / .CentrifugalPump / .FixedDisplacementPump - pump types
-%   DHS.HydraulicNetwork   - trunk-and-branch pipe-network solver
-%   DHS.Building            - one building on the loop, wraps an RCBS.Building
-%   DHS.Radiator           - a zone's radiator on the building's internal loop
-%   DHS.Weather / DHS.Solar / DHS.Schedule - boundary conditions and gains
-%   DHS.drawSchematic      - draw an assembled system
+% District heating (+DHS)
+%   DHS.System                         - plant + network + buildings; run
+%   DHS.CentralHeatPlant               - boilers, central pump, plant water, firing control
+%   DHS.Boiler                         - a burner stage
+%   DHS.HydraulicNetwork               - supply and return pipe trees and the flow solver
+%   DHS.Building                       - a building on the network; wraps an RCBS.Building
+%   DHS.Radiator                       - a zone radiator on a building's internal loop
+%   DHS.HeatExchanger                  - abstract substation exchanger with valve and pump
+%   DHS.ENTUPlateHeatExchanger         - plate exchanger, effectiveness-NTU (building with a loop)
+%   DHS.FixedEffectivenessHeatExchanger - fixed effectiveness (building with a loop)
+%   DHS.IdealHeatExchanger             - radiator law (building without a loop)
+%   DHS.Weather, DHS.Solar, DHS.Schedule - weather, solar gains, occupancy
+%
+% Network parts (+DHS/+Hydraulic)
+%   Pipe, Valve, Pump, CentrifugalPump, FixedDisplacementPump  - links, joined with connect or add...
+%   Junction, TJunction                                       - nodes (a tee has ports portA, portB, portC)
 %
 % Controllers (+DHS/+controllers)
-%   DHS.controllers.Controller - abstract interface (reset, update)
-%   DHS.controllers.PID        - discrete PID, filtered derivative, anti-windup
-%   DHS.controllers.LQR        - discrete LQR regulator (dlqr)
-%   DHS.controllers.Relay      - on/off
-%   DHS.controllers.Callback   - a custom law given as a function handle
+%   Controller, PID, LQR, Relay, Callback  - attach with actuator.attachController(c)
 %
 % Examples (examples/)
-%   RCBS_example                    - build a 7-zone building, draw its schematic
-%   dhs_campus                      - assemble and run a 5-building campus
-%   dhs_campus_multizone            - the campus with multi-zone buildings
-%   system_identification           - fit a single-zone RC model to data
-%   multi_zone_system_identification - fit an 8-zone building to data
+%   rcbs_tutorial, dhs_tutorial, dhs_internal_loop_tutorial
+%   RCBS_example, dhs_campus, dhs_campus_with_bypass, dhs_campus_multizone
+%   system_identification, multi_zone_system_identification
 %
 % Tests and validation
-%   runtests('tests')                    - unit / regression suites
-%   run('validation/run_all_validation') - 18 component accuracy checks
+%   runtests('tests')    - unit tests
+%   run_all_validation   - 20 component accuracy checks
 %
-% Run setup.m once per session to put the toolbox on the MATLAB path.
+% AI assistants
+%   install_ai_skill     - install the skill in skills/ for Claude Code, Codex or Claude.ai

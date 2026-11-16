@@ -1,11 +1,11 @@
 function tests = test_dhs
-%TEST_DHS  Tests for the +DHS district-heating-systems library.
+%TEST_DHS  Unit tests of the DHS package.
 %
 %   Run:  >> runtests('tests/test_dhs.m')
 %
-%   Covers the assembly API, the tree hydraulic solve (incl. building coupling),
-%   a short co-simulation of the campus (energy closure, setpoint tracking) and
-%   the controller-swap interface.
+%   Covers the assembly calls, the hydraulic solve and its coupling between buildings, the solvers and
+%   integrators, valves, pumps, heat exchangers, the internal loop, a short campus run (energy closure,
+%   setpoint tracking) and the controller interface.
     tests = functiontests(localfunctions);
 end
 

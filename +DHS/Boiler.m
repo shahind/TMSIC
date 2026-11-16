@@ -1,23 +1,11 @@
 classdef Boiler < handle
-% DHS.BOILER  A gas boiler stage in the central heat plant.
+% DHS.BOILER  A gas boiler stage: a burner capacity and a part-load efficiency curve.
 %
-%   Carries the burner capacity and the part-load efficiency curve. The plant's
-%   lumped water-mass thermal dynamics live in DHS.CentralHeatPlant; a Boiler is
-%   the burner + its efficiency characteristic. Create with  chp.addBoiler(...).
-%
-%   Efficiency vs return-water temperature (condensing gas boiler):
-%       eta(Tret) = etaCurve(Tret)                       if etaCurve is set
-%                 = clamp(etaRef - etaSlope*(Tret-TetaRef), etaMin, etaMax)  else
-%
-%   PROPERTIES (SI)
-%     name      char
-%     QMax      [W]     maximum burner heat release
-%     etaCurve  handle  optional  @(Tret) -> efficiency [-]
-%     etaRef etaSlope TetaRef etaMin etaMax   default curve parameters
-%     controller  [] or a DHS.controllers.Controller driving the firing fraction 0..1;
-%                 chp.addBoiler gives each boiler a PID on the supply temperature
-%                 (measure = plant supply sensor, reference = plant setpoint). Replace it:
-%                     boiler.attachController(c)
+%   Create it with chp.addBoiler('B1', 'QMax',1.5e6).
+%   Efficiency: etaCurve(Tret) if given, else clip(etaRef - etaSlope*(Tret - TetaRef), etaMin, etaMax).
+%   QMax [W]; etaRef 0.92, etaSlope 0.0025 1/K, TetaRef 50 degC, etaMin 0.80, etaMax 0.98.
+%   controller: a DHS.controllers.Controller that sets the firing fraction 0..1.
+%   See docs/dhs-plant.md.
 
     properties
         name     (1,:) char = ''

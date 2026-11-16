@@ -1,22 +1,9 @@
 function drawSchematic(sys)
-%DHS.DRAWSCHEMATIC  Schematic of an assembled DHS.System.
-%
-%   Called by DHS.System.visualize(). Draws the closed district loop:
-%
-%     * the central heat plant (boilers and the central pump);
-%     * the SUPPLY pipes (red) from the plant out to every supply junction, and the RETURN
-%       pipes (blue) from the return junctions back into the plant, each labelled with
-%       its name, length and diameter (the two sides are defined separately and may differ);
-%     * every junction: a square for a T-junction (with its main/side diameters), a
-%       circle for a plain junction, on both the supply and the return side;
-%     * every building as a plain rectangle, with its number of zones in parentheses
-%       under its name, and its service pipes (length, diameter) joining the supply
-%       junction above to the return junction below.
-%
-%   The loop is closed through the buildings: each building joins its supply junction to its
-%   return junction; an end-of-line bypass, when the network has one, joins its supply junction
-%   to its return junction. A return junction is drawn under the buildings that drain into it.
-%   Arrows give the flow direction. For a building's RC-network detail call  building.rcBuilding.visualize().
+%DHS.DRAWSCHEMATIC  Draw an assembled DHS.System (called by sys.visualize()).
+%   Draws the closed loop: the plant with its pump, the supply pipes (red) and return pipes (blue)
+%   with name, length and diameter, every junction, and every building as a box with its zone count
+%   and service pipes. A bypass, if any, joins its supply and return junctions.
+%   For the RC network of one building call building.rcBuilding.visualize().
 
     net = sys.network;  plant = sys.plant;
     nJ = numel(net.junctions) + numel(net.returnJunctions);  nB = numel(sys.buildings);

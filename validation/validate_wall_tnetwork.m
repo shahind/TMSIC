@@ -19,15 +19,6 @@ function V = validate_wall_tnetwork(plotMode)
 %   REFERENCE
 %     The R/2 - C - R/2 T-network is the standard lumped model of a single
 %     homogeneous wall layer. ode45 (Dormand-Prince 4(5)) at RelTol 1e-10 is the reference integrator.
-%
-%   WHY THIS TEST IS GOOD
-%     addWall must (a) split R_total into two halves, (b) create the mid node
-%     with the right capacitance, (c) connect the mid node to BOTH the air node
-%     and the outdoor boundary, and (d) leave the air node otherwise untouched.
-%     A wrong split (R vs R/2), a missing half-resistor, or a mid node wired to
-%     the wrong neighbour all produce a visibly different 2-state response that
-%     ode45 on the intended equations will not match.
-%
 %   EXPECTED OUTPUT
 %     max |T_air,RCBS - T_air,ode45| < 0.03 degC over 2 days at dt = 30 s;
 %     the wall mid-node temperature agrees to the same tolerance;

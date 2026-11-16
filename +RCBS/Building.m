@@ -4,13 +4,13 @@ classdef Building < dynamicprops & handle
         outdoorTempFunc % function handle: datetime -> temperature (degC)
         storeyList = {} % names
     end
-    
+
     methods
         function obj = Building()
             obj.simulation = RCBS.Simulation(obj);
             obj.outdoorTempFunc = @(t) 10; % default constant 10°C
         end
-        
+
         function addStorey(obj, name)
             if isprop(obj, name)
                 error('Storey "%s" already exists.', name);
@@ -19,76 +19,43 @@ classdef Building < dynamicprops & handle
             obj.(name) = RCBS.Storey(name, obj);
             obj.storeyList{end+1} = name;
         end
-        
+
         function simulate(obj, varargin)
-            % B.simulate(duration)
-            % or B.simulate(years, months, days, hours, minutes)
-            %
-            % Example:
-            %   B.simulate(hours(5))
-            %   B.simulate(0,0,1,0,0)  % 1 day
-            
-            % --- Case 1: duration input (preferred)
+            %SIMULATE  Run the building for a duration.
+            %   B.simulate(days(3))
+            %   B.simulate(years, months, days, hours, minutes)
+            %   Set B.simulation.startDate and B.simulation.timeStep first.
             if numel(varargin) == 1 && isa(varargin{1}, 'duration')
                 simDuration = varargin{1};
-                
-            % --- Case 2: numeric [y,m,d,h,min] input
             elseif numel(varargin) == 5
                 [y,m,d,h,minu] = deal(varargin{:});
                 simDuration = years(y) + calmonths(m) + days(d) + hours(h) + minutes(minu);
-                
+
             else
                 error('Usage: B.simulate(duration) or B.simulate(y,m,d,h,min)');
             end
-            
-            % --- Validation
+
             if isempty(obj.simulation.startDate)
                 error('Set B.simulation.startDate before calling simulate().');
             end
             if isempty(obj.simulation.timeStep) || obj.simulation.timeStep <= seconds(0)
                 error('Set B.simulation.timeStep (duration) before calling simulate().');
             end
-            
-            % --- Compute total duration in seconds (approx for months/years)
-            % Convert to seconds (1 year ≈ 365.25 days)
-            dt_seconds = seconds(obj.simulation.timeStep);
+
             endDate = obj.simulation.startDate + simDuration;
             totalSeconds = seconds(endDate - obj.simulation.startDate);
-            
-            % --- Run the simulation
+
             obj.simulation.run(totalSeconds);
         end
 
         function visualize(obj, varargin)
             %VISUALIZE  Draw the building's RC network as a labelled schematic.
-            %
-            %   B.visualize()          new figure
-            %   B.visualize(ax)        draw into an existing axes
+            %   B.visualize()                 new figure
+            %   B.visualize(ax)               draw into an existing axes
             %   B.visualize('FontSize', 12)   base label size in points (default 8)
-            %
-            %   Every zone uses the SAME fixed-size template.  A thin shell
-            %   frames the room; the RC ladders rise from the room edges:
-            %
-            %          (T_outdoor)                     one per exterior element
-            %              |
-            %            [ R ]                         outer half
-            %          -- * --||-- C   T_wall          node in the wall, cap aside
-            %            [ R ]                         inner half
-            %       +======|=================+  <- thin shell / room border
-            %       |  ||   |                |
-            %       |  C -[R]- * T_main      |  <- internal mass on the left,
-            %       |          (zone)        |     one R to the air node
-            %       +======|=================+
-            %          [ window ]                <- node in the pane, pane height
-            %              |                        = wall-border thickness
-            %            [ R ]
-            %              |
-            %          (T_outdoor)
-            %
-            %   Missing parts are left out, the slots stay.  Inter-zone links
-            %   attach at the shell EDGES (grey while inside a card): a single
-            %   resistor for a plain air path, R/2 - node+C - R/2 for a
-            %   capacitive partition wall or floor/ceiling slab.
+            %   Each zone is a card: walls and roofs above, windows below, internal mass on
+            %   the left. Zone links join the cards: one resistor for an air path, an
+            %   R/2 - C - R/2 element for a partition or slab.
 
             haveAx = ~isempty(varargin) && isa(varargin{1}, 'matlab.graphics.axis.Axes');
             if haveAx, ax = varargin{1};  f = ancestor(ax, 'figure'); end
@@ -561,7 +528,7 @@ classdef Building < dynamicprops & handle
                 end
             end
         end
-        
+
         function temps = getAllZoneTemps(obj)
             % helper: collect main node temps of all zones
             temps = containers.Map();

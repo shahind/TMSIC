@@ -27,14 +27,6 @@ function V = validate_building_energy_balance(plotMode)
 %     (3) MULTI-ZONE CLOSURE.  The same first-law check on a 2-storey x 2-zone
 %         building with partition + slab coupling: energy still closes despite
 %         the extra inter-zone paths and mid-node masses.
-%
-%   WHY THIS TEST IS GOOD
-%     Energy conservation is a property the model must have regardless of any
-%     analytical solution; checking it to machine precision on the full
-%     multi-node and multi-zone assemblies is the strongest structural check on
-%     the whole RC layer.  The steady-state UA additionally pins the absolute
-%     scale of the envelope losses.
-%
 %   Run:  >> V = validate_building_energy_balance
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

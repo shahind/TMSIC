@@ -27,14 +27,6 @@ function V = validate_bdf_solver(plotMode)
 %     Backward (implicit) Euler is a first-order A-stable one-step method. The
 %     ZOH exact discretisation x_{k+1} = e^{A dt} x_k + A^{-1}(e^{A dt}-I) B u_k
 %     is the standard comparison.
-%
-%   WHY THIS TEST IS GOOD
-%     The order test proves the time integrator is implemented correctly (a
-%     wrong sign or a forward-Euler slip would show as instability or order 0);
-%     the equivalence test proves the fast cached factorisation reproduces the
-%     reference assembly exactly; the energy test proves the scheme conserves
-%     the quantity it should, independent of any analytical solution.
-%
 %   EXPECTED OUTPUT
 %     p in [0.9, 1.1];  |cached - legacy| < 1e-8 degC;  |cached - exact| < 5e-3 degC;
 %     relative energy-balance residual < 1e-9.

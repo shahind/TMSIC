@@ -1,28 +1,13 @@
 function sys = campus_multizone(varargin)
-%DHS.EXAMPLES.CAMPUS_MULTIZONE  The 5-building campus, but with MULTI-ZONE buildings.
+%DHS.EXAMPLES.CAMPUS_MULTIZONE  The campus with multi-zone buildings.
 %
 %   sys = DHS.examples.campus_multizone()
 %
-%   Same central heat plant and distribution network as DHS.examples.campus, but
-%   every building's RC model has several thermal zones instead of one:
-%
-%     * each storey is split into a LARGER zone (60 % of the footprint) and a
-%       SMALLER zone (40 %);
-%     * the two zones on a storey are coupled by an interior PARTITION WALL
-%       (a capacitive R/2-C-R/2 element, RCBS.Zone.connectToZone with a mid mass);
-%     * a zone is coupled to the zone directly above / below it by a FLOOR/CEILING
-%       SLAB (its ceiling is the other's floor) -- also a capacitive element;
-%     * each zone is given the thermal character of a room type -- classroom,
-%       lecture hall, office, study room, lab, dining, lobby -- with its own
-%       internal-gain density, occupancy schedule, ventilation rate, setpoint,
-%       glazing ratio and thermal mass.
-%
-%   One district substation feeds each building. Its control loop regulates the
-%   area-weighted mean zone temperature; the delivered heat is split between the
-%   zones in proportion to each zone's current heating demand. Ventilation and
-%   free-cooling are per zone.
-%
-%   res = sys.run(days(14));  res.bldg(i).Tzones is nt x nZones, res.bldg(i).zoneNames.
+%   The plant and network of DHS.examples.campus. Each building has two zones per storey, joined by
+%   partition walls and floor slabs, and each zone has a room type (classroom, lecture hall, office, lab,
+%   dining, lobby, ...) with its own gains, schedule, ventilation, setpoint and glazing. Each zone has a
+%   radiator and a valve on the building's internal loop.
+%   res = sys.run(days(14));  res.bldg(i).Tzones has one column per zone, named in res.bldg(i).zoneNames.
 
     p = inputParser;
     p.addParameter('weatherCsv', fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'solar_data_2025.csv'));

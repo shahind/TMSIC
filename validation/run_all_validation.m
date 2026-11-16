@@ -1,18 +1,14 @@
 function results = run_all_validation(plotMode)
-%RUN_ALL_VALIDATION  Run every validation/validate_*.m and print a summary.
+%RUN_ALL_VALIDATION  Run every validate_*.m check and print a summary.
 %
-%   Each validate_*.m compares a component of the model against an analytical
-%   solution, a published correlation, an independent solver, or an exact
-%   conservation law, prints a per-case table, and writes a comparison figure
-%   to validation/figures/<name>.png. This driver runs them all and returns a
-%   struct array with each block's name, PASS/FAIL and cases.
+%   Each check compares a component with an analytical solution, a published correlation, an independent
+%   solver or a conservation law, prints a table of cases, and saves a figure in validation/figures.
 %
-%   run_all_validation            regenerate every figure PNG (windows stay closed)
+%   run_all_validation            save every figure (windows stay closed)
 %   run_all_validation('show')    also leave every figure open
-%   run_all_validation('none')    skip plotting entirely (fastest)
+%   run_all_validation('none')    skip plotting (fastest)
 %
-%   See validation/README.md for the scientific rationale and references of
-%   each test.
+%   See validation/README.md for the reference and the expected result of each check.
 
     if nargin < 1 || isempty(plotMode), plotMode = 'save'; end
     here = fileparts(mfilename('fullpath'));

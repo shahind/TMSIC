@@ -22,14 +22,6 @@ function V = validate_pipe_friction(plotMode)
 %     B  a tabulated friction-factor point:  Re = 1e5, eps/D = 1e-3  ->  f ~ 0.0222
 %     C  laminar branch:  f(Re=1000) = 64/1000 = 0.064  exactly
 %     D  DHS.Hydraulic.Pipe.resistance() reproduces  dp = f (L/D) (rho/2) v^2  with v = mdot/(rho A)
-%
-%   WHY THIS TEST IS GOOD
-%     The distribution pressure drops all come from this one correlation.
-%     Checking it against the implicit equation it approximates (not just
-%     against itself), on the range the authors validated, and against an
-%     independent tabulated value, is the strongest possible confidence short of
-%     lab data.
-%
 %   Run:  >> V = validate_pipe_friction
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

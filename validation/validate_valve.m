@@ -33,13 +33,6 @@ function V = validate_valve(plotMode)
 %        outside a run the command is used as it is.
 %
 %   REFERENCE  The flow coefficient equation of IEC 60534-2-1 (liquids, non-choked flow), written above.
-%
-%   WHY THIS TEST IS GOOD
-%     A pins the sizing equation and the units (bar<->Pa, m3/h<->kg/s); B and C
-%     pin the two inherent characteristics against their definitions; D checks
-%     the emergent installed behaviour that determines whether the building
-%     control loop sees usable gain.
-%
 %   Run:  >> V = validate_valve
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

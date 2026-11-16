@@ -1,61 +1,13 @@
 classdef (Abstract) Pump < DHS.Hydraulic.Link
-% DHS.HYDRAULIC.PUMP  Abstract circulating pump: the common interface every pump
-%                     type in +DHS implements.
+% DHS.HYDRAULIC.PUMP  Abstract pump: the interface of CentrifugalPump and FixedDisplacementPump.
 %
-%   Two concrete kinds ship with the toolbox:
-%     DHS.Hydraulic.CentrifugalPump        quadratic head-flow curve + affinity laws
-%     DHS.Hydraulic.FixedDisplacementPump  flow set by speed, capped by a relief valve
-%
-%   One sits at the plant (the central pump, chp.supplyPump) and one on the
-%   primary side of each building's heat exchanger (hx.pump). Its speed can be
-%   held fixed or driven by a controller, which decides what to measure
-%   (DHS.controllers.Controller):
-%       c = DHS.controllers.PID(...);
-%       c.measure = @(sys) supplyJunction.p - returnJunction.p;   c.reference = 3e5;
-%       pump.attachController(c)
-%   The central pump's controller is sampled once per step on the previous step's
-%   pressures. With no controller the pump holds its speed (the central pump
-%   starts at System.pumpFrac). A building's pump is stopped (speed 0) unless it
-%   is switched on or controlled; a stopped substation pump adds no head and no
-%   resistance.
-%
-%   IN-LINE PUMP  A pump can also sit anywhere in a network between two nodes, like a pipe: it
-%   adds its head at that point, whatever follows. Wire it like a pipe,
-%       hn.addPump(nodeA, nodeB, 'name','P1', 'dp0',5e4, 'mdotRated',1.5)
-%   or  node.connect(pump);  pump.connect(nextNode)      or  pipe.addPump('dp0',5e4, 'mdotRated',1.5)
-%   Its speed (pump.speed, or a controller attached with pump.attachController) sets the head.
-%
-%   HOW THE NETWORK USES A PUMP
-%     curveHead(mdot, frac)         central-pump role: the head this pump adds
-%                                   at the plant header for a given total network
-%                                   flow -- used once, at the network root, in
-%                                   DHS.HydraulicNetwork's pressure walk.
-%     solveBranch(Kbr, dpAvail, frac)   substation-pump role: given the branch's
-%                                   own hydraulic resistance Kbr [Pa/(kg/s)^2] and
-%                                   the differential pressure dpAvail already
-%                                   available at its tee, return the flow this
-%                                   pump settles the branch to. This is where the
-%                                   two pump types genuinely differ -- a
-%                                   centrifugal pump's curve intersects the branch
-%                                   resistance at one point; a fixed-displacement
-%                                   pump forces its rated flow unless that would
-%                                   need more head than its relief valve allows.
-%
-%   PROPERTIES (SI)
-%     name      char
-%     speed     [-]     0..1 fraction of the maximum rotational speed nMax (control input; default 1)
-%     nMax      [rpm]   maximum rotational speed                                  (2900)
-%     rpm       [rpm]   rotational speed, speed*nMax (read and write; setting it sets speed)
-%     minSpeed  [-]     floor applied to speed                     (0)
-%     controller        [] or a DHS.controllers.Controller
-%     hostPort          the DHS.Hydraulic.Junction this pump is attached at
-%                        (set by chp.attachPump / heatExchanger.attachPump); its
-%                        .inlet and .outlet both alias this port, since the
-%                        plant and each substation are modelled as one lumped
-%                        pressure node -- see DHS.Hydraulic.Pump/inlet.
-%   LIVE STATE
-%     head      [Pa]    delivered head this step
-%     mdot      [kg/s]  flow this step
+%   The central pump is chp.supplyPump and a building's booster pump is hx.pump. A pump can also sit in
+%   line between two nodes: pipe.addPump('dp0',5e4, 'mdotRated',1.5).
+%   speed [0..1] is the fraction of nMax [rpm] (2900); rpm reads and writes it in rpm; minSpeed is a floor.
+%   A stopped substation pump (speed 0) adds no head and no resistance.
+%   curveHead(mdot, frac) gives the head at the plant header and solveBranch(K, dpAvail, frac) the flow
+%   and head on a branch. pump.attachController(c) drives speed. Live: head, mdot.
+%   See docs/dhs-hydraulic.md.
 
     properties
         name      (1,:) char = ''

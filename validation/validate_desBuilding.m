@@ -32,15 +32,6 @@ function V = validate_desBuilding(plotMode)
 %     (3) HX WRAPPER CONSISTENCY.  DHS.Building.exchange(mdot, Tsup) of a building with an
 %         IdealHeatExchanger must return the heat and the primary return temperature of the radiator
 %         law  Q = Qnom ((Tsup - Q/(2 mdot cp) - Tzone)/dTnom)^n  (the reference solves it with fzero).
-%
-%   WHY THIS TEST IS GOOD
-%     (1) is an end-to-end check that the per-step assembly (prepare -> control
-%     -> hydraulic solve -> exchange -> advance) drives the wrapped RC model to
-%     the physically correct steady state, i.e. the node injection signs, the
-%     valve->flow->heat chain and the loop are all right. (2) is the invariant
-%     the multi-zone extension must not break. (3) checks the thin wrapper adds
-%     nothing spurious.
-%
 %   Run:  >> V = validate_desBuilding
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

@@ -1,49 +1,12 @@
 classdef Solar < handle
-% DHS.SOLAR  Transmitted solar heat gain [W] for a single-zone building.
+% DHS.SOLAR  Solar heat gain through the windows of a building.
 %
-%   Part of the DES example. Computes solar heat OUTSIDE the RCBS RC model and
-%   hands it back split by node (air / internal mass / opaque wall) so the
-%   caller can inject it into the right RCBS node.
+%   s = DHS.Solar('winArea', struct('N',20,'E',20,'S',20,'W',20), 'SHGC',0.4, 'massFraction',0.1);
+%   [Qair, Qmass, Qwall, detail] = s.heatGain(wx);      % W, wx from DHS.Weather.at
 %
-%   Transposes measured GHI / DHI / DNI onto each façade with the isotropic
-%   sky model, then applies window area and solar heat gain
-%   coefficient (SHGC) to get the heat entering the zone.
-%
-%   PLANE-OF-ARRAY IRRADIANCE
-%
-%     cos(theta) = cos(theta_z) cos(beta) + sin(theta_z) sin(beta) cos(gamma_s - gamma)
-%     I_POA = DNI * max(0, cos(theta))                      % beam
-%           + DHI * (1 + cos(beta)) / 2                     % isotropic diffuse
-%           + GHI * rho_g * (1 - cos(beta)) / 2             % ground reflected
-%
-%     theta_z  solar zenith [deg]        beta   surface tilt from horizontal [deg]
-%     gamma_s  solar azimuth [deg]       gamma  surface azimuth [deg]
-%     (azimuths in COMPASS convention here: N=0, E=90, S=180, W=270)
-%
-%   For vertical glazing beta = 90  ->  cos(theta) = sin(theta_z) cos(gamma_s - gamma),
-%   diffuse term = DHI/2, ground term = GHI*rho/2.
-%   For horizontal skylights beta = 0  ->  I_POA = GHI.
-%
-%   ZONE HEAT GAIN:
-%     Q_solar = SUM_faces [ A_win,face * SHGC * I_POA,face ]  +  A_sky * SHGC_sky * GHI
-%   Split between the air node and the internal-mass node by massFraction
-%   (radiation absorbed by floor/furniture then released):
-%     Q_air  = (1 - massFraction) * Q_solar
-%     Q_mass = massFraction       * Q_solar
-%
-%   Optional opaque sol-air gain (disabled by default) adds, per opaque face,
-%     Q_opaque = alphaOpaque * I_POA,face * (U_face / hOut) * A_face
-%   routed to the wall/roof node (sol-air temperature).
-%
-%   PROPERTIES (SI units)
-%     winArea    struct with fields N,E,S,W  -> glazed area per orientation [m^2]
-%     skyArea    horizontal skylight glazed area [m^2]                       (default 0)
-%     SHGC       window solar heat gain coefficient [-]                      (default 0.40)
-%     SHGCsky    skylight SHGC [-]                                           (default SHGC)
-%     massFraction  fraction of transmitted solar sent to the mass node [-]  (default 0.10)
-%     enableOpaque  logical, include opaque sol-air term                     (default false)
-%     opaque     struct: areaN/E/S/W [m^2], areaRoof [m^2], U [W/m2K],
-%                alpha [-], hOut [W/m2K]  (only used if enableOpaque)
+%   Irradiance on each facade follows the isotropic sky model; Q = sum(A*SHGC*I). massFraction of the gain
+%   goes to the internal-mass node. winArea [m^2] per facade; skyArea [m^2] and SHGCsky for a skylight;
+%   enableOpaque and opaque add the sol-air gain of opaque surfaces. See docs/dhs-weather-solar-schedule.md.
 
     properties
         winArea      = struct('N',0,'E',0,'S',0,'W',0)

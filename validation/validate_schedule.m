@@ -20,14 +20,6 @@ function V = validate_schedule(plotMode)
 %        value at occStart-  equals Tocc (continuity)
 %     E  internal-gain split: Qmass = gainMassFraction * Qtot, Qair = Qtot - Qmass;
 %        occupied -> gainOccW, unoccupied -> gainBaseW (default 0.15 * gainOccW)
-%
-%   WHY THIS TEST IS GOOD
-%     The schedule sets the daily and weekly rhythm of the whole plant demand;
-%     an off-by-one on the window edges, a wrong weekday code, a ramp that is not
-%     continuous at hand-over, or a mis-split of the gains all show up as a
-%     visibly wrong load shape. Each edge here is checked against the exact
-%     specified rule.
-%
 %   Run:  >> V = validate_schedule
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

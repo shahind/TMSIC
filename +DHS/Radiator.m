@@ -1,54 +1,14 @@
 classdef Radiator < handle
-% DHS.RADIATOR  A zone's radiator: one branch of the building's internal loop.
+% DHS.RADIATOR  A zone radiator: one branch of a building's internal loop.
 %
-%   The radiator is a lump of metal that takes heat from the water and gives it to the zone air. It
-%   is an R-C-R element, and the water side is a flow-dependent resistance:
+%   rad = DHS.Radiator('rad1', 'Qdes',8e3, 'Tsup',60, 'Tret',40);   % or pipe.addRadiator('rad1', ...)
+%   pipe.connect(rad);   rad.connect(returnPipe);   rad.connect(zone, R);   % water in, water out, heat to a zone
 %
-%       water --(UAwm, effectiveness)--> metal (C) --(UAma)--> zone air
-%
-%     water to metal   the water cools along the radiator against the metal temperature Tm,
-%                      Tout = Tm + (Tin - Tm) exp(-UAwm/(mdot cp)),
-%                      so Qw = a (Tin - Tm) with a = mdot cp (1 - exp(-UAwm/(mdot cp))): the
-%                      water-side conductance a grows with the flow and saturates at mdot cp
-%     metal            C dTm/dt = Qw - Qair                               (backward Euler)
-%     metal to air     Qair = UAma (Tm - Tzone), the heat the zone receives
-%
-%   The zone stays an RC model: this element only computes Qair, which the building injects at the
-%   zone's air node. With no flow the radiator just cools to the zone.
-%
-%   WIRING  A radiator is a component of the loop like a pipe: water comes in from a pipe or a valve
-%   and leaves to a return pipe, and it is connected to the zone it heats. The valve, the service
-%   pipes and any pump are components of their own (DHS.Hydraulic.Valve, Pipe), put where you want them.
-%       rad = DHS.Radiator('rad1', 'Qdes',8e3);                % or pipe.addRadiator('rad1', 'Qdes',8e3)
-%       tee.portC.connect(pipe1);  pipe1.connect(valve1);  valve1.connect(pipe2);  pipe2.connect(rad);
-%       rad.connect(returnPipe1);  returnPipe1.connect(returnJunction);
-%       rad.connect(zone1, R);                                 % heat to an RCBS zone, R in K/W (optional)
-%   The radiator's own pressure drop is dpBody at the design flow.
-%
-%   CONSTRUCT  r = DHS.Radiator('Lobby', 'Qdes',8e3)
-%     'Qdes' [W] sizes the thermal parameters (below) for the design water temperatures; any of
-%     them can be given directly instead.
-%
-%   PROPERTIES (SI)
-%     name       char
-%     Qdes       [W]     design heat output
-%     Tsup Tret  [degC]  design supply and return water temperatures   (70, 50)
-%     Tair       [degC]  design air temperature                         (20)
-%     epsDes     [-]     design water-to-metal effectiveness           (0.9)
-%     UAwm       [W/K]   water-to-metal conductance       (from Qdes, Tsup, Tret, epsDes)
-%     UAma       [W/K]   metal-to-air conductance         (from Qdes; 1/R when connected to a zone with R)
-%     C          [J/K]   metal and water capacity         (20 kJ/K per kW of Qdes)
-%     mdotDes    [kg/s]  design flow                      (Qdes / (cp (Tsup - Tret)))
-%     dpBody     [Pa]    pressure drop of the radiator at the design flow           (5000)
-%     pipeD      [m]     pipe diameter for 0.8 m/s at the design flow (read only), a size to use for its pipes
-%     zone               the RCBS zone it heats (set by rad.connect(zone)); the only zone of a one-zone building if empty
-%   LIVE STATE
-%     Tmetal     [degC]  metal temperature
-%     mdot       [kg/s]  flow through the radiator
-%     Tin Tout   [degC]  water temperatures at the radiator
-%     Qwater     [W]     heat from the water to the metal
-%     Qair       [W]     heat from the metal to the zone air
-%     Tzone setpoint     the zone's air temperature and setpoint (set by the building each step)
+%   Water, metal and air form an R-C-R chain. The water-side conductance grows with the flow, and the metal
+%   follows C dTm/dt = Qw - Qair. Qdes [W] sizes UAwm, UAma, C and mdotDes unless you give them.
+%   Tsup, Tret, Tair [degC] (70, 50, 20); epsDes 0.9; dpBody [Pa] (5000); pipeD [m] is a pipe size to
+%   start from. Live: Tmetal, mdot, Tin, Tout, Qwater, Qair; Tzone and setpoint are set by the building.
+%   See docs/dhs-internal-loop.md.
 
     properties
         name   (1,:) char = ''

@@ -1,46 +1,12 @@
 classdef Pipe < DHS.Hydraulic.Link
-% DHS.HYDRAULIC.PIPE  A run of buried pre-insulated pipe between two hydraulic nodes.
+% DHS.HYDRAULIC.PIPE  A pipe between two nodes: Darcy-Weisbach friction (Swamee-Jain) and heat loss
+%   to the ground.
 %
-%   Hydraulics : Darcy-Weisbach with the Swamee-Jain explicit friction
-%                factor.  dp = K(mdot) * mdot^2 ,  K = f*L / (D * 2*rho * A^2).
-%   Heat loss  : steady heat loss to the ground along the pipe. Water entering at
-%                T_in leaves at  T_out = T_g + (T_in - T_g) * exp(-UperM*L / (mdot*cp))
-%                and the pipe loses  Q_loss = mdot*cp*(T_in - T_out)  [W]. The network
-%                applies it pipe by pipe, so every pipe loses heat once, with the
-%                flow it actually carries.
-%
-%   Ways to wire a pipe into a network (see DHS.HydraulicNetwork and DHS.Hydraulic.Link):
-%     declarative   hn.addPipe(nodeA, nodeB, 'L',40, 'D',0.11)
-%     connecting    pipe = DHS.Hydraulic.Pipe('name', 'L',40, 'D',0.11);
-%                   nodeA.connect(pipe);
-%                   pipe.connect(nodeB);            % registers it with the network
-%     one call      pipe = nodeA.addPipe(0.11, 40); % diameter, length
-%
-%   PROPERTIES (SI)
-%     name    char
-%     L       [m]     length
-%     D       [m]     inner diameter
-%     eps     [m]     wall roughness            (4.6e-5, commercial steel)
-%     UperM   [W/m/K] buried-pipe heat-loss coefficient   (0.30)
-%     Input   the node the pipe starts at (read only; Input.p, Input.T)
-%     Output  the node the pipe ends at   (read only; Output.p, Output.T)
-%     (nodeA, nodeB, teeSide, decorative and downBuildings are those of DHS.Hydraulic.Link)
-%     teeSide char    '' | 'run' | 'branch' -- set automatically when this pipe
-%                     leaves a DHS.Hydraulic.TJunction; adds that fitting's own
-%                     minor loss to resistance() (see TJunction).
-%   LIVE STATE (filled by HydraulicNetwork.solve / the co-sim each step)
-%     mdot    [kg/s]  flow (toward nodeB positive)
-%     vel     [m/s]   bulk velocity
-%     dp      [Pa]    friction pressure drop
-%     f       [-]     Darcy friction factor
-%     Tin     [degC]  water temperature entering the pipe
-%     Tout    [degC]  water temperature leaving the pipe
-%     Tdrop   [K]     temperature drop over the pipe, Tin - Tout
-%     Qloss   [W]     heat lost to the ground
-%     decorative logical  true for a same-node round trip (e.g. a boiler-to-pump
-%                     stub inside the lumped plant) -- wired for a clear diagram,
-%                     but outside the solved topology since both ends alias one
-%                     pressure node.
+%   pipe = DHS.Hydraulic.Pipe('pipe1', 'L',40, 'D',0.11);    % or node.addPipe(0.11, 40)
+%   dp = K*mdot^2 with K = f*L/(D*2*rho*A^2). Water entering at Tin leaves at
+%   Tg + (Tin - Tg)*exp(-UperM*L/(mdot*cp)).
+%   L [m], D [m], eps [m] roughness (4.6e-5), UperM [W/m/K] (0.30). Input and Output are the end nodes.
+%   Live: mdot, vel, dp, f, Tin, Tout, Tdrop, Qloss. See docs/dhs-hydraulic.md.
 
     properties
         name    (1,:) char = ''

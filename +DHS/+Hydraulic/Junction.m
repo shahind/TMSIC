@@ -1,23 +1,9 @@
 classdef Junction < handle
-% DHS.HYDRAULIC.JUNCTION  A hydraulic node (a tee / manifold point) in the pipe network.
+% DHS.HYDRAULIC.JUNCTION  A node of the pipe network with one gauge pressure.
 %
-%   A Junction carries a single gauge pressure. Pipes connect junctions to each
-%   other and to the plant ports; buildings are fed from junctions.
-%
-%   Two equivalent ways to build the same network (see DHS.HydraulicNetwork):
-%     declarative   hn.addPipe(nodeA, nodeB, 'L',40, 'D',0.11)
-%     connecting    nodeA.connect(pipe); pipe.connect(nodeB)       or   pipe = nodeA.addPipe(0.11, 40)
-%   connect and the add* calls (addPipe, addValve, addPump, addTee, addRadiator) are the same on every
-%   component, see DHS.Hydraulic.Link.
-%
-%   PROPERTIES
-%     name        char        label, e.g. 'T1'
-%     side        char        'supply' | 'return': which tree the node belongs to
-%   LIVE STATE (filled by HydraulicNetwork.solve each step)
-%     p           [Pa]        gauge pressure at this node
-%     mdotThrough [kg/s]      total flow passing this node toward the leaves
-%     T           [degC]      water temperature at this node (supply: arriving from
-%                             the plant; return: the mix of the streams joining here)
+%   j = DHS.Hydraulic.Junction('R1', 'return');     % side is 'supply' or 'return'
+%   j.connect(pipe), j.addPipe(D, L) and the other add... calls work as on every component (see Link).
+%   Live: p [Pa], T [degC], mdotThrough [kg/s]. See docs/dhs-hydraulic.md.
 
     properties
         name (1,:) char = ''

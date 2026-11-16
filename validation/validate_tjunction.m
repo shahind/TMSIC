@@ -43,7 +43,7 @@ function V = validate_tjunction(plotMode)
 %        the same closed form validate_hydraulic_network uses).
 %     F  BOTH WIRING STYLES AGREE: the declarative bridge
 %        (hn.addJunction(name,'type','tee',...)) and the port-wiring style
-%        (tee.portB.connectToPipe(pipe) / tee.portC.connectToPipe(pipe)) produce numerically
+%        (tee.portB.connect(pipe) / tee.portC.connect(pipe)) produce numerically
 %        identical tee losses for the same geometry.
 %     G  FIXED MODE IS FLOW-INDEPENDENT: with the default frictionModel='fixed',
 %        K_run and K_branch do not change between a representative turbulent
@@ -52,18 +52,6 @@ function V = validate_tjunction(plotMode)
 %        teeLossK matches a hand-built expression using the same swameeJain
 %        friction factor evaluated at the leg's own Reynolds number, and
 %        differs from the 'fixed' value at low flow.
-%
-%   WHY THIS TEST IS GOOD
-%     A and B pin the formula itself; C is a fluid- and size-independent sanity
-%     check straight from the equivalent lengths (branch resistance is exactly 3x the
-%     run resistance at equal diameter, by construction of the 60D/20D
-%     equivalent lengths); D confirms the loss is wired into the one place the
-%     solver actually reads (Pipe.resistance) with no double-counting or
-%     missing term; E closes the loop end-to-end, showing the tee measurably
-%     changes a real network's operating point by the predicted amount; F
-%     confirms neither assembly API silently uses different physics; G and H
-%     together confirm both friction-model options behave as documented.
-%
 %   EXPECTED OUTPUT: A, B, C exact to 1e-12; D exact to 1e-9 (relative); E
 %     matches the analytic prediction to 1e-3 (relative, limited by the lagged
 %     friction-factor fixed point); F exact to 1e-9; G exact to 1e-12; H exact
@@ -123,14 +111,14 @@ function V = validate_tjunction(plotMode)
 
     % ---- D: pipe integration, both ports, and a no-op control ----
     pRun = DHS.Hydraulic.Pipe('run',  'D',tee.mainDiameter, 'L',10);
-    tee.portB.connectToPipe(pRun);
+    tee.portB.connect(pRun);
     KrunTotal = pRun.resistance(mdotTest, rho, mu);
     Kpipe_run_only = DHS.Hydraulic.Pipe('run2', 'D',tee.mainDiameter, 'L',10);   % identical pipe, no tee
     KrunBase = Kpipe_run_only.resistance(mdotTest, rho, mu);
     eD1 = abs(KrunTotal - (KrunBase + Krun)) / KrunTotal;
 
     pBranch = DHS.Hydraulic.Pipe('side', 'D',tee.sideDiameter, 'L',6);
-    tee.portC.connectToPipe(pBranch);
+    tee.portC.connect(pBranch);
     KbranchTotal = pBranch.resistance(mdotTest, rho, mu);
     Kpipe_branch_only = DHS.Hydraulic.Pipe('side2', 'D',tee.sideDiameter, 'L',6);  % identical pipe, no tee
     Kbase = Kpipe_branch_only.resistance(mdotTest, rho, mu);

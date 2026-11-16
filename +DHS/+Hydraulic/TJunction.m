@@ -1,45 +1,14 @@
 classdef TJunction < DHS.Hydraulic.Junction
-% DHS.HYDRAULIC.TJUNCTION  A real T-fitting: a main run plus a side branch, each
-%                          with its own minor-loss coefficient from the branch's
-%                          own diameter.
+% DHS.HYDRAULIC.TJUNCTION  A tee: a straight run (portB) and a side branch (portC) with their minor losses.
 %
-%   BUILD IT
-%     tee = DHS.Hydraulic.TJunction('T1', 'mainDiameter',0.10, 'sideDiameter',0.05);
-%     tee.portB.connect(pipeRun);      pipeRun.connect(nextTee);
-%     tee.portC.connect(building);     building.connect(returnJunction);
-%   or, the same wires with the port named as text:
-%     tee.connect('portB', pipeRun);   tee.connect('portC', pipeBranch);
-%     tee.connect(pipeRun)             % portB, the run, when no port is named
-%     pipeIn.connect(tee);             % (or tee.portA, equivalently)
-%   or create and connect in one call (the new component is returned):
-%     pipeBranch = tee.portC.addPipe(0.05, 12);     valve = pipeBranch.addValve('Kvs',4);
-%   Older names (connectToPipe, connectOutput) still work. A radiator or building connected to a tee
-%   leaves portC unless you say portB. The ports are objects (DHS.Hydraulic.Port): tee.portC.D,
-%   tee.portC.p, tee.portB.pipe.
+%   tee = DHS.Hydraulic.TJunction('T1', 'mainDiameter',0.10, 'sideDiameter',0.05);
+%   pipe.connect(tee);    tee.portB.connect(nextPipe);    tee.portC.connect(building);
+%   Or: tee = pipe1.addTee(0.05);   tee = pipe1.addTjunction('T1', 0.05);   tee = hn.addJunction('T1','type','tee',...)
 %
-%   or insert one on an existing pipe's downstream end:
-%     tee = pipe1.addTjunction('T1', 0.05);     % mainDiameter = pipe1.D
-%
-%   or, in the declarative style, on a plain hn.addJunction network:
-%     tee = hn.addJunction('T1', 'type','tee', 'mainDiameter',0.10, 'sideDiameter',0.05);
-%     hn.addPipe(tee, nextTee);                 % first pipe off a tee = the run
-%     hn.addPipe(tee, building.inlet);          % second = the branch
-%
-%   LOSS MODEL  Equivalent-length method: a standard tee has an equivalent
-%   length, in pipe diameters, of 20 used as a straight run and 60 used as a
-%   branch (see docs/dhs-hydraulic.md for the reference):
-%       K_run    = f(D_main) * (20*D_main) / (D_main * 2*rho*A_main^2)
-%       K_branch = f(D_side) * (60*D_side) / (D_side * 2*rho*A_side^2)
-%   This K is added on top of the ordinary pipe resistance of whichever pipe
-%   leaves portB (run) or portC (branch) -- see DHS.Hydraulic.Pipe.resistance.
-%   Applied on the supply side only (return junctions are plain junctions).
-%
-%   PROPERTIES (SI, in addition to DHS.Hydraulic.Junction)
-%     portA portB portC   the three connections, see DHS.Hydraulic.Port
-%     mainDiameter  [m]    diameter of the straight-through run
-%     sideDiameter  [m]    diameter of the side branch
-%     roughness     [m]    wall roughness for the tee's own loss (4.6e-5, steel)
-%     frictionModel char   'fixed' (default) | 'actual' -- see TEELOSSK
+%   Equivalent-length losses, added to the pipe that leaves the port (supply side only):
+%   K_run = f*20/(2*rho*A_main^2), K_branch = f*60/(2*rho*A_side^2).
+%   mainDiameter, sideDiameter [m]; roughness [m] (4.6e-5); frictionModel 'fixed' (default, Re = 1e7) or
+%   'actual' (the leg's own Reynolds number). See docs/dhs-hydraulic.md.
 
     properties
         mainDiameter (1,1) double = 0.10

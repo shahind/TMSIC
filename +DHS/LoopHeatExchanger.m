@@ -1,19 +1,10 @@
 classdef (Abstract) LoopHeatExchanger < DHS.HeatExchanger
-% DHS.LOOPHEATEXCHANGER  Abstract heat exchanger whose internal side is the building's internal loop.
+% DHS.LOOPHEATEXCHANGER  Abstract exchanger whose internal side is the building's internal loop.
 %
-%   The delivered heat follows from the district water (flow and supply temperature) and from the water
-%   coming back from the loop (its flow and temperature), with the effectiveness of the type
-%   (DHS.ENTUPlateHeatExchanger, DHS.FixedEffectivenessHeatExchanger). With the capacity rates
-%   Cp = mdot_p cp and Cs = mdot_s cp and Cmin = min(Cp, Cs), heating only (clamped to [0, Qcap]):
-%       Q = clamp( eps Cmin (Tsup_primary - Tsec_in) , 0 , Qcap )
-%       Tret_primary = Tsup_primary - Q/Cp ,     Tsec_out = Tsec_in + Q/Cs
-%   The types only differ in eps (effectivenessCmin returns eps*Cmin).
-%
-%   Both internal ports must be connected: the first pipe of the loop to hx.internalOutlet and its last
-%   pipe to hx.internalInlet (see DHS.HeatExchanger).
-%
-%   PROPERTIES (SI, in addition to DHS.HeatExchanger)
-%     mdotSecNom   [kg/s]  internal flow assumed when transfer is called without one          (6)
+%   Q = clip(eps*Cmin*(Tsup_primary - Tsec_in), 0, Qcap),  Tret_primary = Tsup_primary - Q/Cp,
+%   Tsec_out = Tsec_in + Q/Cs, with Cp, Cs the capacity rates and Cmin = min(Cp, Cs). The subclasses
+%   differ in the effectiveness eps. mdotSecNom [kg/s] (6) is the internal flow assumed when transfer
+%   is called without one. See docs/dhs-heat-exchanger.md.
 
     properties
         mdotSecNom (1,1) double = 6

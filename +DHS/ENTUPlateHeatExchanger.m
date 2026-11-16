@@ -1,23 +1,9 @@
 classdef ENTUPlateHeatExchanger < DHS.LoopHeatExchanger
-% DHS.ENTUPLATEHEATEXCHANGER  Counterflow plate heat exchanger by the effectiveness-NTU method: the
-%                             effectiveness follows from the conductance UA and the two flows.
+% DHS.ENTUPLATEHEATEXCHANGER  Counterflow plate exchanger by the effectiveness-NTU method.
 %
-%       Cp = mdot_p cp ;  Cs = mdot_s cp ;  Cmin = min(Cp, Cs) ;  Cmax = max(Cp, Cs) ;  Cr = Cmin/Cmax
-%       NTU = UA/Cmin
-%       eps = (1 - exp(-NTU (1-Cr))) / (1 - Cr exp(-NTU (1-Cr)))        (Cr < 1)
-%           = NTU/(1 + NTU)                                              (Cr -> 1)
-%
-%   so the effectiveness changes with the flow regime: a small flow on either side raises NTU and eps,
-%   a large one lowers them. The same effectiveness-NTU relation as MATLAB/Simscape's Heat Exchanger
-%   (TL-TL) and Plate Heat Exchanger (TL-TL) blocks (docs/dhs-heat-exchanger.md). The heat balance is
-%   that of DHS.LoopHeatExchanger and the ports, valve and pump those of DHS.HeatExchanger. The
-%   building needs an internal loop connected to hx.internalOutlet and hx.internalInlet.
-%
-%   Create with  building.addHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5)  or
-%                hx = DHS.ENTUPlateHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5)
-%
-%   PROPERTIES (SI, in addition to DHS.LoopHeatExchanger)
-%     UA   [W/K]   heat-exchanger conductance                         (4.0e4)
+%   hx = b.addHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5)
+%   NTU = UA/Cmin and eps from the counterflow relation (Incropera and DeWitt). UA [W/K] (4e4).
+%   The building needs its internal loop connected. See docs/dhs-heat-exchanger.md.
 
     properties
         UA (1,1) double = 4.0e4

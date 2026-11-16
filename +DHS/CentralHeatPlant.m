@@ -1,38 +1,16 @@
 classdef CentralHeatPlant < dynamicprops
-% DHS.CENTRALHEATPLANT  Central gas heat plant: boiler(s) + primary pump + the
-%                       plant-side water thermal dynamics.
+% DHS.CENTRALHEATPLANT  A gas heat plant: boilers, a central pump and the plant water dynamics.
 %
-%   Its boilers and pump are reachable by name: chp.B1.QMax, chp.P0.dp0.
+%   chp = sys.addCentralHeatPlant('CHP');
+%   boiler = chp.addBoiler('B1', 'QMax',1.5e6);     chp.addPump('P0', 'dp0',3e5, 'mdotRated',7);
+%   chp.setSupplySetpoint(70);                      % degC
+%   Join the network through chp.supplyPort and chp.returnPort. Parts are reachable by name:
+%   sys.CHP.B1.QMax, sys.CHP.P0.dp0.
 %
-%   BUILD IT  (two equivalent styles; see DHS.HydraulicNetwork)
-%     chp    = sys.addCentralHeatPlant('CHP');
-%     boiler = chp.addBoiler('B1', 'QMax',1.5e6, 'etaCurve',@(Tr) 0.92-0.0025*(Tr-50));
-%     pump   = chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',7);     % a CentrifugalPump
-%     boiler.connectTo(pump);
-%     chp.setSupplySetpoint(70);                        % fixed scalar
-%     boiler.attachController( c );                     % optional: replace the firing controller
-%
-%   or, naming the pump type and wiring it port-by-port:
-%     pump = DHS.Hydraulic.CentrifugalPump('P0', 'dp0',3.0e5, 'mdotRated',7);
-%     chp.attachPump(pump);
-%     pipe1 = DHS.Hydraulic.Pipe('B1->P0');  boiler.connectToPipe('output', pipe1);
-%     pipe1.connectOutput(pump.inlet);       % pipe1 is decorative here: the plant's
-%                                             % boiler+pump are one lumped pressure node
-%
-%   PLANT-SIDE WATER DYNAMICS: three
-%   lumped stirred-tank water masses in series -- return header (Cw_rh),
-%   boiler + buffer (Cw), supply header (Cw_sh) -- plus a low-loss header
-%   (hydraulic separator) that recirculates surplus supply water into the return
-%   when the network draws less than the boiler-loop flow mdotMinBoiler, a boiler
-%   high-limit aquastat (TboilerMax), a standby loss, a burner slew-rate limit
-%   and a supply-sensor lag. With these, a FIXED supply setpoint is held to
-%   ~+-0.5-2 K as the load and return temperature swing.
-%
-%   Each boiler's controller drives its burner firing fraction u in [0,1];
-%   Q_gas = sum(u_i * QMax_i). addBoiler gives every boiler a PID on the supply
-%   temperature; swap it with boiler.attachController(c).
-%
-%   Units SI: degC, W, kg/s, J/K, Pa, s.
+%   Three stirred-tank water masses (return header Cw_rh, boiler Cw, supply header Cw_sh), a low-loss
+%   header (mdotMinBoiler), an aquastat (TboilerMax), a standby loss and a supply-sensor lag. Each
+%   boiler has a PID on the supply temperature; replace it with boiler.attachController(c).
+%   Units: degC, W, kg/s, J/K, Pa, s. See docs/dhs-plant.md.
 
     properties
         name (1,:) char = 'CHP'

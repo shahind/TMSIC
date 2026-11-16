@@ -1,32 +1,11 @@
 classdef FixedDisplacementPump < DHS.Hydraulic.Pump
-% DHS.HYDRAULIC.FIXEDDISPLACEMENTPUMP  Positive-displacement pump: flow is set
-%                                      by speed, almost independent of head,
-%                                      until a relief valve caps the pressure.
+% DHS.HYDRAULIC.FIXEDDISPLACEMENTPUMP  Positive-displacement pump: the flow is set by the speed until a
+%   relief valve caps the pressure.
 %
-%   Unlike a centrifugal pump, a gear/piston/screw (positive-displacement) pump
-%   delivers a flow set by its speed and displacement, essentially regardless of
-%   the downstream resistance, until the required head would exceed the unit's
-%   working-pressure limit -- at that point an internal relief valve opens and
-%   caps the head, and the flow drops below the commanded value:
-%
-%       mdot = min( frac*mdotRated , sqrt(max(0,(dpMax+dpAvailable))/Kbranch) )
-%
-%   A simpler model of the same pump type than MATLAB/Simscape's Fixed-Displacement
-%   Pump (TL) block, which also models shaft torque/speed, volumetric leakage and
-%   friction torque (docs/dhs-hydraulic.md).
-%
-%   SCOPE  This flow-vs-resistance physics is fully modelled at the branch level
-%   (solveBranch, used for a building's substation pump). At the *central*
-%   plant-pump position, DHS.HydraulicNetwork only asks a pump for the head it
-%   contributes at the network root (curveHead); a fixed-displacement pump there
-%   reports its relief-valve ceiling dpMax as the available header head -- a
-%   full positive-displacement central-plant solve (where the pump, not the
-%   downstream resistance, would set the *whole network's* total flow) is future
-%   work.
-%
-%   PROPERTIES (SI, in addition to DHS.Hydraulic.Pump)
-%     mdotRated [kg/s]  flow delivered at maximum speed nMax (displacement x rpm) against a low-resistance load
-%     dpMax     [Pa]    relief-valve / maximum working-pressure ceiling
+%   pump = DHS.Hydraulic.FixedDisplacementPump('P', 'mdotRated',3, 'dpMax',2.5e5);
+%   mdot = min(speed*mdotRated, sqrt(max(0, dpMax + dpAvail)/K)).
+%   mdotRated [kg/s] (5), dpMax [Pa] (4e5). As the central pump it reports dpMax as the header head; a
+%   full positive-displacement solve of the whole network is not implemented. See docs/dhs-hydraulic.md.
 
     properties
         mdotRated (1,1) double = 5

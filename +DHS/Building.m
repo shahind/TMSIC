@@ -1,62 +1,16 @@
 classdef Building < dynamicprops
-% DHS.BUILDING  One building connected to the district loop.
+% DHS.BUILDING  A building on the district network: an RC model plus its substation.
 %
-%   Wraps an RCBS thermal model (any RCBS.Building) and adds the district-side
-%   equipment and the calculation of every heat flow that enters the RC nodes:
+%   b = sys.addBuilding('Hall');         b.useRCModel(rc);          % rc is an RCBS.Building
+%   hx = DHS.IdealHeatExchanger('HX', 'Qnom',2e5);   b.attachHeatExchanger(hx);   % no internal loop
+%   hx = b.addHeatExchanger('HX', 'UA',8e3, 'Qcap',2e5);                           % with an internal loop
+%   b.attachSolar(DHS.Solar(...));       b.attachSchedule(DHS.Schedule(...));
+%   tee.portC.connect(b);                b.connect(returnJunction);
+%   Several zones: b.attachZone('S1.Lobby', 'area',A, 'solar',s, 'schedule',sc).
 %
-%     * a plate heat exchanger with its own primary control valve and pump
-%       (DHS.HeatExchanger, obj.heatExchanger);
-%     * a solar model (DHS.Solar) and an occupancy schedule (DHS.Schedule);
-%     * occupied-hours mechanical ventilation and winter free-cooling terms.
-%
-%   RCBS stays a pure RC library: heat is computed HERE and injected into the
-%   right RCBS node each step with RCBS.Simulation.stepOnce.
-%
-%   SINGLE-ZONE (the default)
-%     b = sys.addBuilding('Engineering');
-%     b.useRCModel( makeEngineeringRC() );                 % 1-zone RCBS.Building
-%     hx = b.addHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5);
-%     c = DHS.controllers.PID(0.14, 1.6e-4, 0);
-%     c.measure = @(sys) b.Tzone;  c.reference = @(sys) b.setpoint;
-%     hx.valve.attachController(c);
-%     b.attachSolar( DHS.Solar(...) );
-%     b.attachSchedule( DHS.Schedule(...) );
-%
-%   MULTI-ZONE  (RCBS.Building with several zones -- storeys split into rooms,
-%   coupled by partition walls and floor/ceiling slabs; see DHS.examples.campus_multizone)
-%     b.useRCModel( makeMultiZoneRC() );                   % N-zone RCBS.Building
-%     hx = b.addHeatExchanger('HX', 'UA',.., 'Qcap',..);
-%     hx.valve.attachController( DHS.controllers.PID(...) );
-%     b.attachZone('S1.Lobby',   'area',444, 'solar',DHS.Solar(..), 'schedule',DHS.Schedule(..), 'GventOcc',..);
-%     b.attachZone('S1.Dining',  'area',296, 'solar',DHS.Solar(..), 'schedule',DHS.Schedule(..), 'GventOcc',..);
-%     ...
-%   One substation feeds the whole building. The control loop regulates the
-%   area-weighted mean zone temperature to the area-weighted mean setpoint; the
-%   delivered heat is split between zones in proportion to each zone's current
-%   heating demand  area * max(0, setpoint - T_zone). Ventilation and free-cooling
-%   are applied per zone.
-%
-%   INTERNAL LOOP  (optional; without it the substation is ideal: the exchanger's heat goes straight
-%   to the zones, shared by demand). The loop starts at the exchanger's internal outlet and ends at its
-%   internal inlet; you connect its components like the district network, and nothing else is needed:
-%     hx = b.addHeatExchanger('HX', ...);
-%     p1   = hx.internalOutlet.addPipe(0.05, 4);          % pipe from the exchanger
-%     pump = p1.addPump('dp0',3e4, 'mdotRated',1);          % loop pump
-%     tee  = pump.addPipe(0.05, 4).addTee(0.032);         % tee, side port 32 mm
-%     valve = tee.portC.addValve('Kvs',4);                % zone valve
-%     rad  = valve.addRadiator('rad1', 'Qdes',8e3);       % radiator (a DHS.Radiator)
-%     rad.connect(zone1, R);                              % heat to an RCBS zone (R in K/W)
-%     rad.addPipe(0.05, 4).connect(hx.internalInlet);     % return to the exchanger
-%   The loop pump, the zone valves and the district valve (hx.valve) each take a controller; the
-%   exchanger heats the loop water, each radiator (DHS.Radiator) turns it into heat at its zone, and
-%   the zones stay RC models. The water in the loop is a lumped capacity at the supply side, from the
-%   volume of the loop pipes plus hx.internalVolume (b.loopCapacity [J/K] overrides it).
-%
-%   PER-STEP PROTOCOL  (driven by DHS.System)
-%     prepare(t, wx)          sample schedule + solar (per zone if multi-zone)
-%     u = control(sys, dt)    run the valve/pump controllers -> valve command in [0,1]
-%     [Qd,Tr] = exchange(mdot, Tsup_hx)   eps-NTU HX for the resolved primary flow
-%     advance(dt, tNext, wx)  assemble the node-heat vector and step the RC model
+%   Tzone and setpoint are the area-weighted means over the zones. The internal loop starts at
+%   hx.internalOutlet and ends at hx.internalInlet. loopCapacity [J/K] overrides the loop water capacity.
+%   DHS.System calls prepare, control, exchange and advance every step. See docs/dhs-building.md.
 
     properties
         name (1,:) char = ''

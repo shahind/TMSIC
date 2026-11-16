@@ -1,39 +1,14 @@
 classdef Weather < handle
-% DHS.WEATHER  Boundary-condition provider: outdoor air, ground, and solar.
+% DHS.WEATHER  Outdoor air, ground and solar data read from a CSV file.
 %
-%   Loads a Solcast-style CSV (irradiance from Solcast, outdoor and ground
-%   temperature columns added from ECCC station data) and exposes fast interpolants of every
-%   channel over simulation time. Part of the DES example, not of the RCBS
-%   library.
+%   w  = DHS.Weather('solar_data_2025.csv');
+%   wx = w.at(datetime(2025,1,1,12,0,0));    % or w.at(seconds since w.t0)
+%   wx: Tout, Tground [degC]; ghi, dhi, dni [W/m^2]; sunZen, sunAz, sunEl [deg, compass: 0=N 90=E 180=S 270=W];
+%   albedo [-].
 %
-%   EXPECTED COLUMNS (header names, any order)
-%     ghi          global horizontal irradiance            [W/m^2]
-%     dhi          diffuse horizontal irradiance           [W/m^2]
-%     dni          direct normal irradiance                [W/m^2]
-%     zenith       solar zenith angle                      [deg]  (0 = overhead)
-%     azimuth      solar azimuth, Solcast convention       [deg]  (0 = N,
-%                  negative = East, positive = West, +/-180 = S)
-%     albedo       ground albedo                           [-]
-%     period_end   ISO-8601 timestamp with fixed offset, END of the interval
-%     t_outdoor_C  dry-bulb outdoor air temperature        [degC]   (added by tool)
-%     t_ground_C   undisturbed ground temperature          [degC]   (added by tool)
-%
-%   TIME
-%     "period_end" carries a fixed offset (e.g. -08:00). The offset is stripped
-%     and the wall clock kept; the ECCC air temperature added by the tool is in
-%     the same Local Standard Time, so all channels share one clock. Internally
-%     time is seconds since the first sample (obj.t0).
-%
-%   USAGE
-%     w = DHS.Weather('solar_data_2025.csv');
-%     s = w.at(datetime(2025,1,1,12,0,0));      % struct of scalars at that time
-%     s = w.at(3600);                           % or seconds since w.t0
-%     % s.Tout [degC]  s.Tground [degC]  s.ghi s.dhi s.dni [W/m^2]
-%     % s.sunZen s.sunAz [deg, COMPASS: 0=N,90=E,180=S,270=W]  s.sunEl [deg]
-%     % s.albedo [-]
-%
-%   The compass azimuth is  mod(-azimuth_solcast, 360)  so it can be differenced
-%   directly with surface azimuths (N=0, E=90, S=180, W=270) in DHS.Solar.
+%   CSV columns: period_end (ISO 8601, end of the interval), ghi, dhi, dni, zenith, azimuth (Solcast
+%   convention), albedo, t_outdoor_C, t_ground_C. The time offset is dropped and the wall clock kept.
+%   See docs/dhs-weather-solar-schedule.md.
 
     properties (SetAccess = private)
         t0        datetime          % time of the first sample (defines t=0)

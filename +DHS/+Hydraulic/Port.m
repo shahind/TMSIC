@@ -1,21 +1,9 @@
 classdef Port < handle
-% DHS.HYDRAULIC.PORT  One of the three connections of a T-junction: portA (inlet), portB (run),
-%                     portC (side branch).
+% DHS.HYDRAULIC.PORT  A connection of a tee: portA (inlet), portB (run) or portC (side branch).
 %
-%   A tee's ports are reached by name:
-%
-%       tee = hn.tee2;
-%       tee.portB.connect(pipe3);           % wire the run
-%       tee.portC.D = 0.06;                 % diameter of the side branch [m]
-%       tee.portC.p                         % gauge pressure at the tee [Pa]
-%       tee.portC.pipe.L                    % the pipe leaving that port
-%
-%   PROPERTIES
-%     D     [m]     diameter of the fitting at this port: the main diameter for portA and
-%                   portB, the side diameter for portC (read and write)
-%     p     [Pa]    gauge pressure at the tee, live (read only)
-%     T     [degC]  water temperature at the tee, live (read only)
-%     pipe          the pipe attached at this port, [] if none (read only)
+%   tee.portB.connect(pipe3);     tee.portC.D = 0.06;     tee.portC.p     tee.portC.pipe.L
+%   D [m] is the diameter at the port (read and write), p [Pa] and T [degC] are live (read only), and
+%   pipe is the pipe attached to the port ([] if none). See docs/dhs-hydraulic.md.
 
     properties (SetAccess = private)
         name = ''

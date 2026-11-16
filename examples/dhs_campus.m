@@ -1,15 +1,9 @@
-%% DHS_CAMPUS
-%  Assemble and run a small district heating campus with the DHS library:
-%  one central gas heat plant feeding five campus buildings through a
-%  trunk-and-branch pipe network.  Every building wraps a single-zone RCBS
-%  thermal model plus a substation (heat exchanger + control valve +
-%  PID controller).
+%% DHS_CAMPUS  Run the five-building campus for 14 days and plot the plant and the buildings.
 %
-%  The full part-by-part assembly lives in  +DHS/+examples/campus.m  -- open it
-%  to see how the plant, boilers, pump, pipes, junctions, buildings and
-%  controllers are put together with the DHS API.  This script builds that
-%  campus, runs it for two weeks, prints a short plausibility summary, and
-%  plots the plant and building signals.
+%  The campus is built by DHS.examples.campus (open +DHS/+examples/campus.m to see every assembly call): one
+%  gas plant, a supply and return main with a tee per building, and five buildings, each with an RC model,
+%  a plate heat exchanger, an internal loop with a radiator, a solar model and a schedule.
+%  This script builds it, runs it, prints a summary and draws the figures.
 %
 %  Run:  >> dhs_campus
 

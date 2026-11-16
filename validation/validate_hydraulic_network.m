@@ -50,13 +50,6 @@ function V = validate_hydraulic_network(plotMode)
 %     K  The bypass water leaves the supply tree, loses heat in its pipe and joins the
 %        return by enthalpy mixing; temperatures equal a hand calculation and the plant
 %        heat equals the delivered heat plus the pipe losses.
-%
-%   WHY THIS TEST IS GOOD
-%     A is the conservation law the solver must never violate; B checks the
-%     topology handling (a tee feeding two branches); C pins the one nonlinear
-%     equation against a closed form; D checks the qualitative coupling that the
-%     distributed-pumping design is all about.
-%
 %   Run:  >> V = validate_hydraulic_network
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

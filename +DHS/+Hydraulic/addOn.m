@@ -1,8 +1,7 @@
 function out = addOn(src, kind, varargin)
-%DHS.HYDRAULIC.ADDON  Create a component and connect it downstream of SRC (the add* calls).
-%   Behind  tee.portC.addPipe(D, L)  and  pipe.addValve('Kvs',4)  and  rad.addPipe(D, L)  and so on.
-%   KIND is 'pipe', 'valve', 'pump', 'tee', 'radiator' or 'junction'. On a tee, a leading port name
-%   ('portB' or 'portC') says which port the new component leaves from (portB when omitted).
+%DHS.HYDRAULIC.ADDON  Create a component and connect it downstream of src (the add... calls).
+%   kind is 'pipe', 'valve', 'pump', 'tee', 'radiator' or 'junction'. On a tee, a leading port name
+%   ('portB' or 'portC') says which port the new component leaves (portB if omitted).
     port = '';
     if ~isempty(varargin) && (ischar(varargin{1}) || isstring(varargin{1})) ...
             && any(strcmpi(char(varargin{1}), {'portA','portB','portC'}))

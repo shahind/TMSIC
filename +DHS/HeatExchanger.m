@@ -1,65 +1,16 @@
 classdef (Abstract) HeatExchanger < dynamicprops
-% DHS.HEATEXCHANGER  Abstract substation heat exchanger: its primary valve & pump, its ports and the
-%                    pressure loss. The concrete types differ in how they find the delivered heat.
+% DHS.HEATEXCHANGER  Abstract substation heat exchanger with its primary valve and pump.
 %
-%   Three types ship with the toolbox (the same pattern as the pumps):
+%   Types: DHS.ENTUPlateHeatExchanger and DHS.FixedEffectivenessHeatExchanger (building with an internal
+%   loop), DHS.IdealHeatExchanger (building without one). Create the plate type with
+%   b.addHeatExchanger('HX','UA',..,'Qcap',..), any other with b.attachHeatExchanger(hx).
 %
-%   For a building WITH an internal loop (DHS.LoopHeatExchanger): the internal side is the building's
-%   loop, so the heat follows from the district temperatures and flow and from the temperature and flow
-%   of the water coming back from the loop.
-%     DHS.ENTUPlateHeatExchanger            counterflow plate exchanger, effectiveness from NTU = UA/Cmin
-%     DHS.FixedEffectivenessHeatExchanger   effectiveness fixed by the user
-%   For a building WITHOUT an internal loop:
-%     DHS.IdealHeatExchanger                the exchanger is a simple radiator that the district water
-%                                           flows through (the radiator model of EN 442, as in the
-%                                           Modelica Buildings library): the heat follows from the
-%                                           district temperature and flow and the room temperature
-%   Create the default type with  building.addHeatExchanger('HX', 'UA',..,'Qcap',..)  (an
-%   ENTUPlateHeatExchanger) and any other with
-%       building.attachHeatExchanger( DHS.FixedEffectivenessHeatExchanger('HX', 'effectiveness',0.85, 'Qcap',..) )
-%       building.attachHeatExchanger( DHS.IdealHeatExchanger('HX', 'Qnom',8e5) )
-%
-%   FOUR PORTS  districtInlet / districtOutlet (the building's supply and return junctions, connected to
-%   the district network with  tee.portC.connect(building); building.connect(returnJunction))  and
-%   internalOutlet / internalInlet (the junctions where the building's internal loop starts and ends;
-%   the first use of either creates the loop):
-%       hx.internalOutlet.addPipe(0.05, 4)  ...  returnPipe.connect(hx.internalInlet)
-%   A loop heat exchanger needs both internal ports connected and an ideal one needs none: running a
-%   building that does not satisfy this stops with an error that names the ports.
-%
-%   PRIMARY-SIDE PRESSURE LOSS  The valve plus the exchanger body
-%   itself. The body loss is quoted, the same way a manufacturer's data sheet
-%   does, as a design pressure drop dpNomPrimary at a design flow mdotNomPrimary
-%   (a typical plate heat exchanger primary-side design drop in a district-heating
-%   substation is of order a few tens of kPa), giving a fixed K = dpNomPrimary/mdotNomPrimary^2
-%   -- the same dp ~ mdot^2 turbulent-flow form as a pipe or a valve, but sized to
-%   each unit's own rating rather than one constant every instance shares (matching
-%   Simscape's own "Pressure loss coefficient" option for this component).
-%
-%   Owns a valve and a pump on the primary side (obj.valve, obj.pump; a
-%   DHS.Hydraulic.CentrifugalPump). The valve sets the building's flow. The pump
-%   is a booster in series with the valve and is stopped (speed 0) by default;
-%   set hx.pump.speed or attach a controller to use it. Attach controllers to either:
-%       hx.valve.attachController(c) ,  hx.pump.attachController(c)
-%   or swap the pump type entirely:
-%       hx.attachPump( DHS.Hydraulic.FixedDisplacementPump('P','mdotRated',4,'dpMax',2e5) )
-%   A valve or pump you attach is reachable by its own name:
-%   hx.attachValve(DHS.Hydraulic.Valve('V1','Kvs',12)) gives hx.V1.Kvs.
-%
-%   PROPERTIES (SI, common to all types)
-%     name          char
-%     Qcap          [W]     substation heat-delivery limit
-%     internalVolume [L]    water in the exchanger's internal side and its manifolds (5); the loop
-%                           water also counts the volume of the loop pipes
-%     cp            [J/kg/K] water specific heat                         (4186)
-%     dpNomPrimary  [Pa]    HX-body primary pressure drop at mdotNomPrimary (3.0e4)
-%     mdotNomPrimary [kg/s] primary flow the dpNomPrimary rating is quoted at;
-%                           defaults from Qcap/(cp*20 K) if left empty
-%     valve         DHS.Hydraulic.Valve  (primary control valve)
-%     pump          DHS.Hydraulic.Pump   (primary booster pump, stopped by default)
-%   LIVE STATE
-%     Qdel        [W]     delivered heat this step
-%     TretPrimary [degC]  primary return temperature this step
+%   Ports: districtInlet/districtOutlet (the building's supply and return junctions) and
+%   internalOutlet/internalInlet (where the internal loop starts and ends).
+%   Pressure loss: K = dpNomPrimary/mdotNomPrimary^2 plus the valve. hx.valve and hx.pump take
+%   controllers; the pump is stopped by default.
+%   Qcap [W], internalVolume [L] (5), cp 4186 J/kg/K, dpNomPrimary [Pa] (3e4), mdotNomPrimary [kg/s].
+%   See docs/dhs-heat-exchanger.md.
 
     properties
         name           (1,:) char = 'HX'

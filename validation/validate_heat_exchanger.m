@@ -49,16 +49,6 @@ function V = validate_heat_exchanger(plotMode)
 %        0.5 kg/s floor, and to the floor otherwise.
 %     J  TYPICAL RANGE: the class default dpNomPrimary (30 kPa) falls inside
 %        the typical 20-60 kPa range.
-%
-%   WHY THIS TEST IS GOOD
-%     eps-NTU is a textbook method with exact analytical limits; matching all of
-%     the limiting regimes (Cr -> 0, Cr -> 1, NTU -> infinity) plus a general
-%     point plus the first-law closure leaves no room for a sign error, a Cmin
-%     vs Cmax mix-up, or a wrong effectiveness correlation to hide. H confirms
-%     the per-unit design-point reparameterisation combines correctly with the
-%     valve it replaced a shared constant next to; J is a literal check against
-%     the published design range, not just internal self-consistency.
-%
 %   EXPECTED OUTPUT: every thermal case matches the reference to < 1e-6
 %     (relative) or exactly (clamp, zero-transfer); H, I exact to 1e-9; J a
 %     hard 20-60 kPa bound.

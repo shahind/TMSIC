@@ -24,13 +24,6 @@ function V = validate_inline_links(plotMode)
 %     E  ORDER.  The same network wired in the opposite order (the downstream chain first, joined to the
 %        pump last) gives the same flows.
 %     F  PUMP REQUIRED.  A loop without a pump stops with an error.
-%
-%   WHY THIS TEST IS GOOD
-%     A checks that a converged solution is a solution of the loop equations, with relations written
-%     independently of the code; B that it is the one an independent solver finds; C and D the cases a
-%     fixed-point iteration cannot do (a valve almost shut, a pump head that falls with the flow); E that
-%     the connections define the network, not the order of the calls.
-%
 %   Run:  >> V = validate_inline_links
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

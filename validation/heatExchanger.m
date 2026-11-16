@@ -12,7 +12,7 @@ function [Qdel, TretPrimary, TretSecondary] = heatExchanger(mdotPrimary, TsupPri
 %     mdotPrimary  primary mass flow (from the hydraulic solve)      [kg/s]
 %     TsupPrimary  primary supply-water temperature at the HX inlet  [degC]
 %     TsecIn       secondary return-water temperature into the HX    [degC]
-%                  (for an emitter loop: zone air temp + emitter approach)
+%                  (the temperature of the water returning from the building loop)
 %     UA           heat-exchanger conductance                        [W/K]
 %     CdotSec      secondary-side heat-capacity rate mdot_int*cp     [W/K]
 %     Qcap         substation heat-delivery capacity limit           [W]

@@ -22,13 +22,6 @@ function V = validate_lqr(plotMode)
 %     (3) REGULATION.  Closing the class around the exact discrete model of a
 %         2-state RC zone reproduces the closed-form recursion
 %         x_{k+1} = (Ad - Bd K) x_k to rounding, and the state decays to zero.
-%
-%   WHY THIS TEST IS GOOD
-%     (1) proves the Riccati / dlqr call and the c2d discretisation are wired
-%     correctly (a wrong sign, wrong Q/R placement, or a transpose slip changes
-%     the gain); (2) proves the design is actually stabilising; (3) proves the
-%     update law applies that gain to the state it is given, with the right sign.
-%
 %   EXPECTED OUTPUT
 %     class K == independent dlqr to 1e-10;  |K - analytic K| < 2 % (small Ts);
 %     max |closed-loop pole| < 1;  closed-loop trajectory == recursion to 1e-9;

@@ -24,13 +24,6 @@ function V = validate_solar_poa(plotMode)
 %     E  night (theta_z >= 90 and no irradiance)  ->  all outputs zero
 %     F  south vs north window under a low southern winter sun: Q_S >> Q_N
 %     G  air/mass split by massFraction:  Qmass/(Qair+Qmass) = massFraction
-%
-%   WHY THIS TEST IS GOOD
-%     Each of A-D pins exactly one term of the isotropic transposition against a
-%     value you can compute by hand; a sign error in the
-%     azimuth convention, a factor-of-two in the view factors, or a wrong tilt
-%     assumption breaks at least one of them. E and G check the housekeeping.
-%
 %   Run:  >> V = validate_solar_poa
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

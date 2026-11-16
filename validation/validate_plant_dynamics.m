@@ -27,14 +27,6 @@ function V = validate_plant_dynamics(plotMode)
 %     C  boiler high-limit aquastat: with excess firing, T_b saturates at
 %        <= TboilerMax + hysteresis
 %     D  efficiency curve monotone decreasing in T_ret and clamped to [eta_min, eta_max]
-%
-%   WHY THIS TEST IS GOOD
-%     The plant supply temperature "wanders but does not chatter" behaviour that
-%     the whole DES relies on is a consequence of these three ingredients being
-%     right: a genuine first-order lag (A), a closing energy balance (B), and a
-%     safety limit that actually bounds the state (C). D checks the efficiency
-%     model has the correct qualitative shape and bounds.
-%
 %   Run:  >> V = validate_plant_dynamics
     if nargin < 1 || isempty(plotMode), plotMode = 'show'; end
     here = fileparts(mfilename('fullpath'));  addpath(here, fileparts(here));

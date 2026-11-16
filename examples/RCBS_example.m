@@ -30,7 +30,7 @@ zone_table = { ...
     'Corridor', 'S1', 90,  false, false ;
     'Classes',  'S2', 300, true,  false ;
     'Labs',     'S2', 300, true,  false ;
-    'Dinning',  'S3', 350, false, true  ;
+    'Dining',  'S3', 350, false, true  ;
     'Archive',  'S3', 150, true,  true  };
 
 initial_temperature = 20;
@@ -73,7 +73,7 @@ building.S2.Labs.addWindow(1 / (0.35 * 260),  'ExhVent');
 add_wall(building.S1.Offices, building.S1.Lobby, 'wall_Offices_Lobby');
 add_wall(building.S1.Offices, building.S1.Corridor, 'wall_Offices_Corridor');
 add_wall(building.S2.Classes,  building.S2.Labs,  'wall_Classes_Labs');
-add_wall(building.S3.Dinning,   building.S3.Archive, 'wall_Dinning_Archive');
+add_wall(building.S3.Dining,   building.S3.Archive, 'wall_Dining_Archive');
 
 % open air paths (plain conductance, no thermal mass)
 add_air(building.S1.Lobby,   building.S1.Offices,  'air_Lobby_Offices');
@@ -82,7 +82,7 @@ add_air(building.S1.Offices,  building.S1.Corridor, 'air_Offices_Corridor');
 % roof / floor slabs between vertically stacked zones (capacitive)
 add_slab(building.S2.Classes,  building.S1.Offices,  'slab_Classes_Offices');
 add_slab(building.S2.Labs,     building.S1.Corridor, 'slab_Labs_Corridor');
-add_slab(building.S3.Dinning,  building.S2.Classes,  'slab_Dinning_Classes');
+add_slab(building.S3.Dining,  building.S2.Classes,  'slab_Dining_Classes');
 add_slab(building.S3.Archive,  building.S2.Labs,     'slab_Archive_Labs');
 
 %% -------------------------- external heat ------------------------------
@@ -98,7 +98,9 @@ building.simulation.startDate = datetime(2025, 1, 13);
 building.simulation.timeStep  = minutes(15);
 
 fprintf('Simulating 3 days ...\n');
+tic
 building.simulate(days(3));
+toc
 building.simulation.plotResults();
 
 %% ---------------------------- schematic -------------------------------

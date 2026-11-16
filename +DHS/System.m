@@ -1,53 +1,15 @@
 classdef System < dynamicprops
-% DHS.SYSTEM  A district heating system: a central heat plant + a pipe network +
-%             N buildings, co-simulated on a fixed time step.
+% DHS.SYSTEM  A district heating system: one plant, one pipe network and any number of buildings.
 %
-%   This is the top-level object of the +DHS library. You ASSEMBLE it from named
-%   parts and then run it -- the code reads like the plant diagram:
+%   sys = DHS.System('weather','solar_data_2025.csv', 'startDate',datetime(2025,1,1));
+%   chp = sys.addCentralHeatPlant('CHP');      hn = sys.addHydraulicNetwork();
+%   b   = sys.addBuilding('Hall');             % then b.useRCModel(rc), attach a heat exchanger, ...
+%   res = sys.run(days(7));                    % res.plant, res.bldg(i), res.energy
 %
-%     sys = DHS.System('weather','solar_data_2025.csv', 'startDate',datetime(2025,1,1));
-%
-%     chp    = sys.addCentralHeatPlant('CHP');
-%     chp.addBoiler('B1', 'QMax',1.5e6);
-%     chp.addPump('P0', 'dp0',3.0e5, 'mdotRated',7);
-%     chp.setSupplySetpoint(70);
-%
-%     hn = sys.addHydraulicNetwork();
-%     t1 = hn.addJunction('T1');
-%     hn.addPipe(chp.supplyPort, t1, 'L',40, 'D',0.11);
-%
-%     b  = sys.addBuilding('Engineering');
-%     b.useRCModel( makeEngineeringRC() );
-%     hx = b.addHeatExchanger('HX', 'UA',3.5e4, 'Qcap',8e5);
-%     hx.valve.attachController( DHS.controllers.PID(0.14, 1.6e-4, 0) );
-%     hn.connectBuilding(t1, b);
-%
-%     sys.visualize();
-%     res = sys.run(days(14));
-%
-%   This declarative style and the connecting style (a.connect(b), or
-%   pipe = node.addPipe(D, L), T-junctions, named pump types) build the
-%   exact same network -- see DHS.HydraulicNetwork and DHS.Hydraulic.*.
-%
-%   PER-STEP SEQUENCE  (sequential / Gauss-Seidel with an inner supply/return
-%   fixed-point):
-%     1. sample the weather, then call stepFunction(sys) if there is one;
-%     2. each building.prepare(t,wx) -> setpoint / occupancy / gains / solar;
-%     3. each building.control(sys,dt) -> valve + pump commands; the central pump
-%        and the bypass valve run their own controllers (c.update(sys,dt)) on the
-%        previous step's pressures;
-%     4. network.solve(pump speed) -> branch flows, velocities, node pressures;
-%     5. plant.stepControl(sys,dt) -> burner firing (each boiler's controller);
-%     6. inner loop until the plant supply temperature is self-consistent:
-%        supply-pipe loss -> HX inlet temp; building.exchange -> delivered heat +
-%        primary return; return-pipe loss + mixing -> plant return; plant.evalBoiler;
-%     7. plant.commit;
-%     8. each building.advance(dt,tNext,wx) -> step its RCBS model one interval;
-%     9. log.
-%   Hooks: startFunction(sys) runs once before the run, stepFunction(sys) at the start of
-%   every step (step 1 is the first), stopFunction(sys) once after the last step.
-%
-%   OUTPUT  res.time, res.Tout, res.plant.(...), res.bldg(i).(...), res.energy.(...)
+%   Each one-minute step samples the weather, prepares the buildings, runs the controllers, solves
+%   the hydraulic network, fires the boilers, iterates the supply and return temperatures, and
+%   advances the RC models. Hooks startFunction, stepFunction and stopFunction receive sys.
+%   See docs/dhs-system.md.
 
     properties
         startDate  datetime

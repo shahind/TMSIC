@@ -38,18 +38,6 @@ function V = validate_pump(plotMode)
 %     G  STOPPED PUMP  with speed 0 a substation pump adds no head and no
 %        resistance, for both pump types: solveBranch(Kbranch, dpAvailable, 0)
 %        returns mdot = sqrt(dpAvailable/Kbranch) and head 0.
-%
-%   WHY THIS TEST IS GOOD
-%     A is the pressure scale, B is the flow scale, C is the speed-scaling
-%     physics that the distributed-pumping model relies on (each building pump
-%     and the central pump ride this curve), D checks that the curve produces
-%     the right operating point when closed onto a resistance at the *central*
-%     pump position, and E/F do the same for the *substation* pump position --
-%     the polymorphic seam every pump type (CentrifugalPump,
-%     FixedDisplacementPump; see validate_fixed_displacement_pump.m) must
-%     implement identically for DHS.HydraulicNetwork.solve to be agnostic to
-%     which pump type is attached.
-%
 %   EXPECTED OUTPUT: A, B exact; C exact to 1e-12; D matches the analytic
 %     intersection to 1e-9 (relative); E, F exact to 1e-12.
 %

@@ -34,16 +34,6 @@ function V = validate_fixed_displacement_pump(plotMode)
 %        while running (frac>0), 0 when stopped -- documented scope: the full
 %        flow-vs-resistance physics of B-C is only modelled at the branch
 %        (substation-pump) position.
-%
-%   WHY THIS TEST IS GOOD
-%     A and B pin the two physical regimes of a PD pump against their closed
-%     forms; C is the sharpest test of the two formulas -- they must meet
-%     exactly at the boundary or the pump would show a discontinuous flow;
-%     D and E confirm the same speed-command contract the centrifugal pump
-%     honours (validate_pump.m); F documents the deliberately scoped
-%     central-pump approximation so it is checked, not just asserted in a
-%     comment.
-%
 %   EXPECTED OUTPUT: A, C, D, E exact to 1e-12; B matches the closed form to
 %     1e-12; F exact.
 %

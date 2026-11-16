@@ -20,14 +20,6 @@ function V = validate_pid(plotMode)
 %     C  steady-state error to a constant output disturbance is zero
 %     D  anti-windup: after a saturating step the controller comes off the limit
 %        promptly once the error changes sign (integrator not wound up)
-%
-%   WHY THIS TEST IS GOOD
-%     The lambda-tuned first-order plant has an exact analytical closed-loop
-%     response, so case A simultaneously validates the proportional gain, the
-%     integral discretisation, the parallel-form assembly and the loop sign.
-%     B and C validate the integrator; D validates the back-calculation
-%     anti-windup that keeps the plant loops well-behaved at saturation.
-%
 %   EXPECTED OUTPUT
 %     A  max |y - (1 - exp(-t/lambda))| < 0.01 over the transient (dt small)
 %     B, C  |steady-state error| < 1e-3

@@ -1,17 +1,9 @@
-%% DHS_CAMPUS_MULTIZONE
-%  The same district heating campus as dhs_campus, but every building is now
-%  several thermal zones (two per storey, coupled by partition walls and floor
-%  slabs), each zone given the character of a room type - classroom, office,
-%  dining hall, lobby, laboratory, and so on.
+%% DHS_CAMPUS_MULTIZONE  The campus with 30 zones of different room types.
 %
-%  One substation still feeds each whole building, regulating the area-weighted
-%  mean zone temperature.  The example shows how far a single building-level
-%  control loop can hold a set of rooms with different gains and ventilation
-%  rates, and where per-zone control would be needed.
-%
-%  The assembly lives in  +DHS/+examples/campus_multizone.m .  This script
-%  builds that campus, runs it for two weeks, prints a per-zone tracking
-%  table, and plots the zone temperatures for each building.
+%  Every building has two zones per storey, coupled by partition walls and floor slabs, and each zone has a
+%  room type (classroom, office, dining hall, lobby, laboratory, ...) with its own gains, schedule and
+%  ventilation. Each zone has a radiator and a valve. The assembly is in +DHS/+examples/campus_multizone.m.
+%  The script runs 14 days, prints each zone's temperature against its own setpoint, and plots the zones.
 %
 %  Run:  >> dhs_campus_multizone
 

@@ -1,13 +1,8 @@
 classdef CrossLink < handle
-% DHS.HYDRAULIC.CROSSLINK  A pipe or valve that joins the supply side straight to the return side.
-%
-%   A bypass is made by connecting a link to a return junction:
-%
-%       tee.portB.addPipe(0.05, 5).addValve('Kvs',2).connect(returnJunction)
-%
-%   The valve (or pipe) that ends on the return side carries the water the radiators or buildings do
-%   not take, so it is a branch of the network like a building is. This object is that branch; it is
-%   made by connect and is not created by hand. Its flow is the link's flow (valve.mdot).
+% DHS.HYDRAULIC.CROSSLINK  The branch made by a pipe or valve joined from the supply side to a return
+%   junction (a bypass). It is created by connect, not by hand:
+%     tee.portB.addPipe(0.05, 5).addValve('Kvs',2).connect(returnJunction)
+%   Its flow is the link's flow (valve.mdot).
 
     properties
         link

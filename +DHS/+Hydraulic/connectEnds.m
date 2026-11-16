@@ -1,14 +1,9 @@
 function connectEnds(src, dst, varargin)
-%DHS.HYDRAULIC.CONNECTENDS  The one wiring rule behind every connect call.
-%   src.connect(dst) makes DST the next component downstream of SRC. Both can be a junction or a tee
-%   port (a node), a pipe, valve or pump (a link), or a radiator or building (a terminal that takes
-%   water from the supply side and returns it on the return side). Between two links, or a link and
-%   a terminal, a node is made on the spot. A radiator can also be connected to a zone, which is the
-%   thermal connection: rad.connect(zone, R).
-%
-%   The connections only record the topology. A link or terminal is added to its hydraulic network
-%   as soon as one of its nodes belongs to one, and whatever is left is found by
-%   DHS.HydraulicNetwork.discover, starting at the plant, when the network is solved.
+%DHS.HYDRAULIC.CONNECTENDS  The wiring rule behind every connect call: src.connect(dst) makes dst the
+%   next component downstream of src. Each can be a node (junction or tee port), a link (pipe, valve,
+%   pump) or a terminal (radiator, building). A node is made between two links, or a link and a
+%   terminal. rad.connect(zone, R) is the thermal connection of a radiator to an RCBS zone.
+%   The connections record the topology; DHS.HydraulicNetwork.discover finds the network from the plant.
     [sk, sNode, sPort] = classify(src);
     [dk, dNode, dPort] = classify(dst);
     if strcmp(sk, 'none') || strcmp(dk, 'none')

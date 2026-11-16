@@ -25,16 +25,6 @@ function V = validate_interzone_slab(plotMode)
 %   REFERENCE
 %     The T-network for an interior partition / slab is the same lumped element
 %     as a wall layer.
-%
-%   WHY THIS TEST IS GOOD
-%     It exercises the part of RCBS that was newly extended: the mid node must be
-%     created with capacitance C_mid, wired R/2 to zone A's air and R/2 to zone
-%     B's air (a CROSS-zone resistor whose endpoint is a non-main node), and the
-%     global node map must resolve that cross resistor to the right global
-%     indices. Any of: missing mid capacitance, R vs R/2, wrong endpoint, or a
-%     cross resistor collapsed to the zone main node -> the steady state and the
-%     transient both deviate from the analytic / ode45 reference.
-%
 %   EXPECTED OUTPUT
 %     transient max|T - ode45| < 0.03 degC over the whole 25-day approach;
 %     converged T_A, T_B, T_mid match the analytic formulae to < 0.02 degC.

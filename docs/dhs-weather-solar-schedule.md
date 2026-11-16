@@ -40,6 +40,7 @@ wx.albedo = 0.46   wx.Tout = 0.7   wx.Tground = 2.5   (degC)
 | `at(t)` | a `datetime`, or seconds since the first sample | A structure with `Tout`, `Tground`, `ghi`, `dhi`, `dni`, `sunZen`, `sunAz`, `sunEl`, `albedo`. Azimuth is converted to a compass angle (0 = N, 90 = E, 180 = S, 270 = W). |
 | `atVec(tt)` | a `datetime` array | The same fields as vectors. `DHS.System` uses it once per run. |
 | `timeVector()` | none | The time grid of the file. |
+| `.t0`, `.tEnd`, `.csvPath` | none | First and last time stamp of the file, and its path (read only). |
 
 ## Solar gain
 
@@ -65,9 +66,11 @@ With the sample above (the sun 19 degrees above the horizon, almost due south) t
 
 | Function | Inputs | Output or effect |
 |---|---|---|
-| `Solar('winArea',struct('N',..,'E',..,'S',..,'W',..), 'SHGC',c, 'massFraction',f)` | window area per facade (m²), solar heat-gain coefficient, fraction of gain sent to the mass node | A solar model. |
+| `Solar('winArea',struct('N',..,'E',..,'S',..,'W',..), 'SHGC',c, 'massFraction',f)` | window area per facade (m², default 0), solar heat-gain coefficient (0.4), fraction of the gain sent to the mass node (0.1) | A solar model. |
 | `heatGain(wx)` | a weather sample from `Weather.at` | `[Qair, Qmass, Qwall, detail]` in watts. |
-| `totalWindowArea()` | none | Sum of the four facade areas (m²). |
+| `totalWindowArea()` | none | The sum of the facade areas and the skylight area (m²). |
+| `.skyArea`, `.SHGCsky` | m², - | A horizontal skylight: glazed area (default 0) and its SHGC (default `SHGC`). It receives the global horizontal irradiance. |
+| `.enableOpaque`, `.opaque` | logical (default false), structure | Optional sol-air gain on opaque surfaces, sent to the wall node. `opaque` holds the areas `areaN`, `areaE`, `areaS`, `areaW`, `areaRoof` (m²), the U-value `U` (W/m²/K), the absorptance `alpha` and the outside film coefficient `hOut` (W/m²/K): $Q = \alpha\,I\,(U/h_\text{out})\,A$. |
 
 ## Occupancy schedule
 
@@ -101,7 +104,11 @@ goes to the mass node.
 
 | Function | Inputs | Output or effect |
 |---|---|---|
-| `Schedule('occStartHour',.., 'occEndHour',.., 'rampHours',.., 'weekendOccupied',.., 'weekendStartHour',.., 'weekendEndHour',.., 'Tocc',.., 'Tsetback',.., 'gainOccW',.., 'gainMassFraction',..)` | hours of day, logical, temperatures (degC), gain (W), fraction | A weekly schedule. |
+| `Schedule('occStartHour',.., 'occEndHour',.., 'rampHours',.., 'weekendOccupied',.., 'weekendStartHour',.., 'weekendEndHour',.., 'Tocc',.., 'Tsetback',.., 'gainOccW',.., 'gainMassFraction',..)` | hours of day (defaults 7 and 18), logical (false), temperatures in degC (21 and 16), gain in W (0), fraction (0.3) | A weekly schedule. |
+| `.workdays` | weekday codes (default `2:6`) | The occupied days, as MATLAB `weekday` codes (1 is Sunday). |
+| `.gainBaseW` | W | The internal gain when unoccupied. If you leave it at 0 and set `gainOccW`, it becomes 15 % of `gainOccW`. |
+| `.preheatHours` | h (default 0) | Counts the hours before `occStartHour` as occupied, for a building that starts early. |
+| `.Tcool` | degC (default 24) | A cooling setpoint. The heating plant does not use it. |
 | `isOccupied(t)` | a `datetime` | Logical. |
 | `setpoint(t)` | a `datetime` | Heating setpoint (degC): occupied, setback or on the ramp. |
 | `internalGain(t)` | a `datetime` | `[Qair, Qmass, Qtot]` in watts. |

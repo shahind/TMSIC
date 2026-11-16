@@ -1,13 +1,9 @@
 classdef Relay < DHS.controllers.Controller
-% DHS.CONTROLLERS.RELAY  On/off (bang-bang) controller with symmetric hysteresis.
+% DHS.CONTROLLERS.RELAY  On/off controller with symmetric hysteresis.
 %
-%     e = dir*(ref - meas)
-%     u = uMax   if e > +h        (call for heat)
-%     u = uMin   if e < -h        (stop)
-%     u = hold   otherwise        (inside the deadband)
-%
-%   with ref = c.reference and meas = c.measure(sys).
-%   Construction:  Relay(h)  or  Relay('h',..,'dir',..,'uMin',..,'uMax',..)
+%   c = DHS.controllers.Relay(0.5);       c.measure = @(sys) ...;      c.reference = 21;
+%   e = dir*(reference - measure): u = uMax if e > h, u = uMin if e < -h, otherwise u holds.
+%   Relay(h) or Relay('h',..,'dir',..,'uMin',..,'uMax',..). See docs/dhs-controllers.md.
 
     properties
         h   (1,1) double = 0.5
